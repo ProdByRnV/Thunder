@@ -58,10 +58,9 @@ target_sources(Thunder PRIVATE
     plugin/ThunderProcessor.h)
 
 target_compile_definitions(Thunder PUBLIC
-    # Thunder never uses the network.
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0)
+
+thunder_disable_network_features(Thunder)
 
 target_link_libraries(Thunder PRIVATE
     ThunderCore

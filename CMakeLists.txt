@@ -26,6 +26,10 @@ endif()
 
 set(THUNDER_FORMATS "${_thunder_default_formats}" CACHE STRING "Plugin formats passed to juce_add_plugin")
 option(THUNDER_COPY_AFTER_BUILD "Copy built plugins into the system plugin folders" OFF)
+option(THUNDER_BUILD_TESTS "Build the ThunderTests test runner" ON)
+
+# Must come before any target (dependencies included) is created.
+include(cmake/Sanitizers.cmake)
 
 # ---------------------------------------------------------------------------
 # Dependencies (git submodules, pinned commits — see external/)
@@ -43,6 +47,11 @@ add_subdirectory(external/JUCE)
 add_subdirectory(external/signalsmith-linear EXCLUDE_FROM_ALL)
 add_subdirectory(external/signalsmith-stretch EXCLUDE_FROM_ALL)
 
+# Treat Signalsmith's headers as third-party (system) headers so Thunder's strict
+# warning settings don't apply to them.
+target_include_directories(signalsmith-linear SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/signalsmith-linear/include")
+target_include_directories(signalsmith-stretch SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/signalsmith-stretch/include")
+
 include(cmake/CloudSeed.cmake)
 include(cmake/CompilerSettings.cmake)
 
@@ -50,3 +59,10 @@ include(cmake/CompilerSettings.cmake)
 # Thunder
 # ---------------------------------------------------------------------------
 add_subdirectory(source)
+
+if(THUNDER_BUILD_TESTS)
+    add_subdirectory(external/Catch2 EXCLUDE_FROM_ALL)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/Catch2/extras")
+    enable_testing()
+    add_subdirectory(tests)
+endif()

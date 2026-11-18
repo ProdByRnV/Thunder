@@ -1,0 +1,355 @@
+# Thunder CI.
+#
+# Every push and pull request: configure, build and test from a clean checkout
+# on every supported desktop platform, validate the plugin with pluginval at the
+# strictest level, and package it. Warnings are errors here.
+#
+# Extra jobs: AddressSanitizer + UndefinedBehaviorSanitizer over the test suite,
+# and RealtimeSanitizer over the real-time tests (audio-path code must never
+# allocate, lock or block).
+#
+# A version tag (v*) additionally builds as Release and collects the packages
+# into a DRAFT GitHub release, which the maintainer reviews and publishes by hand.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Tags build what ships (Release); everything else keeps debug info so failures
+  # are easier to read.
+  THUNDER_CONFIG: ${{ startsWith(github.ref, 'refs/tags/v') && 'Release' || 'RelWithDebInfo' }}
+  PLUGINVAL_VERSION: v1.0.4
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (MSVC)
+            os: windows-latest
+            platform: windows-x86_64
+            parallel: 4
+            pluginval: Windows
+          # Universal binary (Apple silicon + Intel), set in CMakeLists.txt.
+          - name: macOS (Apple Clang)
+            os: macos-latest
+            platform: macos-universal
+            parallel: 3
+            pluginval: macOS
+          # Capped at 2: JUCE's unity translation units are large, and the plugin
+          # and the test runner each compile their own copy.
+          - name: Linux (GCC)
+            os: ubuntu-latest
+            platform: linux-x86_64
+            parallel: 2
+            pluginval: Linux
+          # pluginval publishes no ARM64 Linux build, so this job builds, tests
+          # and packages but does not run it.
+          - name: Linux ARM64 (GCC)
+            os: ubuntu-24.04-arm
+            platform: linux-arm64
+            parallel: 2
+            pluginval: ""
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Configure
+        shell: bash
+        run: |
+          extra=""
+          if [ "${{ runner.os }}" = "Windows" ]; then extra="-A x64"; fi
+          if [ "${{ runner.os }}" = "Linux" ]; then extra="-G Ninja"; fi
+          cmake -S . -B build $extra \
+            -DCMAKE_BUILD_TYPE=${{ env.THUNDER_CONFIG }} \
+            -DTHUNDER_WARNINGS_AS_ERRORS=ON
+
+      # Tests first, so a broken engine is reported before the slower plugin build.
+      - name: Build tests
+        run: cmake --build build --config ${{ env.THUNDER_CONFIG }} --target ThunderTests --parallel ${{ matrix.parallel }}
+
+      # Thunder_All builds every plugin format; "Thunder" alone is only the shared code.
+      - name: Build plugin
+        run: cmake --build build --config ${{ env.THUNDER_CONFIG }} --target Thunder_All --parallel ${{ matrix.parallel }}
+
+      - name: Unit tests
+        run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L unit --output-on-failure -V
+
+      - name: Real-time tests (allocation counting)
+        run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L realtime --output-on-failure
+
+      # The real-time check has to be able to fail: the canary allocates inside a
+      # real-time section on purpose and must be caught.
+      - name: Real-time canary must fail
+        shell: bash
+        run: |
+          set +e
+          exe=$(find build/tests -type f \( -name ThunderTests -o -name ThunderTests.exe \) -path "*${{ env.THUNDER_CONFIG }}*" | head -n 1)
+          "$exe" "[canary]" > canary.log 2>&1
+          status=$?
+          set -e
+          cat canary.log
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The canary's allocation was not caught"
+            exit 1
+          fi
+
+      - name: Locate built plugins
+        id: artefacts
+        shell: bash
+        run: |
+          dir="build/source/Thunder_artefacts/${{ env.THUNDER_CONFIG }}"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          ls -la "$dir"
+
+      # macOS refuses to load unsigned code on Apple silicon. Ad-hoc signing needs
+      # no certificate; distribution signing/notarisation is a separate decision.
+      - name: Sign ad-hoc (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dir="${{ steps.artefacts.outputs.dir }}"
+          for bundle in "$dir/VST3/Thunder.vst3" "$dir/AU/Thunder.component" "$dir/Standalone/Thunder.app"; do
+            codesign --force --sign - --deep "$bundle"
+            codesign --verify --strict --verbose=2 "$bundle"
+          done
+
+      - name: Download pluginval
+        if: matrix.pluginval != ''
+        shell: bash
+        run: |
+          curl -fsSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_${{ matrix.pluginval }}.zip"
+          mkdir -p pluginval && cd pluginval && unzip -q ../pluginval.zip
+          ls -la
+
+      - name: pluginval (VST3, strictness 10)
+        if: matrix.pluginval != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          vst3="${{ steps.artefacts.outputs.dir }}/VST3/Thunder.vst3"
+          case "${{ runner.os }}" in
+            Windows) ./pluginval/pluginval.exe --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+            macOS)   ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+            Linux)   xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+          esac
+
+      # AU: installed where macOS looks for components, then checked by Apple's
+      # own validator and by pluginval.
+      - name: auval + pluginval (AU)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "${{ steps.artefacts.outputs.dir }}/AU/Thunder.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aufx Thnd Pbrv
+          ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
+            --validate ~/Library/Audio/Plug-Ins/Components/Thunder.component
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^project\(Thunder VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          name="Thunder-${version}-${{ matrix.platform }}"
+          dir="${{ steps.artefacts.outputs.dir }}"
+          mkdir -p "staging/$name"
+          cp -R "$dir/VST3" "staging/$name/"
+          cp -R "$dir/Standalone" "staging/$name/"
+          if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
+          cp LICENSE README.md THIRD_PARTY_NOTICES.md "staging/$name/"
+          (cd staging && cmake -E tar cf "../$name.zip" --format=zip "$name")
+          echo "file=$name.zip" >> "$GITHUB_OUTPUT"
+          ls -la "$name.zip"
+
+      - name: Keep the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: thunder-${{ matrix.platform }}-${{ env.THUNDER_CONFIG }}
+          path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+
+  sanitizers:
+    name: Sanitizers (Linux, Clang)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-linux-deps
+        with:
+          extra-packages: clang
+
+      - name: Configure
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake -S . -B build-san -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DTHUNDER_ENABLE_ASAN=ON \
+            -DTHUNDER_ENABLE_UBSAN=ON
+
+      # Only the test runner: the plugin's cross-platform build is covered above.
+      - name: Build
+        run: cmake --build build-san --target ThunderTests --parallel 2
+
+      - name: Test
+        env:
+          # JUCE keeps static-lifetime singletons that are never freed by design;
+          # LeakSanitizer would report them on every run. ASan still catches
+          # use-after-free, overruns and stack corruption.
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-san -L unit --output-on-failure
+
+  # The audio path under Clang's RealtimeSanitizer: any malloc/free, lock or
+  # blocking system call inside a real-time section, anywhere in the call tree
+  # (Thunder's code and third-party code alike), stops the run with a stack trace.
+  # Needs Clang 20, which Ubuntu 24.04 ships under a versioned name.
+  realtime:
+    name: Real time (Linux, RTSan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-linux-deps
+        with:
+          extra-packages: clang-20 libclang-rt-20-dev
+
+      # Optimised like a release, with symbols for stack traces: RTSan should
+      # watch the code that ships.
+      - name: Configure
+        env:
+          CC: clang-20
+          CXX: clang++-20
+        run: |
+          cmake -S . -B build-rt -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DTHUNDER_ENABLE_RTSAN=ON
+
+      - name: Build
+        run: cmake --build build-rt --target ThunderTests --parallel 2
+
+      - name: Show the check a violation
+        run: |
+          set +e
+          exe=$(find build-rt/tests -type f -name ThunderTests -perm -u+x | head -n 1)
+          "$exe" "[canary]" > canary.log 2>&1
+          status=$?
+          set -e
+          cat canary.log
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The canary's allocation did not fail the run"
+            exit 1
+          fi
+          if ! grep -q "RealtimeSanitizer" canary.log; then
+            echo "::error::Something other than RealtimeSanitizer stopped the canary"
+            exit 1
+          fi
+
+      - name: Test
+        run: ctest --test-dir build-rt -L realtime --output-on-failure -V
+
+  # Version tags only (skipped on every other run). Runs after every platform has
+  # built, passed its tests and pluginval, and the sanitizers have passed.
+  # Creates a DRAFT release: nothing is public until the maintainer publishes it.
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-and-test, sanitizers, realtime]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Check the tag matches the version
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^project\(Thunder VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          tag="${GITHUB_REF_NAME}"
+          case "$tag" in
+            "v$version"|"v$version"-*) ;;
+            *) echo "::error::The tag is $tag but CMakeLists.txt says $version"; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: thunder-*-Release
+          path: dist
+          merge-multiple: true
+
+      - name: Check every platform is there
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          for platform in windows-x86_64 macos-universal linux-x86_64 linux-arm64; do
+            test -f "dist/Thunder-$version-$platform.zip" || { echo "::error::No package for $platform"; exit 1; }
+          done
+          ls -l dist
+
+      - name: Write the checksums
+        working-directory: dist
+        run: sha256sum Thunder-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Take the release notes from the changelog
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          awk -v heading="## $version" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "${GITHUB_REF_NAME}" dist/Thunder-*.zip dist/SHA256SUMS.txt \
+            --draft $prerelease \
+            --title "Thunder ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md \
+            --verify-tag

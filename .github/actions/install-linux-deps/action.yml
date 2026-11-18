@@ -1,0 +1,30 @@
+name: Install Linux dependencies
+description: >
+  Packages JUCE needs to build on Linux (JUCE builds its juceaide helper during
+  configure, and that links juce_gui_basics, so the X11/FreeType/GL headers are
+  needed even for a headless test build), plus Ninja and a virtual display for
+  pluginval. Thunder disables JUCE's web browser and curl, so WebKitGTK and
+  libcurl are not needed.
+
+inputs:
+  extra-packages:
+    description: Additional apt packages (e.g. a specific Clang)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: apt-get install
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          ninja-build xvfb \
+          libasound2-dev libjack-jackd2-dev ladspa-sdk \
+          libfreetype-dev libfontconfig1-dev \
+          libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+          libxinerama-dev libxrandr-dev libxrender-dev \
+          libglu1-mesa-dev mesa-common-dev \
+          ${{ inputs.extra-packages }}

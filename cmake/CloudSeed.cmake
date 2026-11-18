@@ -17,6 +17,14 @@ target_compile_definitions(thunder_cloudseed PUBLIC
     BUFFER_SIZE=256
     MAX_STR_SIZE=32)
 
+# CloudSeed's headers use MSVC's strcpy_s. Everywhere else, force-include a
+# portable stand-in — PUBLIC, because its headers are included by the code that
+# uses the reverb (and inline functions in them call strcpy_s too).
+if(NOT MSVC)
+    target_compile_options(thunder_cloudseed PUBLIC
+        "SHELL:-include \"${CMAKE_CURRENT_SOURCE_DIR}/cmake/compat/CloudSeedCompat.h\"")
+endif()
+
 set_target_properties(thunder_cloudseed PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     FOLDER "external")
