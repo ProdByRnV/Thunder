@@ -11,6 +11,11 @@ add_library(ThunderCore INTERFACE)
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(ThunderCore INTERFACE
+    core/dsp/pitch/PitchModule.cpp
+    core/dsp/pitch/PitchModule.h
+    core/dsp/space/SpaceModule.cpp
+    core/dsp/space/SpaceModule.h
+    core/engine/Module.h
     core/engine/ThunderEngine.cpp
     core/engine/ThunderEngine.h
     core/host/TransportState.cpp
@@ -26,6 +31,7 @@ target_sources(ThunderCore INTERFACE
     core/state/StateManager.cpp
     core/state/StateManager.h
     core/util/Crossfade.h
+    core/util/LatencyDelay.h
     core/util/Math.h
     core/util/Smoother.h
     core/util/SpscFifo.h)

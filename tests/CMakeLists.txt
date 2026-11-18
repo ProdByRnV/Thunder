@@ -17,16 +17,21 @@ target_sources(ThunderTests PRIVATE
     support/JuceEnvironment.cpp
     support/Realtime.cpp
     support/Realtime.h
+    support/TestSignals.h
+    audio/LatencyAlignmentTests.cpp
     unit/DependencyTests.cpp
     unit/EngineTests.cpp
     unit/ParamTests.cpp
+    unit/PitchModuleTests.cpp
     unit/ProcessorTests.cpp
+    unit/SpaceModuleTests.cpp
     unit/StateTests.cpp
     unit/TransportStateTests.cpp
     unit/UtilTests.cpp
     realtime/DependencyRealtimeTests.cpp
     realtime/EngineRealtimeTests.cpp
-    realtime/RealtimeCanary.cpp)
+    realtime/RealtimeCanary.cpp
+    measure/PitchConfigMeasure.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 

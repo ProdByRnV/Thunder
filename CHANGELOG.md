@@ -11,4 +11,5 @@ Thunder is in early development and has no public release yet.
 - Continuous integration on Windows, macOS (universal), Linux x86_64 and Linux ARM64, with plugin validation and sanitizer checks.
 - The full v0.5 parameter set, every one automatable, smoothed where continuous, and saved with your session (with a versioned state format so older sessions keep loading).
 - A temporary generic editor that lists every parameter. Thunder's own interface replaces it in v0.5.
-- Input and output gain are active. The rest of the parameters are wired up as their sound modules arrive.
+- First sound: the layer is pitch-shifted (Semitones and Fine for now) and sent through a lush "Cloud" reverb (Mix, Decay, Pre-delay, Damping), blended with your melody, kept exactly in time with it, and reported to the host as 80 ms of latency.
+- Input and output gain are active. The remaining parameters are wired up as their sound modules arrive.

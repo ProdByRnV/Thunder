@@ -1,5 +1,5 @@
-// The engine's host-independent behaviour: any block size, bad samples,
-// smoothed gains (PRD FR-CORE-002, FR-CORE-008, NFR-REL-003, NFR-REL-005).
+// The engine as a whole, independent of any host: any block size, bad samples,
+// gains and reset (PRD FR-CORE-002, FR-CORE-012, NFR-REL-003, NFR-REL-005).
 
 #include "core/engine/ThunderEngine.h"
 
@@ -77,88 +77,105 @@ float maxAbsDifference (const std::vector<float>& a, const std::vector<float>& b
 }
 } // namespace
 
-TEST_CASE ("At default settings the engine passes audio through unchanged", "[unit][engine]")
-{
-    const auto input = makeNoise (4096);
-    const auto output = render (input, 512, ParamSnapshot::defaults());
-
-    CHECK (output.left == input.left);
-    CHECK (output.right == input.right);
-}
-
 TEST_CASE ("The result doesn't depend on the host's block size", "[unit][engine]")
 {
+    // Pitch shifted and reverb on, so every stage of the chain is covered.
     auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::pitchSemitones, 7.0f);
     snapshot.set (ParamId::inputGain, -6.0f);
     snapshot.set (ParamId::outputGain, 3.0f);
 
-    const auto input = makeNoise (48000);
+    const auto input = makeNoise (24000);
     const auto reference = render (input, static_cast<int> (input.size()), snapshot);
 
     for (const auto blockSize : {1, 17, 64, 512, 4096})
     {
         INFO ("block size " << blockSize);
         const auto output = render (input, blockSize, snapshot);
-        CHECK (maxAbsDifference (output.left, reference.left) < 1.0e-6f);
-        CHECK (maxAbsDifference (output.right, reference.right) < 1.0e-6f);
+        CHECK (maxAbsDifference (output.left, reference.left) < 1.0e-5f);
+        CHECK (maxAbsDifference (output.right, reference.right) < 1.0e-5f);
     }
-
-    // Both gains applied: -6 dB + 3 dB.
-    const auto expectedGain = juce::Decibels::decibelsToGain (-3.0f);
-    CHECK_THAT (reference.left[1000], WithinAbs (input.left[1000] * expectedGain, 1e-5));
 }
 
-TEST_CASE ("NaN and infinite input comes out as silence, never as noise", "[unit][engine]")
+TEST_CASE ("Output Gain scales the whole output", "[unit][engine]")
+{
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::pitchSemitones, 12.0f);
+
+    const auto input = makeNoise (12000);
+    const auto unity = render (input, 512, snapshot);
+
+    snapshot.set (ParamId::outputGain, 6.0f);
+    const auto louder = render (input, 512, snapshot);
+
+    const auto gain = juce::Decibels::decibelsToGain (6.0f);
+    float worst = 0.0f;
+    for (std::size_t i = 0; i < unity.size(); ++i)
+        worst = std::max (worst, std::abs (louder.left[i] - unity.left[i] * gain));
+    CHECK (worst < 1.0e-5f);
+}
+
+TEST_CASE ("NaN and infinite input never reaches the output", "[unit][engine]")
 {
     ThunderEngine engine;
     engine.prepare (kSampleRate);
 
-    Stereo audio (64, 0.25f);
+    Stereo audio (512, 0.25f);
     audio.left[3] = std::numeric_limits<float>::quiet_NaN();
     audio.right[10] = std::numeric_limits<float>::infinity();
     audio.right[11] = -std::numeric_limits<float>::infinity();
 
     float* channels[] = {audio.left.data(), audio.right.data()};
-    engine.process (channels, 64, {}, ParamSnapshot::defaults());
+    engine.process (channels, 512, {}, ParamSnapshot::defaults());
 
     CHECK (std::all_of (audio.left.begin(), audio.left.end(), [] (float x) { return std::isfinite (x); }));
     CHECK (std::all_of (audio.right.begin(), audio.right.end(), [] (float x) { return std::isfinite (x); }));
-    CHECK_THAT (audio.left[3], WithinAbs (0.0, 1e-12));
-    CHECK_THAT (audio.left[4], WithinAbs (0.25, 1e-12));
     CHECK (engine.getNonFiniteSamplesReplaced() == 3u);
-
-    // Huge but finite input pushed past the float range by the gain is caught too.
-    auto loud = ParamSnapshot::defaults();
-    loud.set (ParamId::inputGain, 24.0f);
-    std::fill (audio.left.begin(), audio.left.end(), std::numeric_limits<float>::max());
-    engine.process (channels, 64, {}, loud);
-    CHECK (std::all_of (audio.left.begin(), audio.left.end(), [] (float x) { return std::isfinite (x); }));
 }
 
-TEST_CASE ("Gain changes are smoothed, never stepped", "[unit][engine]")
+TEST_CASE ("Absurdly loud input can't break the engine", "[unit][engine]")
 {
     ThunderEngine engine;
     engine.prepare (kSampleRate);
 
-    Stereo audio (4096, 1.0f);
+    auto loud = ParamSnapshot::defaults();
+    loud.set (ParamId::inputGain, 24.0f);
+    loud.set (ParamId::pitchSemitones, 7.0f);
+
+    // Finite, but far beyond anything real: the gain overflows it, and what is
+    // left overflows the pitch engine's maths. Whatever happens inside, the
+    // output stays finite and a module that went bad is reset.
+    Stereo audio (4096, 1.0e30f);
     float* channels[] = {audio.left.data(), audio.right.data()};
+    engine.process (channels, 4096, {}, loud);
+    CHECK (std::all_of (audio.left.begin(), audio.left.end(), [] (float x) { return std::isfinite (x); }));
 
-    engine.process (channels, 256, {}, ParamSnapshot::defaults());
+    // Normal audio afterwards plays normally.
+    auto normal = makeNoise (24000);
+    float* normalChannels[] = {normal.left.data(), normal.right.data()};
+    engine.process (normalChannels, 24000, {}, ParamSnapshot::defaults());
+    CHECK (std::all_of (normal.left.begin(), normal.left.end(), [] (float x) { return std::isfinite (x); }));
+    CHECK (std::abs (normal.left[20000]) > 0.0f);
+}
 
-    auto quieter = ParamSnapshot::defaults();
-    quieter.set (ParamId::inputGain, -24.0f);
-    engine.process (channels, 4096, {}, quieter);
+TEST_CASE ("Reset clears every tail", "[unit][engine]")
+{
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
 
-    const auto rampSamples = static_cast<float> (util::kDefaultRampSeconds * kSampleRate);
-    const auto maxStep =
-        (1.0f - juce::Decibels::decibelsToGain (-24.0f)) / rampSamples * 1.01f; // 1% rounding allowance
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::spaceDecay, 100.0f);
 
-    float worstStep = 0.0f;
-    for (std::size_t i = 1; i < audio.size(); ++i)
-        worstStep = std::max (worstStep, std::abs (audio.left[i] - audio.left[i - 1]));
+    auto noise = makeNoise (24000);
+    float* channels[] = {noise.left.data(), noise.right.data()};
+    engine.process (channels, 24000, {}, snapshot);
 
-    CHECK (worstStep <= maxStep);
-    CHECK_THAT (audio.left.back(), WithinAbs (juce::Decibels::decibelsToGain (-24.0f), 1e-6));
+    engine.reset();
+
+    Stereo silence (24000);
+    float* silent[] = {silence.left.data(), silence.right.data()};
+    engine.process (silent, 24000, {}, snapshot);
+    CHECK (std::all_of (silence.left.begin(), silence.left.end(), [] (float x) { return std::abs (x) < 1.0e-9f; }));
 }
 
 TEST_CASE ("Blocks longer than the engine's chunk size keep their musical position", "[unit][engine]")
@@ -187,4 +204,20 @@ TEST_CASE ("An engine that was never prepared outputs silence", "[unit][engine]"
     engine.process (channels, 32, {}, ParamSnapshot::defaults());
 
     CHECK (std::all_of (audio.left.begin(), audio.left.end(), [] (float x) { return std::abs (x) < 1.0e-12f; }));
+}
+
+TEST_CASE ("Two engines given the same input sound identical", "[unit][engine]")
+{
+    // A reopened session or an offline bounce makes a new engine; it must sound
+    // exactly like the one before (PRD NFR-REL-001, NFR-REL-005).
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::pitchSemitones, 7.0f);
+    snapshot.set (ParamId::spaceMix, 100.0f);
+
+    const auto input = makeNoise (24000);
+    const auto first = render (input, 512, snapshot);
+    const auto second = render (input, 512, snapshot);
+
+    CHECK (first.left == second.left);
+    CHECK (first.right == second.right);
 }

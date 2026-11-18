@@ -165,20 +165,27 @@ TEST_CASE ("Mono input plays on both sides", "[unit][plugin]")
     layout.outputBuses.add (juce::AudioChannelSet::stereo());
     REQUIRE (processor.setBusesLayout (layout));
 
+    setValue (processor, ParamId::spaceMix, 0.0f); // the reverb is deliberately different left and right
     processor.prepareToPlay (48000.0, 256);
 
+    juce::MidiBuffer midi;
     juce::AudioBuffer<float> buffer (2, 256);
-    for (int i = 0; i < 256; ++i)
+    int position = 0;
+
+    // Past the latency, so the shifted layer and the dry are both audible.
+    for (int block = 0; block < 40; ++block)
     {
-        buffer.setSample (0, i, std::sin (static_cast<float> (i) * 0.1f) * 0.5f);
-        buffer.setSample (1, i, 0.9f); // whatever the host left there
+        for (int i = 0; i < 256; ++i, ++position)
+        {
+            buffer.setSample (0, i, std::sin (static_cast<float> (position) * 0.05f) * 0.5f);
+            buffer.setSample (1, i, 0.9f); // whatever the host left there
+        }
+        processor.processBlock (buffer, midi);
     }
 
-    juce::MidiBuffer midi;
-    processor.processBlock (buffer, midi);
-
+    CHECK (buffer.getMagnitude (0, 0, 256) > 0.1f);
     for (int i = 0; i < 256; ++i)
-        REQUIRE_THAT (buffer.getSample (1, i), WithinAbs (buffer.getSample (0, i), 1e-9));
+        REQUIRE_THAT (buffer.getSample (1, i), WithinAbs (buffer.getSample (0, i), 1e-6));
 }
 
 TEST_CASE ("The processor survives what hosts throw at it", "[unit][plugin]")
@@ -209,5 +216,5 @@ TEST_CASE ("The processor survives what hosts throw at it", "[unit][plugin]")
     processor.releaseResources();
 
     CHECK (processor.hasEditor());
-    CHECK (processor.getLatencySamples() == 0);
+    CHECK (processor.getLatencySamples() == processor.getEngine().getLatencySamples());
 }

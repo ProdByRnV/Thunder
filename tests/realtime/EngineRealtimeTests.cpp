@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
 #include <vector>
 
 using namespace thunder;
@@ -42,9 +43,12 @@ TEST_CASE ("The processor's processBlock does not allocate or block", "[realtime
 
     for (int round = 0; round < 10; ++round)
     {
-        // Parameter changes between rounds, as automation would make them.
-        auto* gain = apvts.getParameter ("inputGain");
-        gain->setValueNotifyingHost (static_cast<float> (round % 2));
+        // Parameter changes between rounds, as automation would make them. The
+        // engine smooths towards them inside the real-time section.
+        const auto v = static_cast<float> (round % 2);
+        for (const auto* id :
+             {"inputGain", "pitchSemitones", "pitchFine", "spaceMix", "spaceDecay", "spacePreDelay", "spaceDamping"})
+            apvts.getParameter (id)->setValueNotifyingHost (v);
 
         accumulate (total, test::runInRealtimeSection (
                                [&]
@@ -61,6 +65,47 @@ TEST_CASE ("The processor's processBlock does not allocate or block", "[realtime
 
     CHECK (total.allocations == 0);
     CHECK (total.deallocations == 0);
+}
+
+TEST_CASE ("Turning the pitch and reverb controls does not allocate or block", "[realtime][pitch][space]")
+{
+    // Changes made inside the real-time section, every chunk: in particular a
+    // reverb Decay change, which needs Thunder's CloudSeed patch to be safe.
+    dsp::PitchModule pitch;
+    dsp::SpaceModule space;
+    const PrepareSpec spec{48000.0, 256, 2};
+    pitch.prepare (spec);
+    space.prepare (spec);
+
+    std::vector<float> left (256, 0.1f), right (256, 0.1f);
+    float* channels[] = {left.data(), right.data()};
+    juce::dsp::AudioBlock<float> block (channels, 2, 256);
+
+    auto snapshot = params::ParamSnapshot::defaults();
+    const TransportState transport;
+
+    const auto report = test::runInRealtimeSection (
+        [&]
+        {
+            for (int i = 0; i < 200; ++i)
+            {
+                const auto t = static_cast<float> (i % 20) / 19.0f;
+                snapshot.set (ParamId::pitchSemitones, std::round (t * 24.0f - 12.0f));
+                snapshot.set (ParamId::spaceDecay, t * 100.0f);
+                snapshot.set (ParamId::spacePreDelay, t * 250.0f);
+                snapshot.set (ParamId::spaceDamping, 100.0f - t * 100.0f);
+                snapshot.set (ParamId::spaceMix, t * 100.0f);
+
+                const ProcessContext context{transport, snapshot};
+                pitch.process (block, context);
+                space.process (block, context);
+            }
+            pitch.reset();
+            space.reset();
+        });
+
+    CHECK (report.allocations == 0);
+    CHECK (report.deallocations == 0);
 }
 
 TEST_CASE ("The utilities do not allocate or block", "[realtime][util]")

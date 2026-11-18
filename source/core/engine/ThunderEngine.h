@@ -1,11 +1,16 @@
 #pragma once
 
+#include "core/dsp/pitch/PitchModule.h"
+#include "core/dsp/space/SpaceModule.h"
 #include "core/host/TransportState.h"
 #include "core/params/ParamSnapshot.h"
+#include "core/util/LatencyDelay.h"
 #include "core/util/Smoother.h"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
+#include <vector>
 
 namespace thunder
 {
@@ -14,9 +19,15 @@ namespace thunder
 // (ARCHITECTURE §4–5). The plugin, the tests and (later) the offline renderer
 // all drive this same class.
 //
-// Current stages: input sanitising (NaN/Inf → 0), input gain, output gain and a
-// final sanitise. The module chain (pitch, grains, space, ...) is inserted
-// between the gains in later milestones.
+// Per chunk:
+//   input gain, sanitise
+//     ├─ dry path: delayed by the engine latency ──────────┐
+//     └─ layer:    Pitch → Space ──────────────────────────┴─ dry + layer → output gain → sanitise
+//
+// TODO(PRD): Output Mode and the Mix law (T-0.4-03) replace the plain sum of
+// dry and layer, which is what Blend sounds like at the default Mix (50%: both
+// at unity). Module on/off switches arrive with T-0.4-06; until then Pitch and
+// Space are always on.
 class ThunderEngine
 {
 public:
@@ -39,33 +50,49 @@ public:
     void process (float* const* channels, int numSamples, const TransportState& transport,
                   const params::ParamSnapshot& snapshot) noexcept;
 
-    int getLatencySamples() const noexcept { return 0; }
-    double getTailSeconds() const noexcept { return 0.0; }
+    // Total latency of the layer path. The dry path is delayed by the same
+    // amount, so the whole output is this far behind the input. Constant after
+    // prepare() (ARCHITECTURE §5.7).
+    int getLatencySamples() const noexcept { return latencySamples; }
+
+    double getTailSeconds() const noexcept { return space.getTailSeconds(); }
     bool isPrepared() const noexcept { return prepared; }
 
     // The transport position of the most recent chunk.
     const TransportState& getTransport() const noexcept { return transport; }
 
-    // NaN/Inf samples replaced since prepare() (input and output). For tests and
-    // diagnostics; any thread may read it.
+    // NaN/Inf samples replaced since prepare() at the input and output. For tests
+    // and diagnostics; any thread may read it.
     std::uint64_t getNonFiniteSamplesReplaced() const noexcept
     {
         return nonFiniteReplaced.load (std::memory_order_relaxed);
     }
 
+    // Times a module produced NaN/Inf and was reset (ARCHITECTURE §14).
+    std::uint64_t getModuleResets() const noexcept { return moduleResets.load (std::memory_order_relaxed); }
+
 private:
-    void processChunk (float* const* channels, int numSamples) noexcept;
+    void processChunk (float* const* channels, int numSamples, const ProcessContext& context) noexcept;
+    void runModule (Module& module, juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept;
     void sanitise (float* const* channels, int numSamples) noexcept;
 
     double sampleRate = 44100.0;
     bool prepared = false;
     bool firstBlock = true; // the first block after prepare/reset snaps instead of ramping
+    int latencySamples = 0;
 
     TransportState transport;
     util::GainSmoother inputGain;
     util::GainSmoother outputGain;
 
+    dsp::PitchModule pitch;
+    dsp::SpaceModule space;
+
+    util::LatencyDelay dryDelay;
+    std::array<std::vector<float>, kNumChannels> dry;
+
     std::atomic<std::uint64_t> nonFiniteReplaced{0};
+    std::atomic<std::uint64_t> moduleResets{0};
 };
 
 } // namespace thunder
