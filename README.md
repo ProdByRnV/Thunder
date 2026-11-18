@@ -1,6 +1,8 @@
 # Thunder
 
-**Drop Thunder on a melody and get an in-key, mix-ready texture layer in seconds — free and open source.**
+**Drop Thunder on a melody and get an in-key, mix-ready texture layer in seconds — free.**
+
+Built in C++ with JUCE 8, for Windows, macOS and Linux.
 
 Thunder is an audio effect plugin that turns a simple melody into a textured background layer that sits musically underneath the original. Instead of stacking a pitch shifter, granulator, reverb, EQ and volume shaper, you insert Thunder and get one layer that already works in the mix:
 
@@ -43,11 +45,3 @@ On Windows, if the submodule step fails with "Filename too long", enable long pa
 Presets are available too, e.g. `cmake --preset vs2026` then `cmake --build --preset vs2026-release` on Windows.
 
 The built plugins are in `build/source/Thunder_artefacts/Release/` (for example `VST3/Thunder.vst3`). Copy them to your system plugin folder, or configure with `-DTHUNDER_COPY_AFTER_BUILD=ON` to have the build do it.
-
-## Licence
-
-Thunder is free software, licensed under the **GNU Affero General Public License v3.0** — see [LICENSE](LICENSE).
-
-It is built with [JUCE](https://juce.com) (used under the AGPLv3) and other open-source libraries; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for their licences and credits.
-
-VST is a registered trademark of Steinberg Media Technologies GmbH. Audio Units is a trademark of Apple Inc.

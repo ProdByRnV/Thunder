@@ -1,4 +1,4 @@
-# CloudSeedCore (MIT, Ghost Note Audio) has no CMake build of its own, so it is
+# CloudSeedCore (Ghost Note Audio) has no CMake build of its own, so it is
 # compiled here as a small static library. Only the reverb DSP is used; the
 # upstream demo program (PluginProcessor.cpp) is left out.
 

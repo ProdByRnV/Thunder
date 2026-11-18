@@ -13,4 +13,4 @@
 - [ ] New continuous parameters are smoothed (no clicks or zipper noise)
 - [ ] No existing parameter IDs renamed or removed
 - [ ] Code formatted with the repository's `.clang-format`
-- [ ] New dependencies (if any) are licence-compatible with AGPLv3 and listed in `THIRD_PARTY_NOTICES.md`
+- [ ] No new third-party dependencies without discussing them first

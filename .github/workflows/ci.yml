@@ -182,7 +182,23 @@ jobs:
           cp -R "$dir/VST3" "staging/$name/"
           cp -R "$dir/Standalone" "staging/$name/"
           if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
-          cp LICENSE README.md THIRD_PARTY_NOTICES.md "staging/$name/"
+          cp README.md "staging/$name/"
+          # Copyright notices that the bundled MIT-licensed components require
+          # to travel with the binaries, taken from each component's own
+          # licence file in external/.
+          {
+            echo "Thunder includes the following third-party components."
+            for entry in \
+              "Signalsmith Stretch|external/signalsmith-stretch/LICENSE.txt" \
+              "Signalsmith Linear|external/signalsmith-linear/LICENSE.txt" \
+              "Cloud Seed reverb algorithm (Ghost Note Audio)|external/CloudSeedCore/LICENSE" \
+              "VST3 SDK (Steinberg Media Technologies GmbH)|external/JUCE/modules/juce_audio_processors_headless/format_types/VST3_SDK/LICENSE.txt"; do
+              title="${entry%%|*}"; file="${entry#*|}"
+              test -f "$file" || { echo "::error::Missing licence file $file"; exit 1; }
+              printf '\n==== %s ====\n\n' "$title"
+              cat "$file"
+            done
+          } > "staging/$name/Third-party notices.txt"
           (cd staging && cmake -E tar cf "../$name.zip" --format=zip "$name")
           echo "file=$name.zip" >> "$GITHUB_OUTPUT"
           ls -la "$name.zip"
