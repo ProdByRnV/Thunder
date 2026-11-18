@@ -1,0 +1,57 @@
+#include "SessionState.h"
+
+#include "StateIds.h"
+
+namespace thunder::state
+{
+
+namespace
+{
+constexpr int kValidCaptureBars[] = {1, 2, 4, 8, 16};
+
+const char* toName (CaptureSource source) noexcept
+{
+    switch (source)
+    {
+        case CaptureSource::Layer:
+            return "layer";
+        case CaptureSource::FullMix:
+            return "fullMix";
+    }
+
+    return "layer";
+}
+} // namespace
+
+juce::ValueTree SessionState::toValueTree() const
+{
+    juce::ValueTree tree{ids::session};
+    tree.setProperty (ids::presetName, presetName, nullptr);
+    tree.setProperty (ids::presetModified, presetModified, nullptr);
+    tree.setProperty (ids::captureBars, captureBars, nullptr);
+    tree.setProperty (ids::captureSource, toName (captureSource), nullptr);
+    return tree;
+}
+
+SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
+{
+    SessionState s;
+
+    if (!tree.hasType (ids::session))
+        return s;
+
+    s.presetName = tree.getProperty (ids::presetName, s.presetName).toString();
+    s.presetModified = static_cast<bool> (tree.getProperty (ids::presetModified, s.presetModified));
+
+    const auto bars = static_cast<int> (tree.getProperty (ids::captureBars, s.captureBars));
+    for (const auto valid : kValidCaptureBars)
+        if (bars == valid)
+            s.captureBars = bars;
+
+    if (tree.getProperty (ids::captureSource).toString() == toName (CaptureSource::FullMix))
+        s.captureSource = CaptureSource::FullMix;
+
+    return s;
+}
+
+} // namespace thunder::state

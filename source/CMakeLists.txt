@@ -2,13 +2,33 @@
 # ThunderCore — DSP, engine, state and music code with no GUI or host dependency.
 #
 # It is an INTERFACE library: its sources are compiled into each binary that
-# uses it (the plugin now; tests and benchmarks later), the same way JUCE modules
+# uses it (the plugin, the tests, later the benchmarks), the same way JUCE modules
 # work. That way JUCE code is never compiled twice into one binary, and anything
 # that links only ThunderCore can't reach the GUI modules.
 # ---------------------------------------------------------------------------
 add_library(ThunderCore INTERFACE)
 
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+target_sources(ThunderCore INTERFACE
+    core/engine/ThunderEngine.cpp
+    core/engine/ThunderEngine.h
+    core/host/TransportState.cpp
+    core/host/TransportState.h
+    core/params/Enums.h
+    core/params/ParamDefs.h
+    core/params/ParamSnapshot.h
+    core/params/ParamText.cpp
+    core/params/ParamText.h
+    core/state/SessionState.cpp
+    core/state/SessionState.h
+    core/state/StateIds.h
+    core/state/StateManager.cpp
+    core/state/StateManager.h
+    core/util/Crossfade.h
+    core/util/Math.h
+    core/util/Smoother.h
+    core/util/SpscFifo.h)
 
 target_link_libraries(ThunderCore INTERFACE
     juce::juce_core
@@ -21,6 +41,24 @@ target_link_libraries(ThunderCore INTERFACE
 
 target_compile_definitions(ThunderCore INTERFACE
     THUNDER_VERSION_STRING="${PROJECT_VERSION}")
+
+# ---------------------------------------------------------------------------
+# ThunderPluginCode — the host adapter (processor, parameter layout, editor).
+#
+# Also an INTERFACE library, so the tests can build and drive the real
+# processor (state, buses, processBlock) without a plugin wrapper.
+# ---------------------------------------------------------------------------
+add_library(ThunderPluginCode INTERFACE)
+
+target_sources(ThunderPluginCode INTERFACE
+    plugin/ThunderProcessor.cpp
+    plugin/ThunderProcessor.h
+    plugin/params/ParameterLayout.cpp
+    plugin/params/ParameterLayout.h)
+
+target_link_libraries(ThunderPluginCode INTERFACE
+    ThunderCore
+    juce::juce_audio_processors)
 
 # ---------------------------------------------------------------------------
 # Thunder — the plugin (host wrapper + editor).
@@ -54,8 +92,7 @@ juce_add_plugin(Thunder
     COPY_PLUGIN_AFTER_BUILD ${THUNDER_COPY_AFTER_BUILD})
 
 target_sources(Thunder PRIVATE
-    plugin/ThunderProcessor.cpp
-    plugin/ThunderProcessor.h)
+    plugin/PluginEntry.cpp)
 
 target_compile_definitions(Thunder PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0)
@@ -63,7 +100,7 @@ target_compile_definitions(Thunder PUBLIC
 thunder_disable_network_features(Thunder)
 
 target_link_libraries(Thunder PRIVATE
-    ThunderCore
+    ThunderPluginCode
     juce::juce_audio_utils)
 
 thunder_apply_compiler_settings(Thunder)

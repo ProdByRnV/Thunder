@@ -1,4 +1,5 @@
-# ThunderTests — the test runner for ThunderCore (no plugin wrapper, no GUI).
+# ThunderTests — the test runner for ThunderCore and the plugin processor (no
+# plugin format wrapper; no window is ever opened).
 #
 # Tests are tagged in Catch2 and those tags become CTest labels:
 #   [unit]      functional tests, run on every platform
@@ -12,17 +13,25 @@ juce_add_console_app(ThunderTests
     PRODUCT_NAME "ThunderTests")
 
 target_sources(ThunderTests PRIVATE
-    support/Realtime.h
-    support/Realtime.cpp
     support/AllocationCounter.cpp
+    support/JuceEnvironment.cpp
+    support/Realtime.cpp
+    support/Realtime.h
     unit/DependencyTests.cpp
+    unit/EngineTests.cpp
+    unit/ParamTests.cpp
+    unit/ProcessorTests.cpp
+    unit/StateTests.cpp
+    unit/TransportStateTests.cpp
+    unit/UtilTests.cpp
     realtime/DependencyRealtimeTests.cpp
+    realtime/EngineRealtimeTests.cpp
     realtime/RealtimeCanary.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_link_libraries(ThunderTests PRIVATE
-    ThunderCore
+    ThunderPluginCode
     Catch2::Catch2WithMain)
 
 thunder_disable_network_features(ThunderTests)

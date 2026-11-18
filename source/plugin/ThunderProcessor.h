@@ -1,15 +1,18 @@
 #pragma once
 
+#include "core/engine/ThunderEngine.h"
+#include "core/params/ParamSnapshot.h"
+#include "core/state/SessionState.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
+
+#include <atomic>
 
 namespace thunder
 {
 
-// Host-facing audio processor.
-//
-// At this stage it is a clean stereo pass-through so the plugin can be built,
-// scanned and loaded by hosts. Parameters, state, the engine and the editor are
-// added on top of this class.
+// Host-facing audio processor: adapts the host (buses, play head, parameters,
+// saved state) to ThunderEngine, which does the processing.
 class ThunderProcessor final : public juce::AudioProcessor
 {
 public:
@@ -19,6 +22,9 @@ public:
     // [NRT] Called by the host before playback starts or when settings change.
     void prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock) override;
     void releaseResources() override;
+
+    // [RT] Host reset / transport jump: clears the engine's state.
+    void reset() override;
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
@@ -41,10 +47,34 @@ public:
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
 
+    // [NRT] Saved with the host session; see core/state/StateManager.h.
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }
+
+    // [MSG] Non-automatable per-session settings (PRD §9.12).
+    state::SessionState getSessionState() const;
+    void setSessionState (const state::SessionState& newState);
+
+    // True if the last state loaded was saved by a newer Thunder. The editor
+    // shows a warning for it (from v0.5).
+    bool lastLoadWasFromNewerVersion() const noexcept { return loadedNewerState.load(); }
+
+    const ThunderEngine& getEngine() const noexcept { return engine; }
+
 private:
+    juce::AudioProcessorValueTreeState apvts;
+    params::ParamRefs parameterRefs{};
+    params::ParamSnapshot snapshot = params::ParamSnapshot::defaults();
+
+    ThunderEngine engine;
+
+    mutable juce::CriticalSection sessionLock; // never taken on the audio thread
+    state::SessionState session;
+
+    std::atomic<bool> loadedNewerState{false};
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderProcessor)
 };
 

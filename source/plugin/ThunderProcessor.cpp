@@ -1,5 +1,10 @@
 #include "ThunderProcessor.h"
 
+#include "core/host/TransportState.h"
+#include "core/state/StateIds.h"
+#include "core/state/StateManager.h"
+#include "params/ParameterLayout.h"
+
 namespace thunder
 {
 
@@ -7,12 +12,32 @@ ThunderProcessor::ThunderProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    , apvts (*this, nullptr, state::ids::parameters, createParameterLayout())
 {
+    // Cache a pointer to every parameter's live value once, so the audio thread
+    // never looks parameters up by name.
+    for (const auto& def : params::kParamDefs)
+    {
+        const auto id = juce::String::fromUTF8 (def.id.data(), static_cast<int> (def.id.size()));
+        parameterRefs[params::toIndex (def.param)] = apvts.getRawParameterValue (id);
+        jassert (parameterRefs[params::toIndex (def.param)] != nullptr);
+    }
 }
 
-void ThunderProcessor::prepareToPlay (double, int) {}
+void ThunderProcessor::prepareToPlay (double sampleRate, int)
+{
+    // The engine processes in fixed-size chunks, so the host's block size
+    // (which some hosts exceed or vary anyway) doesn't size anything.
+    engine.prepare (sampleRate);
+    setLatencySamples (engine.getLatencySamples());
+}
 
 void ThunderProcessor::releaseResources() {}
+
+void ThunderProcessor::reset()
+{
+    engine.reset();
+}
 
 bool ThunderProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
@@ -34,31 +59,38 @@ void ThunderProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     const auto numIn = getTotalNumInputChannels();
     const auto numOut = getTotalNumOutputChannels();
 
-    if (numSamples == 0)
+    if (numSamples == 0 || numOut < ThunderEngine::kNumChannels ||
+        buffer.getNumChannels() < ThunderEngine::kNumChannels)
         return;
 
-    // Mono input: copy the single channel to the right output so the signal
-    // stays centred instead of playing only on the left.
-    if (numIn == 1 && numOut >= 2)
+    // Mono input: the engine is stereo, so copy the single channel to the right
+    // (dual-mono) instead of leaving whatever the host had there.
+    if (numIn == 1)
         buffer.copyFrom (1, 0, buffer, 0, 0, numSamples);
 
-    for (auto ch = juce::jmax (numIn, 2); ch < numOut; ++ch)
+    for (auto ch = ThunderEngine::kNumChannels; ch < numOut; ++ch)
         buffer.clear (ch, 0, numSamples);
+
+    snapshot.readFrom (parameterRefs);
+    const auto transport = TransportState::fromPlayHead (getPlayHead());
+
+    engine.process (buffer.getArrayOfWritePointers(), numSamples, transport, snapshot);
 }
 
 juce::AudioProcessorEditor* ThunderProcessor::createEditor()
 {
-    return nullptr;
+    // Temporary: a generic list of every parameter, until Thunder's own UI (v0.5).
+    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 bool ThunderProcessor::hasEditor() const
 {
-    return false;
+    return true;
 }
 
 const juce::String ThunderProcessor::getName() const
 {
-    return JucePlugin_Name;
+    return "Thunder";
 }
 
 bool ThunderProcessor::acceptsMidi() const
@@ -78,7 +110,7 @@ bool ThunderProcessor::isMidiEffect() const
 
 double ThunderProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    return engine.getTailSeconds();
 }
 
 int ThunderProcessor::getNumPrograms()
@@ -101,14 +133,40 @@ const juce::String ThunderProcessor::getProgramName (int)
 
 void ThunderProcessor::changeProgramName (int, const juce::String&) {}
 
-void ThunderProcessor::getStateInformation (juce::MemoryBlock&) {}
+void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    const auto tree = state::createState (apvts.copyState(), getSessionState(), THUNDER_VERSION_STRING);
 
-void ThunderProcessor::setStateInformation (const void*, int) {}
+    if (const auto xml = tree.createXml())
+        copyXmlToBinary (*xml, destData);
+}
+
+void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    // Anything unreadable leaves the current state untouched.
+    const auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (xml == nullptr)
+        return;
+
+    const auto loaded = state::loadState (juce::ValueTree::fromXml (*xml));
+    if (!loaded)
+        return;
+
+    apvts.replaceState (loaded->parameters);
+    setSessionState (loaded->session);
+    loadedNewerState.store (loaded->fromNewerVersion);
+}
+
+state::SessionState ThunderProcessor::getSessionState() const
+{
+    const juce::ScopedLock lock (sessionLock);
+    return session;
+}
+
+void ThunderProcessor::setSessionState (const state::SessionState& newState)
+{
+    const juce::ScopedLock lock (sessionLock);
+    session = newState;
+}
 
 } // namespace thunder
-
-// Entry point used by every plugin format wrapper.
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new thunder::ThunderProcessor();
-}
