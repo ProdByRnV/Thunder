@@ -1,0 +1,72 @@
+name: Bug report
+description: Something doesn't work, sounds wrong, or crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Thunder! The details below help reproduce the problem quickly.
+  - type: input
+    id: thunder-version
+    attributes:
+      label: Thunder version
+      description: Shown in the plugin's About panel or the release name (e.g. 0.5.0-beta.1).
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: e.g. Windows 11 24H2, macOS 15.2, Ubuntu 24.04
+  - type: input
+    id: daw
+    attributes:
+      label: DAW and version
+      placeholder: e.g. FL Studio 2025.1, Ableton Live 12.1, Reaper 7.30
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Plugin format
+      options:
+        - VST3
+        - AU
+        - CLAP
+        - LV2
+        - Standalone
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Insert Thunder on a melody track
+        2. Set ...
+        3. Press play
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Sample rate and buffer size, crash logs, screenshots, or a short audio clip.

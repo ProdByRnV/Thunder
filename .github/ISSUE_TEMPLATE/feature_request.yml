@@ -1,0 +1,22 @@
+name: Feature idea
+description: Suggest something Thunder could do.
+labels: ["feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the musical goal or workflow, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+    validations:
+      required: true
+  - type: input
+    id: daw
+    attributes:
+      label: Your DAW
+      placeholder: e.g. FL Studio, Ableton Live, Logic Pro
