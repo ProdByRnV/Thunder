@@ -1,5 +1,7 @@
 #include "PitchModule.h"
 
+#include "core/music/KeyParams.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -55,6 +57,8 @@ void PitchModule::process (juce::dsp::AudioBlock<float>& block, const ProcessCon
 
     jassert (static_cast<std::size_t> (numSamples) <= input[0].size());
     jassert (static_cast<int> (block.getNumChannels()) >= numChannels);
+
+    key = music::keyFromParams (context.params);
 
     // The shift glides per chunk: Signalsmith applies it per analysis hop anyway.
     const auto target = targetShift (context.params);

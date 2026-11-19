@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/engine/Module.h"
+#include "core/music/Scale.h"
 #include "core/util/Smoother.h"
 
 #include <signalsmith-stretch/signalsmith-stretch.h>
@@ -52,6 +53,10 @@ public:
     // The shift currently applied, in semitones (after smoothing).
     float getCurrentShift() const noexcept { return appliedShift; }
 
+    // The key set by Key Root and Scale, read every chunk. Interval mode uses it
+    // to keep the layer in key (ROADMAP T-0.2-04).
+    const music::Key& getKey() const noexcept { return key; }
+
 private:
     static constexpr int kMaxChannels = 2;
 
@@ -68,6 +73,7 @@ private:
 
     util::LinearSmoother shift;
     float appliedShift = 0.0f;
+    music::Key key;
     bool firstChunk = true;
 };
 

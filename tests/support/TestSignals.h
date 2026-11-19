@@ -1,12 +1,14 @@
 #pragma once
 
 #include "core/engine/Module.h"
+#include "core/music/Scale.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <vector>
 
 // Test signals and measurements shared by the module and engine tests
@@ -99,6 +101,60 @@ inline std::vector<float> runModule (Module& module, const std::vector<float>& i
     if (right != nullptr)
         *right = std::move (rightChannel);
     return left;
+}
+
+// ---- Synthetic melodies, chords and noise (for the pitch tracker)
+// ----------------------------------------------------
+
+inline constexpr double kTwoPi = 2.0 * juce::MathConstants<double>::pi;
+
+// A tone with `harmonics` partials at 1/n amplitude (a band-limited sawtooth)
+// whose frequency follows `noteAt` (fractional MIDI note per time in seconds).
+template<typename NoteAt>
+inline std::vector<float> tone (NoteAt noteAt, double sampleRate, double seconds, int harmonics = 1,
+                                float amplitude = 0.3f)
+{
+    std::vector<float> s (static_cast<std::size_t> (sampleRate * seconds));
+    double phase = 0.0;
+    for (std::size_t i = 0; i < s.size(); ++i)
+    {
+        const auto f0 = music::noteToFrequency (noteAt (static_cast<double> (i) / sampleRate));
+        double v = 0.0;
+        for (int h = 1; h <= harmonics; ++h)
+            if (f0 * h < 0.45 * sampleRate)
+                v += std::sin (phase * h) / h;
+        s[i] = amplitude * static_cast<float> (v);
+        phase = std::fmod (phase + kTwoPi * f0 / sampleRate, kTwoPi);
+    }
+    return s;
+}
+
+inline std::vector<float> steadyTone (double note, double sampleRate, double seconds, int harmonics = 1,
+                                      float amplitude = 0.3f)
+{
+    return tone ([note] (double) { return note; }, sampleRate, seconds, harmonics, amplitude);
+}
+
+inline std::vector<float> chord (std::initializer_list<double> notes, double sampleRate, double seconds,
+                                 int harmonics = 1)
+{
+    std::vector<float> sum (static_cast<std::size_t> (sampleRate * seconds), 0.0f);
+    for (const auto note : notes)
+    {
+        const auto voice = steadyTone (note, sampleRate, seconds, harmonics, 0.2f);
+        for (std::size_t i = 0; i < sum.size(); ++i)
+            sum[i] += voice[i];
+    }
+    return sum;
+}
+
+inline std::vector<float> whiteNoise (double sampleRate, double seconds)
+{
+    juce::Random random (1);
+    std::vector<float> s (static_cast<std::size_t> (sampleRate * seconds));
+    for (auto& x : s)
+        x = 0.3f * (2.0f * random.nextFloat() - 1.0f);
+    return s;
 }
 
 } // namespace thunder::test

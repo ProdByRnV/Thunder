@@ -20,6 +20,12 @@ target_sources(ThunderCore INTERFACE
     core/engine/ThunderEngine.h
     core/host/TransportState.cpp
     core/host/TransportState.h
+    core/music/IntervalMapper.cpp
+    core/music/IntervalMapper.h
+    core/music/KeyParams.h
+    core/music/PitchTracker.cpp
+    core/music/PitchTracker.h
+    core/music/Scale.h
     core/params/Enums.h
     core/params/ParamDefs.h
     core/params/ParamSnapshot.h
