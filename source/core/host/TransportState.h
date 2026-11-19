@@ -11,7 +11,7 @@ namespace thunder
 //
 // When the host gives no tempo (or an unusable one) Thunder falls back to
 // 120 BPM in 4/4 and marks the state `hasHostInfo = false`, so tempo-synced
-// features keep working in hosts or standalone setups without a transport.
+// features keep working in hosts without a transport.
 struct TransportState
 {
     static constexpr double kFallbackBpm = 120.0;

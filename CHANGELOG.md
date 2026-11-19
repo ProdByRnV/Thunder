@@ -7,7 +7,7 @@ Each release's notes on GitHub are taken from its section below.
 
 Thunder is in early development and has no public release yet.
 
-- Builds as VST3 and a standalone app on Windows, macOS and Linux, plus AU on macOS.
+- Builds as a VST3 plugin on Windows, macOS and Linux, plus AU on macOS. Thunder is a plugin only: there is no standalone app.
 - Continuous integration on Windows, macOS (universal), Linux x86_64 and Linux ARM64, with plugin validation and sanitizer checks.
 - The full v0.5 parameter set, every one automatable, smoothed where continuous, and saved with your session (with a versioned state format so older sessions keep loading).
 - A temporary generic editor that lists every parameter. Thunder's own interface replaces it in v0.5.

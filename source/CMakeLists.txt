@@ -90,16 +90,9 @@ juce_add_plugin(Thunder
 
     FORMATS ${THUNDER_FORMATS}
     IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
-    NEEDS_MIDI_OUTPUT FALSE
-    IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     VST3_CATEGORIES Fx
     AU_MAIN_TYPE kAudioUnitType_Effect
-
-    # The standalone app reads live audio input.
-    MICROPHONE_PERMISSION_ENABLED TRUE
-    MICROPHONE_PERMISSION_TEXT "Thunder processes the audio from your input device."
 
     COPY_PLUGIN_AFTER_BUILD ${THUNDER_COPY_AFTER_BUILD})
 

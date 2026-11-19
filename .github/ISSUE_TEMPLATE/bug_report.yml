@@ -46,7 +46,6 @@ body:
         - AU
         - CLAP
         - LV2
-        - Standalone
     validations:
       required: true
   - type: textarea

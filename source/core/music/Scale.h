@@ -10,7 +10,7 @@
 // Keys, scales and note maths (PRD FR-KEY-001, FR-KEY-004). Pure functions with
 // no state; safe on any thread.
 //
-// Notes are MIDI note numbers (60 = middle C, 69 = A4 = 440 Hz). A pitch class
+// Notes are numbered in semitones (60 = middle C, 69 = A4 = 440 Hz). A pitch class
 // is a note without its octave: 0 = C … 11 = B.
 
 namespace thunder::music

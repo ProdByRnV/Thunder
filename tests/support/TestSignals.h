@@ -109,7 +109,7 @@ inline std::vector<float> runModule (Module& module, const std::vector<float>& i
 inline constexpr double kTwoPi = 2.0 * juce::MathConstants<double>::pi;
 
 // A tone with `harmonics` partials at 1/n amplitude (a band-limited sawtooth)
-// whose frequency follows `noteAt` (fractional MIDI note per time in seconds).
+// whose frequency follows `noteAt` (fractional note number per time in seconds).
 template<typename NoteAt>
 inline std::vector<float> tone (NoteAt noteAt, double sampleRate, double seconds, int harmonics = 1,
                                 float amplitude = 0.3f)

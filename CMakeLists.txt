@@ -17,11 +17,12 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
+# Thunder is a plugin only: no standalone app. CLAP, and LV2 on Linux, are
+# added later.
 if(APPLE)
-    set(_thunder_default_formats "VST3;AU;Standalone")
+    set(_thunder_default_formats "VST3;AU")
 else()
-    # Windows and Linux. LV2 is added later for Linux.
-    set(_thunder_default_formats "VST3;Standalone")
+    set(_thunder_default_formats "VST3")
 endif()
 
 set(THUNDER_FORMATS "${_thunder_default_formats}" CACHE STRING "Plugin formats passed to juce_add_plugin")

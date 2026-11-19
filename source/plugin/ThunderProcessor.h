@@ -36,9 +36,11 @@ public:
     bool hasEditor() const override;
 
     const juce::String getName() const override;
+
+    // Thunder is an audio effect and uses no MIDI. JUCE requires every
+    // processor to answer these two; both return false.
     bool acceptsMidi() const override;
     bool producesMidi() const override;
-    bool isMidiEffect() const override;
     double getTailLengthSeconds() const override;
 
     int getNumPrograms() override;

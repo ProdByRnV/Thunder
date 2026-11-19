@@ -15,13 +15,13 @@ struct PitchEstimate
     // A single, clear pitch is present (with hysteresis, so it doesn't flicker).
     bool voiced = false;
 
-    // The note being played, as a whole MIDI note, held with hysteresis so
+    // The note being played, as a whole note number (Scale.h), held with hysteresis so
     // vibrato and small pitch drift don't change it. -1 when not voiced.
     int note = -1;
 
     // The latest raw estimate, whether voiced or not (0 when there is none).
     float frequencyHz = 0.0f;
-    float noteValue = 0.0f; // fractional MIDI note of frequencyHz
+    float noteValue = 0.0f; // fractional note number of frequencyHz
 
     // 0–1: how sure the tracker is that the input is one clear pitch.
     float confidence = 0.0f;

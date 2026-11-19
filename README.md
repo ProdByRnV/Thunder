@@ -4,7 +4,7 @@
 
 Built in C++ with JUCE 8, for Windows, macOS and Linux.
 
-Thunder is an audio effect plugin that turns a simple melody into a textured background layer that sits musically underneath the original. Instead of stacking a pitch shifter, granulator, reverb, EQ and volume shaper, you insert Thunder and get one layer that already works in the mix:
+Thunder is an audio effect plugin for your DAW (there is no standalone app) that turns a simple melody into a textured background layer that sits musically underneath the original. Instead of stacking a pitch shifter, granulator, reverb, EQ and volume shaper, you insert Thunder and get one layer that already works in the mix:
 
 - **In-key harmony** — shift the layer by octaves, semitones, or by intervals that stay in your song's key.
 - **Grains, space and tone** — granular texture, lush reverb, filtering and stereo width.
@@ -18,9 +18,9 @@ Thunder is an audio effect plugin that turns a simple melody into a textured bac
 
 | Platform | Formats |
 |---|---|
-| Windows 10/11 (x64) | VST3, Standalone (CLAP planned) |
-| macOS 11+ (Apple silicon + Intel) | VST3, AU, Standalone (CLAP planned) |
-| Linux x86_64 | VST3, Standalone (LV2 and CLAP planned) |
+| Windows 10/11 (x64) | VST3 (CLAP planned) |
+| macOS 11+ (Apple silicon + Intel) | VST3, AU (CLAP planned) |
+| Linux x86_64 | VST3 (LV2 and CLAP planned) |
 
 ## Building from source
 

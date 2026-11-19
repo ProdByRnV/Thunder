@@ -132,7 +132,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           dir="${{ steps.artefacts.outputs.dir }}"
-          for bundle in "$dir/VST3/Thunder.vst3" "$dir/AU/Thunder.component" "$dir/Standalone/Thunder.app"; do
+          for bundle in "$dir/VST3/Thunder.vst3" "$dir/AU/Thunder.component"; do
             codesign --force --sign - --deep "$bundle"
             codesign --verify --strict --verbose=2 "$bundle"
           done
@@ -180,7 +180,6 @@ jobs:
           dir="${{ steps.artefacts.outputs.dir }}"
           mkdir -p "staging/$name"
           cp -R "$dir/VST3" "staging/$name/"
-          cp -R "$dir/Standalone" "staging/$name/"
           if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
           cp README.md "staging/$name/"
           # Copyright notices that the bundled MIT-licensed components require

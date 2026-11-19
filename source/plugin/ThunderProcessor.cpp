@@ -103,11 +103,6 @@ bool ThunderProcessor::producesMidi() const
     return false;
 }
 
-bool ThunderProcessor::isMidiEffect() const
-{
-    return false;
-}
-
 double ThunderProcessor::getTailLengthSeconds() const
 {
     return engine.getTailSeconds();
