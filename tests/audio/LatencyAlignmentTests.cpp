@@ -43,8 +43,7 @@ std::vector<float> render (double sampleRate, const std::vector<float>& input, c
 ParamSnapshot unisonDry()
 {
     auto s = ParamSnapshot::defaults();
-    s.set (ParamId::pitchSemitones, 0.0f);
-    s.set (ParamId::pitchFine, 0.0f);
+    test::setSemitoneShift (s, 0.0f);
     s.set (ParamId::spaceMix, 0.0f);
     return s;
 }

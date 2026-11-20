@@ -1,6 +1,8 @@
 // The engine as a whole, independent of any host: any block size, bad samples,
 // gains and reset (PRD FR-CORE-002, FR-CORE-012, NFR-REL-003, NFR-REL-005).
 
+#include "support/TestSignals.h"
+
 #include "core/engine/ThunderEngine.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -81,7 +83,7 @@ TEST_CASE ("The result doesn't depend on the host's block size", "[unit][engine]
 {
     // Pitch shifted and reverb on, so every stage of the chain is covered.
     auto snapshot = ParamSnapshot::defaults();
-    snapshot.set (ParamId::pitchSemitones, 7.0f);
+    test::setSemitoneShift (snapshot, 7.0f);
     snapshot.set (ParamId::inputGain, -6.0f);
     snapshot.set (ParamId::outputGain, 3.0f);
 
@@ -100,7 +102,7 @@ TEST_CASE ("The result doesn't depend on the host's block size", "[unit][engine]
 TEST_CASE ("Output Gain scales the whole output", "[unit][engine]")
 {
     auto snapshot = ParamSnapshot::defaults();
-    snapshot.set (ParamId::pitchSemitones, 12.0f);
+    test::setSemitoneShift (snapshot, 12.0f);
 
     const auto input = makeNoise (12000);
     const auto unity = render (input, 512, snapshot);
@@ -140,7 +142,7 @@ TEST_CASE ("Absurdly loud input can't break the engine", "[unit][engine]")
 
     auto loud = ParamSnapshot::defaults();
     loud.set (ParamId::inputGain, 24.0f);
-    loud.set (ParamId::pitchSemitones, 7.0f);
+    test::setSemitoneShift (loud, 7.0f);
 
     // Finite, but far beyond anything real: the gain overflows it, and what is
     // left overflows the pitch engine's maths. Whatever happens inside, the
@@ -211,7 +213,7 @@ TEST_CASE ("Two engines given the same input sound identical", "[unit][engine]")
     // A reopened session or an offline bounce makes a new engine; it must sound
     // exactly like the one before (PRD NFR-REL-001, NFR-REL-005).
     auto snapshot = ParamSnapshot::defaults();
-    snapshot.set (ParamId::pitchSemitones, 7.0f);
+    test::setSemitoneShift (snapshot, 7.0f);
     snapshot.set (ParamId::spaceMix, 100.0f);
 
     const auto input = makeNoise (24000);

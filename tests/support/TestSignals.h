@@ -17,6 +17,21 @@
 namespace thunder::test
 {
 
+// Puts the pitch module in Semitone mode at `semitones` + `cents`. (The default
+// mode is Octave +1.)
+inline void setSemitoneShift (params::ParamSnapshot& snapshot, float semitones, float cents = 0.0f)
+{
+    snapshot.set (params::ParamId::pitchMode, static_cast<float> (params::enumIndex (params::PitchMode::Semitone)));
+    snapshot.set (params::ParamId::pitchSemitones, semitones);
+    snapshot.set (params::ParamId::pitchFine, cents);
+}
+
+// Puts a choice parameter on `value`.
+template<typename Enum> void setChoice (params::ParamSnapshot& snapshot, params::ParamId id, Enum value)
+{
+    snapshot.set (id, static_cast<float> (params::enumIndex (value)));
+}
+
 inline std::vector<float> sine (double hz, double sampleRate, double seconds, float amplitude = 0.5f)
 {
     std::vector<float> s (static_cast<std::size_t> (sampleRate * seconds));

@@ -1,7 +1,11 @@
 #pragma once
 
+#include "IntervalFollower.h"
+
 #include "core/engine/Module.h"
+#include "core/music/PitchTracker.h"
 #include "core/music/Scale.h"
+#include "core/util/LatencyDelay.h"
 #include "core/util/Smoother.h"
 
 #include <signalsmith-stretch/signalsmith-stretch.h>
@@ -33,8 +37,26 @@ inline constexpr PitchEngineConfig kStandardPitchConfig{0.08, 0.01, false};
 
 // Shifts the pitch of the layer (PRD §7.2) with Signalsmith Stretch.
 //
-// Current scope: a plain shift of `pitchSemitones` + `pitchFine` cents.
-// TODO(PRD): Octave / Interval modes, formants and Pitch Mix (ROADMAP T-0.2-03…06).
+// Modes (`pitchMode`):
+// - Octave: −2, −1, +1 or +2 octaves.
+// - Semitone: −24…+24 semitones plus `pitchFine` cents (Fine applies only here).
+// - Interval: a diatonic interval up or down that stays in the key set by Key
+//   Root and Scale. The pitch tracker follows the melody note by note, and each
+//   note gets its own in-key shift; without a clear note (chords, noise) the best
+//   single fixed shift is used (IntervalFollower).
+//
+// Every change of shift, whether from automation, a new melody note or a mode
+// change, glides over kShiftGlideSeconds. One Signalsmith instance does all
+// modes: its overlapping 80 ms analysis windows blend the old and new
+// transposition, which is what makes a mode change click-free. Two instances
+// crossfaded would not work: a fresh instance is silent for its first 80 ms.
+//
+// Preserve Formants keeps the voice's spectral envelope where it was, so large
+// upward shifts don't sound "chipmunky" (Signalsmith's formant compensation).
+// It applies to upward shifts only; see process() for why.
+//
+// Pitch Mix blends the shifted signal with the unshifted input (delayed by the
+// same latency, so the two line up), with an equal-power law.
 class PitchModule final : public Module
 {
 public:
@@ -50,15 +72,29 @@ public:
 
     const PitchEngineConfig& getConfig() const noexcept { return config; }
 
-    // The shift currently applied, in semitones (after smoothing).
+    // Shift changes (automation, new notes, mode changes) glide over this time
+    // (PRD FR-PITCH-010: ~10–20 ms).
+    static constexpr double kShiftGlideSeconds = 0.015;
+
+    // The shift currently applied, in semitones (after gliding).
     float getCurrentShift() const noexcept { return appliedShift; }
 
-    // The key set by Key Root and Scale, read every chunk. Interval mode uses it
-    // to keep the layer in key (ROADMAP T-0.2-04).
+    // The shift the module is gliding towards.
+    float getTargetShift() const noexcept { return shift.target(); }
+
+    // The key set by Key Root and Scale, read every chunk.
     const music::Key& getKey() const noexcept { return key; }
+
+    // Interval mode: whether a melody note is being followed (otherwise the
+    // fixed fallback shift is in use).
+    bool isTrackingNote() const noexcept { return trackerActive && follower.isTracking(); }
 
 private:
     static constexpr int kMaxChannels = 2;
+
+    float targetShift (const ProcessContext& context, params::PitchMode mode) const noexcept;
+    void applyFormants (bool preserve) noexcept;
+    void mixWithUnshifted (juce::dsp::AudioBlock<float>& block, int numSamples) noexcept;
 
     PitchEngineConfig config;
 
@@ -75,6 +111,18 @@ private:
     float appliedShift = 0.0f;
     music::Key key;
     bool firstChunk = true;
+
+    // Interval mode. The tracker only runs in Interval mode.
+    music::PitchTracker tracker;
+    IntervalFollower follower;
+    bool trackerActive = false;
+    int intervalShift = 0; // the follower's latest decision
+
+    int formantState = -1; // -1 = not set yet, 0 = off, 1 = on
+
+    // Pitch Mix: the unshifted input, delayed to line up with the shifted signal.
+    util::LatencyDelay unshiftedDelay;
+    util::LinearSmoother mix; // 0–1
 };
 
 } // namespace thunder::dsp

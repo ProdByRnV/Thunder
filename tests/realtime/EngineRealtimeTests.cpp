@@ -3,6 +3,7 @@
 // real-time sections, as it does in prepareToPlay().
 
 #include "support/Realtime.h"
+#include "support/TestSignals.h"
 
 #include "core/engine/ThunderEngine.h"
 #include "core/util/Crossfade.h"
@@ -90,7 +91,7 @@ TEST_CASE ("Turning the pitch and reverb controls does not allocate or block", "
             for (int i = 0; i < 200; ++i)
             {
                 const auto t = static_cast<float> (i % 20) / 19.0f;
-                snapshot.set (ParamId::pitchSemitones, std::round (t * 24.0f - 12.0f));
+                test::setSemitoneShift (snapshot, std::round (t * 24.0f - 12.0f));
                 snapshot.set (ParamId::spaceDecay, t * 100.0f);
                 snapshot.set (ParamId::spacePreDelay, t * 250.0f);
                 snapshot.set (ParamId::spaceDamping, 100.0f - t * 100.0f);
@@ -102,6 +103,48 @@ TEST_CASE ("Turning the pitch and reverb controls does not allocate or block", "
             }
             pitch.reset();
             space.reset();
+        });
+
+    CHECK (report.allocations == 0);
+    CHECK (report.deallocations == 0);
+}
+
+TEST_CASE ("Switching pitch modes, formants and Pitch Mix does not allocate or block", "[realtime][pitch]")
+{
+    // Every mode, including Interval mode's tracker starting and stopping, with
+    // the key, interval, formants and Pitch Mix changing as it goes.
+    dsp::PitchModule pitch;
+    pitch.prepare ({48000.0, 256, 2});
+
+    const auto melody = test::tone ([] (double t) { return 57.0 + std::floor (t * 8.0); }, 48000.0, 1.0);
+    std::vector<float> left (256), right (256);
+    float* channels[] = {left.data(), right.data()};
+    juce::dsp::AudioBlock<float> block (channels, 2, 256);
+
+    auto snapshot = params::ParamSnapshot::defaults();
+    const TransportState transport;
+
+    const auto report = test::runInRealtimeSection (
+        [&]
+        {
+            for (std::size_t chunk = 0; chunk < 400; ++chunk)
+            {
+                const auto start = (chunk * 256) % (melody.size() - 256);
+                std::copy_n (melody.begin() + static_cast<std::ptrdiff_t> (start), 256, left.begin());
+                std::copy_n (melody.begin() + static_cast<std::ptrdiff_t> (start), 256, right.begin());
+
+                const auto phase = static_cast<int> (chunk / 20);
+                test::setChoice (snapshot, ParamId::pitchMode, static_cast<params::PitchMode> (phase % 3));
+                test::setChoice (snapshot, ParamId::pitchInterval, static_cast<params::PitchInterval> (phase % 8));
+                test::setChoice (snapshot, ParamId::pitchDirection, static_cast<params::PitchDirection> (phase % 2));
+                snapshot.set (ParamId::keyRoot, static_cast<float> (phase % 12));
+                test::setChoice (snapshot, ParamId::keyScale, static_cast<music::Scale> (phase % 9));
+                snapshot.set (ParamId::pitchFormant, (phase % 2) == 0 ? 1.0f : 0.0f);
+                snapshot.set (ParamId::pitchMix, static_cast<float> ((phase * 37) % 101));
+
+                pitch.process (block, ProcessContext{transport, snapshot});
+            }
+            pitch.reset();
         });
 
     CHECK (report.allocations == 0);

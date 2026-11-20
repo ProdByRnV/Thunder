@@ -21,6 +21,7 @@ target_sources(ThunderTests PRIVATE
     audio/LatencyAlignmentTests.cpp
     unit/DependencyTests.cpp
     unit/EngineTests.cpp
+    unit/IntervalFollowerTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
     unit/PitchModuleTests.cpp
@@ -35,6 +36,7 @@ target_sources(ThunderTests PRIVATE
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
     measure/PitchConfigMeasure.cpp
+    measure/PitchModesMeasure.cpp
     measure/PitchTrackerMeasure.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

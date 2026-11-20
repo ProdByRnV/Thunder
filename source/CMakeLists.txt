@@ -11,6 +11,8 @@ add_library(ThunderCore INTERFACE)
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(ThunderCore INTERFACE
+    core/dsp/pitch/IntervalFollower.cpp
+    core/dsp/pitch/IntervalFollower.h
     core/dsp/pitch/PitchModule.cpp
     core/dsp/pitch/PitchModule.h
     core/dsp/space/SpaceModule.cpp
