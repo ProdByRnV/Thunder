@@ -21,3 +21,7 @@ Thunder is in early development and has no public release yet.
 - Every change of shift glides over 15 ms. Switching modes during playback is click-free.
 - Preserve Formants keeps upward shifts from sounding "chipmunky". It applies to upward shifts only, so downward layers keep their low end.
 - Pitch Mix blends the shifted layer with the unshifted one.
+- Groundwork for Grains:
+  - a granular engine that plays short, smoothly faded grains of the last few seconds of the layer, at an exact density;
+  - up to 64 grains at once, with no clicks when grains start or end;
+  - it isn't in the signal chain yet. Its controls and its place after Pitch arrive next.

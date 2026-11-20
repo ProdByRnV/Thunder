@@ -5,6 +5,7 @@
 #include "support/Realtime.h"
 #include "support/TestSignals.h"
 
+#include "core/dsp/grains/GrainModule.h"
 #include "core/engine/ThunderEngine.h"
 #include "core/util/Crossfade.h"
 #include "core/util/SpscFifo.h"
@@ -147,6 +148,39 @@ TEST_CASE ("Switching pitch modes, formants and Pitch Mix does not allocate or b
             pitch.reset();
         });
 
+    CHECK (report.allocations == 0);
+    CHECK (report.deallocations == 0);
+}
+
+TEST_CASE ("The grain engine does not allocate or block", "[realtime][grains]")
+{
+    // Including the pool running full (grains skipped) and settings changing
+    // every chunk.
+    dsp::GrainModule grains;
+    grains.prepare ({48000.0, 256, 2});
+
+    const auto input = test::sine (220.0, 48000.0, 1.0);
+    std::vector<float> left (256), right (256);
+    float* channels[] = {left.data(), right.data()};
+    juce::dsp::AudioBlock<float> block (channels, 2, 256);
+
+    const auto report = test::runInRealtimeSection (
+        [&]
+        {
+            for (std::size_t chunk = 0; chunk < 400; ++chunk)
+            {
+                const auto start = (chunk * 256) % (input.size() - 256);
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, left.begin());
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, right.begin());
+
+                const auto t = static_cast<double> (chunk % 40) / 39.0;
+                const dsp::GrainModule::Settings settings{0.01 + 0.49 * t, chunk < 200 ? 1.0 + 99.0 * t : 1000.0};
+                grains.process (block, settings);
+            }
+            grains.reset();
+        });
+
+    CHECK (grains.getGrainsSkipped() > 0);
     CHECK (report.allocations == 0);
     CHECK (report.deallocations == 0);
 }

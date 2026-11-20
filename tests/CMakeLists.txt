@@ -21,6 +21,7 @@ target_sources(ThunderTests PRIVATE
     audio/LatencyAlignmentTests.cpp
     unit/DependencyTests.cpp
     unit/EngineTests.cpp
+    unit/GrainModuleTests.cpp
     unit/IntervalFollowerTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
