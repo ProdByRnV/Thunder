@@ -2,9 +2,9 @@
 
 **Drop Thunder on a melody and get an in-key, mix-ready texture layer in seconds — free.**
 
-Built in C++ with JUCE 8, for Windows, macOS and Linux.
+For Windows, macOS and Linux.
 
-Thunder is an audio effect plugin for your DAW (there is no standalone app) that turns a simple melody into a textured background layer that sits musically underneath the original. Instead of stacking a pitch shifter, granulator, reverb, EQ and volume shaper, you insert Thunder and get one layer that already works in the mix:
+Thunder is an audio effect plugin for your DAW that turns a simple melody into a textured background layer that sits musically underneath the original. Instead of stacking a pitch shifter, granulator, reverb, EQ and volume shaper, you insert Thunder and get one layer that already works in the mix:
 
 - **In-key harmony** — shift the layer by octaves, semitones, or by intervals that stay in your song's key.
 - **Grains, space and tone** — granular texture, lush reverb, filtering and stereo width.
@@ -12,7 +12,7 @@ Thunder is an audio effect plugin for your DAW (there is no standalone app) that
 - **Capture and drag** — record a few bars of the layer to WAV and drag it straight into your DAW.
 - **Electric Storm UI** — an audio-reactive lightning theme (with a Reduce Motion option).
 
-> **Status: early development.** Thunder is not usable yet. The first public pre-release (v0.5) will be published on the [Releases](https://github.com/ProdByRnV/Thunder/releases) page.
+> **Status: in development.** The first release, v1.0, will be published on the [Releases](https://github.com/ProdByRnV/Thunder/releases) page.
 
 ## Formats and platforms
 

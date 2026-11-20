@@ -10,7 +10,7 @@ body:
     id: thunder-version
     attributes:
       label: Thunder version
-      description: Shown in the plugin's About panel or the release name (e.g. 0.5.0-beta.1).
+      description: Shown in the plugin's About panel or the release name (e.g. 1.0.0).
     validations:
       required: true
   - type: dropdown
