@@ -4,6 +4,7 @@
 #include "core/util/Smoother.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -44,6 +45,14 @@ public:
     // chunk at 48 kHz.
     bool canResetInstantly() const noexcept override { return false; }
 
+    // True once input and reverb output have both been below −120 dB for longer
+    // than the longest pre-delay: nothing is left in the delay lines worth
+    // clearing, so reset() skips the slow clear (PRD DEC-043).
+    bool isQuiet() const noexcept { return quietSamples >= quietThreshold; }
+
+    // −120 dBFS: below this the reverb's input and output count as silence.
+    static constexpr float kQuietLevel = 1.0e-6f;
+
     // The parameter mappings, exposed for tests.
     static double decaySeconds (float decayPercent) noexcept;
     static double dampingCutoffHz (float dampingPercent) noexcept;
@@ -68,6 +77,9 @@ private:
 
     util::LinearSmoother mix; // 0..1, per sample
     bool firstChunk = true;
+
+    std::int64_t quietSamples = 0;   // consecutive samples with input and output below kQuietLevel
+    std::int64_t quietThreshold = 1; // the longest pre-delay plus a reverb block, in samples
 };
 
 } // namespace thunder::dsp

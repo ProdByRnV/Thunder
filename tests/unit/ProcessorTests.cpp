@@ -223,3 +223,62 @@ TEST_CASE ("The processor survives what hosts throw at it", "[unit][plugin]")
     CHECK (processor.hasEditor());
     CHECK (processor.getLatencySamples() == processor.getEngine().getLatencySamples());
 }
+
+TEST_CASE ("An offline bounce sounds exactly like real-time playback", "[unit][plugin][bounce]")
+{
+    // PRD NFR-REL-005, ROADMAP T-0.4-08. The host renders offline in big blocks
+    // and plays back in small, sometimes irregular ones; Thunder must produce
+    // the same samples either way. Every module is on at its defaults.
+    constexpr double rate = 48000.0;
+    juce::AudioBuffer<float> input (2, static_cast<int> (3.0 * rate));
+    for (int i = 0; i < input.getNumSamples(); ++i)
+    {
+        const auto t = static_cast<double> (i) / rate;
+        const auto note = 57.0 + 2.0 * std::floor (std::fmod (t * 4.0, 6.0));
+        const auto hz = 440.0 * std::pow (2.0, (note - 69.0) / 12.0);
+        const auto s = static_cast<float> (0.3 * std::sin (2.0 * juce::MathConstants<double>::pi * hz * t));
+        input.setSample (0, i, s);
+        input.setSample (1, i, 0.8f * s);
+    }
+
+    const auto render = [&] (bool offline, int hostBlock, bool irregular)
+    {
+        ThunderProcessor processor;
+        processor.setNonRealtime (offline);
+        processor.prepareToPlay (rate, hostBlock);
+        processor.reset(); // hosts reset before a render
+
+        juce::AudioBuffer<float> out (input);
+        juce::MidiBuffer midi;
+        const int pattern[] = {1, 37, 512, 1000, 64, 3};
+        int start = 0;
+        for (int k = 0; start < out.getNumSamples(); ++k)
+        {
+            const auto wanted = irregular ? pattern[k % 6] : hostBlock;
+            const auto n = std::min (wanted, out.getNumSamples() - start);
+            juce::AudioBuffer<float> block (out.getArrayOfWritePointers(), 2, start, n);
+            processor.processBlock (block, midi);
+            start += n;
+        }
+        return out;
+    };
+
+    const auto realtime = render (false, 128, false);
+    const auto offline = render (true, 4096, false);
+    const auto irregular = render (false, 1024, true);
+
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        INFO ("channel " << ch);
+        float worstOffline = 0.0f, worstIrregular = 0.0f;
+        for (int i = 0; i < realtime.getNumSamples(); ++i)
+        {
+            worstOffline = std::max (worstOffline, std::abs (offline.getSample (ch, i) - realtime.getSample (ch, i)));
+            worstIrregular =
+                std::max (worstIrregular, std::abs (irregular.getSample (ch, i) - realtime.getSample (ch, i)));
+        }
+        CHECK (juce::exactlyEqual (worstOffline, 0.0f));
+        CHECK (juce::exactlyEqual (worstIrregular, 0.0f));
+    }
+    CHECK (realtime.getMagnitude (0, 0, realtime.getNumSamples()) > 0.1f);
+}

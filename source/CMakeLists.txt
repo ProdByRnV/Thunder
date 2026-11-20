@@ -11,6 +11,9 @@ add_library(ThunderCore INTERFACE)
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(ThunderCore INTERFACE
+    core/dsp/gain/AutoGain.h
+    core/dsp/gain/LoudnessMeter.h
+    core/dsp/gain/SafetyLimiter.h
     core/dsp/grains/GrainBuffer.h
     core/dsp/grains/GrainModule.cpp
     core/dsp/grains/GrainModule.h

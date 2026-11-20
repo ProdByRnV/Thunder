@@ -152,13 +152,32 @@ void SpaceModule::prepare (const PrepareSpec& spec)
     damping.prepare (spec.sampleRate, kSettingsRampSeconds);
     mix.prepare (spec.sampleRate, util::kDefaultRampSeconds);
 
+    // Quiet for longer than the longest pre-delay plus one reverb block means
+    // nothing is still travelling through the delay lines.
+    quietThreshold = static_cast<std::int64_t> (
+                         std::ceil (params::paramDef (ParamId::spacePreDelay).max / 1000.0 * spec.sampleRate)) +
+                     2 * kReverbBlock;
+
+    // prepare() runs off the audio thread: always clear here.
+    quietSamples = 0;
     reset();
 }
 
 void SpaceModule::reset() noexcept
 {
+    // Clearing CloudSeed's delay lines takes 7–10 ms (they are sized for 2 s
+    // at 192 kHz whatever the rate). When the reverb has been quiet long enough
+    // there is nothing to clear, which is the usual case: tails die out while
+    // the transport is stopped (PRD DEC-043).
+    // Either way the modulation returns to its start (Thunder's CloudSeed patch),
+    // so a reset reverb sounds like a fresh one.
     if (reverb != nullptr)
+    {
+        Cloudseed::ThunderSkipDelayZeroing() = isQuiet();
         reverb->ClearBuffers();
+        Cloudseed::ThunderSkipDelayZeroing() = false;
+    }
+    quietSamples = quietThreshold;
 
     for (auto* buffers : {&reverbIn, &reverbOut})
         for (auto& channel : *buffers)
@@ -170,8 +189,9 @@ void SpaceModule::reset() noexcept
 
 double SpaceModule::getTailSeconds() const noexcept
 {
-    // The longest possible tail, so it is constant and safe to read from any
-    // thread. TODO(PRD): report the current tail (T-0.4-07).
+    // The longest possible tail, whatever the current settings: a host that
+    // reads the tail once and keeps it would otherwise cut a longer reverb short
+    // (PRD DEC-043). Constant, so it is safe to read from any thread.
     return kMaxDecaySeconds + params::paramDef (ParamId::spacePreDelay).max / 1000.0;
 }
 
@@ -266,7 +286,9 @@ void SpaceModule::process (juce::dsp::AudioBlock<float>& block, const ProcessCon
     }
 
     // Equal-power wet/dry: the reverb is uncorrelated with the dry signal, so
-    // this keeps the overall level steady as Mix moves.
+    // this keeps the overall level steady as Mix moves. On the way, the
+    // loudest input or reverb sample, for the quiet tracking.
+    float loudest = 0.0f;
     for (int i = 0; i < numSamples; ++i)
     {
         const auto angle = mix.next() * juce::MathConstants<float>::halfPi;
@@ -274,9 +296,14 @@ void SpaceModule::process (juce::dsp::AudioBlock<float>& block, const ProcessCon
         const auto wetGain = std::sin (angle);
         const auto index = static_cast<std::size_t> (i);
 
+        loudest = std::max (
+            {loudest, std::abs (left[i]), std::abs (right[i]), std::abs (wet[0][index]), std::abs (wet[1][index])});
+
         left[i] = left[i] * dryGain + wet[0][index] * wetGain;
         right[i] = right[i] * dryGain + wet[1][index] * wetGain;
     }
+
+    quietSamples = loudest < kQuietLevel ? std::min (quietSamples + numSamples, quietThreshold) : 0;
 }
 
 } // namespace thunder::dsp

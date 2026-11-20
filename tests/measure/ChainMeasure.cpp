@@ -5,6 +5,8 @@
 
 #include "support/TestSignals.h"
 
+#include "core/dsp/gain/AutoGain.h"
+#include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
 #include "core/dsp/space/SpaceModule.h"
@@ -70,6 +72,29 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         std::printf ("  %-40s %5.2f%%\n", "Width (150%)", percentOfCore (width, input, s));
     }
     {
+        dsp::AutoGain autoGain;
+        dsp::SafetyLimiter limiter;
+        autoGain.prepare (kRate);
+        limiter.prepare (kRate);
+        std::vector<float> l = input, r = input, dl = input, dr = input;
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        for (std::size_t s = 0; s + 256 <= l.size(); s += 256)
+        {
+            float* layer[] = {l.data() + s, r.data() + s};
+            const float* dry[] = {dl.data() + s, dr.data() + s};
+            autoGain.process (layer, dry, 2, 256, true);
+        }
+        const auto mid = juce::Time::getMillisecondCounterHiRes();
+        for (std::size_t s = 0; s + 256 <= l.size(); s += 256)
+        {
+            float* out[] = {dl.data() + s, dr.data() + s};
+            limiter.process (out, 2, 256, true);
+        }
+        const auto end = juce::Time::getMillisecondCounterHiRes();
+        std::printf ("  %-40s %5.2f%%\n", "Auto Gain", (mid - start) / 10000.0 * 100.0);
+        std::printf ("  %-40s %5.2f%%\n", "Safety limiter", (end - mid) / 10000.0 * 100.0);
+    }
+    {
         ThunderEngine engine;
         engine.prepare (kRate);
         std::vector<float> left = input, right = input;
@@ -97,6 +122,17 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
     std::printf ("  %-40s %6.3f ms\n", "Space (CloudSeed)", resetMilliseconds<dsp::SpaceModule>());
     std::printf ("  %-40s %6.3f ms\n", "Tone", resetMilliseconds<dsp::ToneModule>());
     std::printf ("  %-40s %6.3f ms\n", "Width", resetMilliseconds<dsp::WidthModule>());
+    {
+        // The usual case for a host reset: the tail has died away while stopped.
+        dsp::SpaceModule space;
+        space.prepare ({kRate, 256, 2});
+        runModule (space, whiteNoise (kRate, 1.0), defaults);
+        runModule (space, std::vector<float> (static_cast<std::size_t> (20.0 * kRate), 0.0f), defaults);
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        space.reset();
+        std::printf ("  %-40s %6.3f ms\n", "Space, after its tail died away",
+                     juce::Time::getMillisecondCounterHiRes() - start);
+    }
     std::printf ("  (one 256-sample chunk at 48 kHz lasts 5.33 ms)\n");
     SUCCEED();
 }

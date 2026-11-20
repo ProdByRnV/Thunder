@@ -3,6 +3,8 @@
 
 #include "support/TestSignals.h"
 
+#include "core/dsp/gain/LoudnessMeter.h"
+#include "core/dsp/tone/Svf.h"
 #include "core/engine/ThunderEngine.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -103,6 +105,7 @@ TEST_CASE ("Output Gain scales the whole output", "[unit][engine]")
 {
     auto snapshot = ParamSnapshot::defaults();
     test::setSemitoneShift (snapshot, 12.0f);
+    snapshot.set (ParamId::safetyLimiter, 0.0f); // the full-scale noise would be limited
 
     const auto input = makeNoise (12000);
     const auto unity = render (input, 512, snapshot);
@@ -232,9 +235,12 @@ TEST_CASE ("Grains sit in the chain after Pitch, with their own switch", "[unit]
     engine.prepare (kSampleRate);
     dsp::PitchModule pitch;
     dsp::SpaceModule space;
+    dsp::SafetyLimiter limiter;
     pitch.prepare ({kSampleRate, ThunderEngine::kMaxChunkSize, 2});
     space.prepare ({kSampleRate, ThunderEngine::kMaxChunkSize, 2});
-    CHECK (engine.getLatencySamples() == pitch.getLatencySamples() + space.getLatencySamples());
+    limiter.prepare (kSampleRate);
+    CHECK (engine.getLatencySamples() ==
+           pitch.getLatencySamples() + space.getLatencySamples() + limiter.getLatencySamples());
     CHECK_THAT (
         engine.getTailSeconds(),
         WithinAbs (dsp::GrainModule::kBufferSeconds + 3.0 * dsp::GrainModule::kMaxGrainSeconds + space.getTailSeconds(),
@@ -274,11 +280,13 @@ TEST_CASE ("The grains in the engine start from the first sample after a reset",
 
 namespace
 {
-// Every module off.
+// Every module off, and Auto Gain and the limiter too, so the layer is the
+// input, untouched.
 ParamSnapshot allModulesOff()
 {
     auto s = ParamSnapshot::defaults();
-    for (const auto id : {ParamId::pitchOn, ParamId::grainOn, ParamId::spaceOn, ParamId::toneOn, ParamId::widthOn})
+    for (const auto id : {ParamId::pitchOn, ParamId::grainOn, ParamId::spaceOn, ParamId::toneOn, ParamId::widthOn,
+                          ParamId::autoGain, ParamId::safetyLimiter})
         s.set (id, 0.0f);
     return s;
 }
@@ -338,6 +346,7 @@ TEST_CASE ("Mix at 0% outputs the dry signal alone, exactly aligned", "[unit][en
 {
     auto snapshot = ParamSnapshot::defaults();
     snapshot.set (ParamId::mix, 0.0f);
+    snapshot.set (ParamId::safetyLimiter, 0.0f); // the full-scale noise would be limited
     const auto input = makeNoise (24000);
     const auto out = render (input, 512, snapshot);
 
@@ -429,4 +438,218 @@ TEST_CASE ("Switching modules, Output Mode or Mix during playback never clicks",
         CHECK (test::allFinite (toggling.left));
         CHECK (largestStep (toggling.left, from, input.size()) < 1.25f * steady + 0.005f);
     }
+}
+
+// ---- Subphase 2F: gain staging, limiter, reset and tails (PRD FR-GAIN-001…004,
+// FR-CORE-011/012, DEC-043; ROADMAP T-0.4-04/05/07)
+
+namespace
+{
+Stereo makeMono (const std::vector<float>& s)
+{
+    Stereo out (s.size());
+    out.left = s;
+    out.right = s;
+    return out;
+}
+
+// K-weighted loudness (dB) of a signal from `from` to the end.
+double loudnessDb (const std::vector<float>& s, std::size_t from)
+{
+    dsp::LoudnessMeter meter;
+    meter.prepare (kSampleRate);
+    double sum = 0.0;
+    std::size_t n = 0;
+    for (std::size_t i = 0; i < s.size(); ++i)
+    {
+        const auto ms = meter.push (&s[i], 1);
+        if (i >= from)
+        {
+            sum += ms;
+            ++n;
+        }
+    }
+    return 10.0 * std::log10 (sum / static_cast<double> (n) + 1e-20);
+}
+
+// Low notes (A1 to E2) with harmonics: plenty of energy below 100 Hz.
+std::vector<float> bassMelody (double seconds)
+{
+    return test::tone ([] (double t) { return 33.0 + 2.0 * std::floor (std::fmod (t * 2.0, 4.0)); }, kSampleRate,
+                       seconds, 8);
+}
+
+// Energy below about 100 Hz: three passes through a 4-pole low-pass at the
+// Tone module's lowest low-pass cutoff (1 kHz) would be too gentle, so a
+// dedicated 100 Hz 4-pole low-pass made from the same filter sections.
+double energyBelow100Hz (const std::vector<float>& s, std::size_t from)
+{
+    dsp::Svf first, second;
+    const auto c1 = dsp::Svf::Coefficients::make (100.0 / kSampleRate, 1.8477590650225735);
+    const auto c2 = dsp::Svf::Coefficients::make (100.0 / kSampleRate, 0.7653668647301796);
+    double energy = 0.0;
+    for (std::size_t i = 0; i < s.size(); ++i)
+    {
+        const auto y = second.process (0, first.process (0, s[i], c1, false), c2, false);
+        if (i >= from)
+            energy += static_cast<double> (y) * static_cast<double> (y);
+    }
+    return energy;
+}
+} // namespace
+
+TEST_CASE ("At the defaults nothing leaves above -0.3 dBFS", "[unit][engine][gain]")
+{
+    // PRD FR-GAIN-003, ROADMAP v0.4 exit criterion: a melody, a chord, noise and
+    // a bass line, all hot (peaks near full scale), also with the input +12 dB.
+    std::vector<std::vector<float>> signals{
+        test::tone ([] (double t) { return 57.0 + 2.0 * std::floor (std::fmod (t * 4.0, 6.0)); }, kSampleRate, 4.0, 8),
+        test::chord ({57.0, 61.0, 64.0}, kSampleRate, 4.0), test::whiteNoise (kSampleRate, 4.0), bassMelody (4.0)};
+
+    for (auto& s : signals)
+    {
+        float peak = 0.0f;
+        for (const auto x : s)
+            peak = std::max (peak, std::abs (x));
+        for (auto& x : s)
+            x *= 0.99f / peak;
+    }
+
+    for (const auto inputDb : {0.0f, 12.0f})
+    {
+        auto snapshot = ParamSnapshot::defaults();
+        snapshot.set (ParamId::inputGain, inputDb);
+        for (std::size_t k = 0; k < signals.size(); ++k)
+        {
+            INFO ("signal " << k << ", input " << inputDb << " dB");
+            const auto out = render (makeMono (signals[k]), 512, snapshot);
+            float peak = 0.0f;
+            for (std::size_t i = 0; i < out.size(); ++i)
+                peak = std::max ({peak, std::abs (out.left[i]), std::abs (out.right[i])});
+            CHECK (peak <= dsp::SafetyLimiter::kCeiling);
+        }
+    }
+}
+
+TEST_CASE ("Layer Level scales the layer alone", "[unit][engine][gain]")
+{
+    // Layer Only, Auto Gain and the limiter off: the output is the layer.
+    auto snapshot = ParamSnapshot::defaults();
+    test::setChoice (snapshot, ParamId::outputMode, params::OutputMode::LayerOnly);
+    snapshot.set (ParamId::autoGain, 0.0f);
+    snapshot.set (ParamId::safetyLimiter, 0.0f);
+
+    const auto input = makeSine (24000);
+    const auto unity = render (input, 512, snapshot);
+    snapshot.set (ParamId::layerLevel, -12.0f);
+    const auto quieter = render (input, 512, snapshot);
+
+    const auto g = juce::Decibels::decibelsToGain (-12.0f);
+    float worst = 0.0f;
+    for (std::size_t i = 0; i < unity.size(); ++i)
+        worst = std::max (worst, std::abs (quieter.left[i] - unity.left[i] * g));
+    CHECK (worst < 1e-6f);
+}
+
+TEST_CASE ("At the defaults the layer sits 6 dB under the dry signal, without its low end", "[unit][engine][gain]")
+{
+    // ROADMAP v0.4 exit criterion, measured on synthetic material (listening
+    // follows at T-1.0-03). The layer alone (Layer Only) against the dry alone
+    // (Mix 0%), over the last 4 s, after Auto Gain has settled.
+    const auto melody = makeMono (bassMelody (10.0));
+    auto layerOnly = ParamSnapshot::defaults();
+    test::setChoice (layerOnly, ParamId::outputMode, params::OutputMode::LayerOnly);
+    layerOnly.set (ParamId::safetyLimiter, 0.0f);
+    auto dryOnly = ParamSnapshot::defaults();
+    dryOnly.set (ParamId::mix, 0.0f);
+    dryOnly.set (ParamId::safetyLimiter, 0.0f);
+
+    const auto layer = render (melody, 512, layerOnly);
+    const auto dryOut = render (melody, 512, dryOnly);
+    const auto from = static_cast<std::size_t> (6.0 * kSampleRate);
+
+    const auto difference = loudnessDb (layer.left, from) - loudnessDb (dryOut.left, from);
+    CHECK_THAT (difference, WithinAbs (dsp::AutoGain::kOffsetDb, 1.5));
+
+    // Below 100 Hz the layer has at least 20 dB less than the dry signal: the
+    // high-pass keeps it out of the bass.
+    CHECK (10.0 * std::log10 (energyBelow100Hz (layer.left, from) / energyBelow100Hz (dryOut.left, from)) < -20.0);
+}
+
+TEST_CASE ("Reset clears everything: afterwards the engine sounds like a fresh one", "[unit][engine][reset]")
+{
+    // PRD FR-CORE-012. With the reverb still ringing at the reset, the full
+    // clear runs, so the result is exactly a fresh engine's.
+    const auto input = makeNoise (24000);
+    const auto snapshot = ParamSnapshot::defaults();
+    const auto fresh = render (input, 512, snapshot);
+
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    auto first = makeNoise (48000);
+    float* firstChannels[] = {first.left.data(), first.right.data()};
+    engine.process (firstChannels, 48000, {}, snapshot);
+    engine.reset();
+
+    auto second = input;
+    for (std::size_t start = 0; start < second.size(); start += 512)
+    {
+        const auto n = std::min<std::size_t> (512, second.size() - start);
+        float* channels[] = {second.left.data() + start, second.right.data() + start};
+        engine.process (channels, static_cast<int> (n), {}, snapshot);
+    }
+    CHECK (second.left == fresh.left);
+    CHECK (second.right == fresh.right);
+}
+
+TEST_CASE ("The reverb knows when it is quiet, so a reset can skip the slow clear", "[unit][engine][reset]")
+{
+    // PRD DEC-043: reset() clears CloudSeed's delay lines (7–10 ms) only while
+    // something is still in them.
+    dsp::SpaceModule space;
+    space.prepare ({kSampleRate, 256, 2});
+    const auto snapshot = ParamSnapshot::defaults();
+    CHECK (space.isQuiet()); // freshly prepared
+
+    test::runModule (space, test::whiteNoise (kSampleRate, 0.5), snapshot);
+    CHECK_FALSE (space.isQuiet());
+
+    // Silence until the tail has died away (decay 50%: a few seconds).
+    const auto tail =
+        test::runModule (space, std::vector<float> (static_cast<std::size_t> (20.0 * kSampleRate), 0.0f), snapshot);
+    CHECK (space.isQuiet());
+    CHECK (std::abs (tail.back()) < 1e-6f);
+
+    space.reset();
+    CHECK (space.isQuiet());
+}
+
+TEST_CASE ("Tails ring out and stop within the reported tail length", "[unit][engine][reset]")
+{
+    // PRD FR-CORE-011: after the input stops, grains and reverb decay naturally
+    // and are gone well within what the host is told.
+    auto input = makeNoise (static_cast<std::size_t> (12.0 * kSampleRate));
+    std::fill (input.left.begin() + 48000, input.left.end(), 0.0f);
+    std::fill (input.right.begin() + 48000, input.right.end(), 0.0f);
+    const auto out = render (input, 512, ParamSnapshot::defaults());
+
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    CHECK (engine.getTailSeconds() >= 5.5);
+
+    // It rings on after the input stops...
+    CHECK (test::energy (out.left, 48000 + 24000, 48000 + 48000) > 0.0);
+    // ...keeps falling, and 10 s later is below -80 dBFS (the input was full
+    // scale), inside the reported tail. The exact level depends on rounding
+    // (debug and release builds differ slightly), so the margin is generous.
+    const auto peakBetween = [&] (double from, double to)
+    {
+        float peak = 0.0f;
+        for (auto i = static_cast<std::size_t> (from * kSampleRate); i < static_cast<std::size_t> (to * kSampleRate);
+             ++i)
+            peak = std::max (peak, std::abs (out.left[i]));
+        return peak;
+    };
+    CHECK (peakBetween (11.0, 12.0) < peakBetween (5.0, 6.0));
+    CHECK (peakBetween (11.0, 12.0) < 1e-4f);
 }

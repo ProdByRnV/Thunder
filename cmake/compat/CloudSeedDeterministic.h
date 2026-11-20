@@ -19,6 +19,16 @@ inline std::uint32_t& ThunderPhaseSeed()
     return state;
 }
 
+// While set, ClearBuffers() leaves the large delay memory as it is and only
+// resets the small state (modulation phases). Thunder sets it while resetting a
+// reverb that is already silent, where zeroing 2 s of 192 kHz memory per line
+// would only cost time (PRD DEC-043).
+inline bool& ThunderSkipDelayZeroing()
+{
+    static thread_local bool skip = false;
+    return skip;
+}
+
 // A value in [0, 1), like std::rand() / RAND_MAX.
 inline float ThunderPhaseRandom()
 {

@@ -40,7 +40,9 @@ std::vector<float> render (double sampleRate, const std::vector<float>& input, c
 }
 
 // Unison, with no reverb, grains or filters: the output is the aligned dry plus
-// the (unshifted) pitch path, which is what carries the latency.
+// the (unshifted) pitch path, which is what carries the latency. Auto Gain and the
+// limiter are off so the impulse keeps its height (the limiter still delays
+// it: its look-ahead is part of the latency).
 ParamSnapshot unisonDry()
 {
     auto s = ParamSnapshot::defaults();
@@ -48,6 +50,8 @@ ParamSnapshot unisonDry()
     s.set (ParamId::spaceMix, 0.0f);
     s.set (ParamId::grainOn, 0.0f);
     s.set (ParamId::toneOn, 0.0f);
+    s.set (ParamId::autoGain, 0.0f);
+    s.set (ParamId::safetyLimiter, 0.0f);
     return s;
 }
 } // namespace
@@ -90,6 +94,7 @@ TEST_CASE ("With every module on, nothing arrives before the latency", "[unit][a
         int latency = 0;
         auto snapshot = ParamSnapshot::defaults();
         test::setSemitoneShift (snapshot, 0.0f);
+        snapshot.set (ParamId::safetyLimiter, 0.0f); // keep the impulse's height
         const auto out =
             render (sampleRate, impulse (static_cast<std::size_t> (sampleRate), position), snapshot, 512, &latency);
 

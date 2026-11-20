@@ -18,16 +18,22 @@ void ThunderEngine::prepare (double newSampleRate)
     for (auto* module : chain())
         module->prepare (spec);
 
-    latencySamples = 0;
+    // The dry path matches the layer chain; the limiter after the mix delays both.
+    auto chainLatency = 0;
     for (auto* module : chain())
-        latencySamples += module->getLatencySamples();
-    dryDelay.prepare (kNumChannels, latencySamples);
+        chainLatency += module->getLatencySamples();
+    dryDelay.prepare (kNumChannels, chainLatency);
+
+    limiter.prepare (sampleRate);
+    latencySamples = chainLatency + limiter.getLatencySamples();
 
     for (auto& channel : dry)
         channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
 
     inputGain.prepare (sampleRate);
+    layerLevel.prepare (sampleRate);
     outputGain.prepare (sampleRate);
+    autoGain.prepare (sampleRate);
     output.prepare (sampleRate);
 
     nonFiniteReplaced.store (0, std::memory_order_relaxed);
@@ -46,7 +52,9 @@ void ThunderEngine::reset() noexcept
         for (auto* module : chain())
             module->reset();
         dryDelay.reset();
+        autoGain.reset();
         output.reset();
+        limiter.reset();
     }
 }
 
@@ -67,17 +75,20 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
     }
 
     const auto inputDb = snapshot.get (ParamId::inputGain);
+    const auto layerDb = snapshot.get (ParamId::layerLevel);
     const auto outputDb = snapshot.get (ParamId::outputGain);
 
     if (firstBlock)
     {
         inputGain.snapToDecibels (inputDb);
+        layerLevel.snapToDecibels (layerDb);
         outputGain.snapToDecibels (outputDb);
         firstBlock = false;
     }
     else
     {
         inputGain.setTargetDecibels (inputDb);
+        layerLevel.setTargetDecibels (layerDb);
         outputGain.setTargetDecibels (outputDb);
     }
 
@@ -115,13 +126,20 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     for (auto* module : chain())
         runModule (*module, layer, context);
 
-    // Output Mode and Mix combine the layer with the aligned dry signal.
+    // Gain staging (ARCHITECTURE §5.8 OutputStage): Auto Gain holds the layer
+    // below the dry signal, then Layer Level, then Output Mode and Mix combine
+    // the layer with the aligned dry signal, then Output Gain.
+    autoGain.process (channels, dryChannels, kNumChannels, numSamples, context.params.isOn (ParamId::autoGain));
+    layerLevel.apply (channels, kNumChannels, numSamples);
     output.process (channels, dryChannels, kNumChannels, numSamples, context.params);
-
     outputGain.apply (channels, kNumChannels, numSamples);
 
-    // Gains can push extreme (but finite) input to Inf; never let that out.
+    // Gains can push extreme (but finite) input to Inf; never let that reach
+    // the limiter or the output.
     sanitise (channels, numSamples);
+
+    // Nothing leaves above −0.3 dBFS.
+    limiter.process (channels, kNumChannels, numSamples, context.params.isOn (ParamId::safetyLimiter));
 }
 
 void ThunderEngine::runModule (Module& module, juce::dsp::AudioBlock<float>& block,

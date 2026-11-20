@@ -3,6 +3,8 @@
 #include "ModuleSlot.h"
 #include "OutputStage.h"
 
+#include "core/dsp/gain/AutoGain.h"
+#include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
 #include "core/dsp/space/SpaceModule.h"
@@ -27,8 +29,9 @@ namespace thunder
 //
 // Per chunk:
 //   input gain, sanitise
-//     ├─ dry path: delayed by the engine latency ──────────────────────┐
-//     └─ layer:    Pitch → Grains → Space → Tone → Width ──────────────┴─ Output Mode / Mix → output gain → sanitise
+//     ├─ dry path: delayed by the chain's latency ─────────────────────────────────────┐
+//     └─ layer:    Pitch → Grains → Space → Tone → Width → Auto Gain → Layer Level ─┴─ Output Mode / Mix
+//                                                       → Output Gain → sanitise → safety limiter (−0.3 dBFS)
 //
 // The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → Tone → Width →
 // Shape → Duck). Time (v0.8) will go between Pitch and Grains, Shape and Duck
@@ -36,7 +39,7 @@ namespace thunder
 // switch (PRD FR-CORE-009); a switched-off module costs nothing and the latency
 // never changes.
 //
-// TODO(PRD): Auto Gain, Layer Level and the safety limiter (T-0.4-04/05, 2F).
+// The limiter looks ahead 1.5 ms; that is part of the reported latency.
 class ThunderEngine
 {
 public:
@@ -100,7 +103,10 @@ private:
 
     TransportState transport;
     util::GainSmoother inputGain;
+    util::GainSmoother layerLevel;
     util::GainSmoother outputGain;
+    dsp::AutoGain autoGain;
+    dsp::SafetyLimiter limiter;
 
     ModuleSlot<dsp::PitchModule> pitch{params::ParamId::pitchOn};
     ModuleSlot<dsp::GrainModule> grains{params::ParamId::grainOn};

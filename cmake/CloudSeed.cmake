@@ -17,12 +17,20 @@
 #   identical. They now come from a generator Thunder reseeds before building
 #   each reverb (cmake/compat/CloudSeedDeterministic.h).
 #
+#   DSP/ModulatedDelay.h, DSP/ModulatedAllpass.h, DSP/MultitapDelay.h — ClearBuffers()
+#   only zeroed the delay memory, so after a reset the modulation carried on from
+#   wherever it was and a reset reverb didn't sound like a fresh one. It now also
+#   returns each modulation to its starting phase. And Thunder can ask it to skip
+#   the zeroing (Cloudseed::ThunderSkipDelayZeroing): clearing 2 s of 192 kHz
+#   memory per line takes 7–10 ms, needless when the reverb is already silent
+#   (PRD DEC-043).
+#
 # If an update to the submodule changes the patched code, configuring fails
 # here rather than silently building an unpatched reverb.
 
 set(_cloudseed_source "${CMAKE_CURRENT_SOURCE_DIR}/external/CloudSeedCore")
 set(_cloudseed_dir "${CMAKE_BINARY_DIR}/cloudseed")
-set(_cloudseed_patched_files DSP/ReverbChannel.h DSP/ModulatedDelay.h DSP/ModulatedAllpass.h)
+set(_cloudseed_patched_files DSP/ReverbChannel.h DSP/ModulatedDelay.h DSP/ModulatedAllpass.h DSP/MultitapDelay.h)
 
 file(COPY "${_cloudseed_source}/Parameters.h" "${_cloudseed_source}/Parameters.cpp" "${_cloudseed_source}/Programs.h"
      "${_cloudseed_source}/LICENSE"
@@ -30,7 +38,8 @@ file(COPY "${_cloudseed_source}/Parameters.h" "${_cloudseed_source}/Parameters.c
 file(COPY "${_cloudseed_source}/DSP" DESTINATION "${_cloudseed_dir}"
      PATTERN "ReverbChannel.h" EXCLUDE
      PATTERN "ModulatedDelay.h" EXCLUDE
-     PATTERN "ModulatedAllpass.h" EXCLUDE)
+     PATTERN "ModulatedAllpass.h" EXCLUDE
+     PATTERN "MultitapDelay.h" EXCLUDE)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/compat/CloudSeedDeterministic.h"
                "${_cloudseed_dir}/DSP/ThunderDeterministic.h" COPYONLY)
 
@@ -93,8 +102,42 @@ foreach(_file DSP/ModulatedDelay.h DSP/ModulatedAllpass.h)
         [=[std::rand() / (float)RAND_MAX]=]
         [=[Cloudseed::ThunderPhaseRandom()]=])
 
+    # Remember the starting phase, and return to it when the buffers are cleared.
+    _thunder_cloudseed_replace(${_file}
+        [=[float modPhase;]=]
+        [=[float modPhase;
+		float thunderStartPhase = 0; // Thunder patch (see cmake/CloudSeed.cmake)]=])
+
+    _thunder_cloudseed_replace(${_file}
+        [=[modPhase = 0.01 + 0.98 * ]=]
+        [=[modPhase = thunderStartPhase = 0.01 + 0.98 * ]=])
+
+    _thunder_cloudseed_replace(${_file}
+        [=[Utils::ZeroBuffer(delayBuffer, DelayBufferSize);]=]
+        [=[// Thunder patch (see cmake/CloudSeed.cmake): skippable zeroing, and the
+			// modulation back to its start, updated on the next sample.
+			if (!Cloudseed::ThunderSkipDelayZeroing())
+				Utils::ZeroBuffer(delayBuffer, DelayBufferSize);
+			modPhase = thunderStartPhase;
+			samplesProcessed = ModulationUpdateRate;]=])
+
     _thunder_cloudseed_write(${_file})
 endforeach()
+
+# ---- DSP/MultitapDelay.h: skippable zeroing ------------------------------------------------------------------------------
+file(READ "${_cloudseed_source}/DSP/MultitapDelay.h" _patch_text)
+
+_thunder_cloudseed_replace(DSP/MultitapDelay.h
+    [=[#include "Utils.h"]=]
+    [=[#include "Utils.h"
+#include "ThunderDeterministic.h" // Thunder patch (see cmake/CloudSeed.cmake)]=])
+
+_thunder_cloudseed_replace(DSP/MultitapDelay.h
+    [=[Utils::ZeroBuffer(delayBuffer, DelayBufferSize);]=]
+    [=[if (!Cloudseed::ThunderSkipDelayZeroing()) // Thunder patch (see cmake/CloudSeed.cmake)
+				Utils::ZeroBuffer(delayBuffer, DelayBufferSize);]=])
+
+_thunder_cloudseed_write(DSP/MultitapDelay.h)
 
 foreach(_file IN LISTS _cloudseed_patched_files)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_cloudseed_source}/${_file}")

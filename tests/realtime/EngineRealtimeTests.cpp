@@ -254,7 +254,8 @@ TEST_CASE ("The utilities do not allocate or block", "[realtime][util]")
     CHECK (report.deallocations == 0);
 }
 
-TEST_CASE ("Switching every module, Output Mode and Mix does not allocate or block", "[realtime][engine]")
+TEST_CASE ("Switching every module, Output Mode, Mix and the gains, and a reset, do not allocate or block",
+           "[realtime][engine]")
 {
     // Including the reverb ringing out on silence after it is switched off.
     ThunderEngine engine;
@@ -282,6 +283,12 @@ TEST_CASE ("Switching every module, Output Mode and Mix does not allocate or blo
                 snapshot.set (ParamId::mix, static_cast<float> (chunk % 101));
                 snapshot.set (ParamId::hpFreq, 20.0f + static_cast<float> (chunk % 50) * 39.0f);
                 snapshot.set (ParamId::widthAmount, static_cast<float> (chunk % 201));
+                snapshot.set (ParamId::autoGain, (chunk / 41) % 2 == 0 ? 1.0f : 0.0f);
+                snapshot.set (ParamId::safetyLimiter, (chunk / 53) % 2 == 0 ? 1.0f : 0.0f);
+                snapshot.set (ParamId::layerLevel, -36.0f + static_cast<float> (chunk % 49));
+                snapshot.set (ParamId::inputGain, (chunk / 61) % 2 == 0 ? 0.0f : 18.0f); // drives the limiter
+                if (chunk == 300)
+                    engine.reset(); // a host reset with the reverb ringing
 
                 engine.process (channels, 256, {}, snapshot);
             }
