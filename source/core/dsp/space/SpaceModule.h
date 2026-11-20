@@ -40,6 +40,10 @@ public:
 
     double getTailSeconds() const noexcept override;
 
+    // Clearing CloudSeed's delay lines takes ~10 ms, longer than a 256-sample
+    // chunk at 48 kHz.
+    bool canResetInstantly() const noexcept override { return false; }
+
     // The parameter mappings, exposed for tests.
     static double decaySeconds (float decayPercent) noexcept;
     static double dampingCutoffHz (float dampingPercent) noexcept;

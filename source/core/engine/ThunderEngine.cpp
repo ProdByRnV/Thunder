@@ -15,11 +15,12 @@ void ThunderEngine::prepare (double newSampleRate)
     sampleRate = newSampleRate;
 
     const PrepareSpec spec{sampleRate, kMaxChunkSize, kNumChannels};
-    pitch.prepare (spec);
-    grains.prepare (spec);
-    space.prepare (spec);
+    for (auto* module : chain())
+        module->prepare (spec);
 
-    latencySamples = pitch.getLatencySamples() + grains.getLatencySamples() + space.getLatencySamples();
+    latencySamples = 0;
+    for (auto* module : chain())
+        latencySamples += module->getLatencySamples();
     dryDelay.prepare (kNumChannels, latencySamples);
 
     for (auto& channel : dry)
@@ -27,6 +28,7 @@ void ThunderEngine::prepare (double newSampleRate)
 
     inputGain.prepare (sampleRate);
     outputGain.prepare (sampleRate);
+    output.prepare (sampleRate);
 
     nonFiniteReplaced.store (0, std::memory_order_relaxed);
     moduleResets.store (0, std::memory_order_relaxed);
@@ -41,10 +43,10 @@ void ThunderEngine::reset() noexcept
 
     if (prepared)
     {
-        pitch.reset();
-        grains.reset();
-        space.reset();
+        for (auto* module : chain())
+            module->reset();
         dryDelay.reset();
+        output.reset();
     }
 }
 
@@ -110,13 +112,11 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
 
     // Layer path, processed in place in the output buffer.
     juce::dsp::AudioBlock<float> layer (channels, kNumChannels, static_cast<std::size_t> (numSamples));
-    runModule (pitch, layer, context);
-    // (Time, v0.8, goes here.)
-    runModule (grains, layer, context);
-    runModule (space, layer, context);
+    for (auto* module : chain())
+        runModule (*module, layer, context);
 
-    for (int ch = 0; ch < kNumChannels; ++ch)
-        juce::FloatVectorOperations::add (channels[ch], dryChannels[ch], numSamples);
+    // Output Mode and Mix combine the layer with the aligned dry signal.
+    output.process (channels, dryChannels, kNumChannels, numSamples, context.params);
 
     outputGain.apply (channels, kNumChannels, numSamples);
 

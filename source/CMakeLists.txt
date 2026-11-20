@@ -21,8 +21,14 @@ target_sources(ThunderCore INTERFACE
     core/dsp/pitch/PitchModule.h
     core/dsp/space/SpaceModule.cpp
     core/dsp/space/SpaceModule.h
+    core/dsp/tone/Svf.h
+    core/dsp/tone/ToneModule.cpp
+    core/dsp/tone/ToneModule.h
+    core/dsp/width/WidthModule.cpp
+    core/dsp/width/WidthModule.h
     core/engine/Module.h
     core/engine/ModuleSlot.h
+    core/engine/OutputStage.h
     core/engine/ThunderEngine.cpp
     core/engine/ThunderEngine.h
     core/host/TransportState.cpp

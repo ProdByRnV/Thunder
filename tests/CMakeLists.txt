@@ -32,11 +32,14 @@ target_sources(ThunderTests PRIVATE
     unit/SpaceModuleTests.cpp
     unit/StateTests.cpp
     unit/TransportStateTests.cpp
+    unit/ToneModuleTests.cpp
     unit/UtilTests.cpp
+    unit/WidthModuleTests.cpp
     realtime/DependencyRealtimeTests.cpp
     realtime/EngineRealtimeTests.cpp
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
+    measure/ChainMeasure.cpp
     measure/GrainMeasure.cpp
     measure/PitchConfigMeasure.cpp
     measure/PitchModesMeasure.cpp

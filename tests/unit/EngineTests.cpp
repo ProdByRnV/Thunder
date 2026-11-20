@@ -268,3 +268,165 @@ TEST_CASE ("The grains in the engine start from the first sample after a reset",
     CHECK (engine.getGrains().getActiveGrains() == 0);
     CHECK (engine.getGrains().getBuffer().getWriteCount() == 0);
 }
+
+// ---- Subphase 2E: Output Mode, Mix, module switches (PRD FR-CORE-005/006/009,
+// FR-GAIN-005, DEC-015; ROADMAP T-0.4-03/06)
+
+namespace
+{
+// Every module off.
+ParamSnapshot allModulesOff()
+{
+    auto s = ParamSnapshot::defaults();
+    for (const auto id : {ParamId::pitchOn, ParamId::grainOn, ParamId::spaceOn, ParamId::toneOn, ParamId::widthOn})
+        s.set (id, 0.0f);
+    return s;
+}
+
+float largestStep (const std::vector<float>& s, std::size_t from, std::size_t to)
+{
+    float largest = 0.0f;
+    for (auto i = std::max<std::size_t> (from, 1); i < std::min (to, s.size()); ++i)
+        largest = std::max (largest, std::abs (s[i] - s[i - 1]));
+    return largest;
+}
+
+// Renders `input` with the snapshot chosen per 256-sample chunk.
+template<typename SnapshotFor> Stereo renderChanging (const Stereo& input, SnapshotFor snapshotFor)
+{
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    auto output = input;
+    for (std::size_t start = 0, chunk = 0; start < output.size(); start += 256, ++chunk)
+    {
+        const auto n = std::min<std::size_t> (256, output.size() - start);
+        float* channels[] = {output.left.data() + start, output.right.data() + start};
+        engine.process (channels, static_cast<int> (n), {}, snapshotFor (chunk));
+    }
+    return output;
+}
+
+Stereo makeSine (std::size_t n, double hz = 220.0)
+{
+    Stereo s (n);
+    s.left = test::sine (hz, kSampleRate, static_cast<double> (n) / kSampleRate, 0.25f);
+    s.right = s.left;
+    return s;
+}
+} // namespace
+
+TEST_CASE ("The Mix law is unity at the centre", "[unit][engine][output]")
+{
+    using params::OutputMode;
+    const auto check = [] (OutputMode mode, float mix, float dry, float layer)
+    {
+        INFO ("mix " << mix);
+        const auto [d, l] = OutputStage::gainsFor (mode, mix);
+        CHECK_THAT (d, WithinAbs (dry, 1e-7));
+        CHECK_THAT (l, WithinAbs (layer, 1e-7));
+    };
+    check (OutputMode::Blend, 0.0f, 1.0f, 0.0f);
+    check (OutputMode::Blend, 0.25f, 1.0f, 0.5f);
+    check (OutputMode::Blend, 0.5f, 1.0f, 1.0f);
+    check (OutputMode::Blend, 0.75f, 0.5f, 1.0f);
+    check (OutputMode::Blend, 1.0f, 0.0f, 1.0f);
+    for (const auto mix : {0.0f, 0.5f, 1.0f})
+        check (OutputMode::LayerOnly, mix, 0.0f, 1.0f);
+}
+
+TEST_CASE ("Mix at 0% outputs the dry signal alone, exactly aligned", "[unit][engine][output]")
+{
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::mix, 0.0f);
+    const auto input = makeNoise (24000);
+    const auto out = render (input, 512, snapshot);
+
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    const auto latency = static_cast<std::size_t> (engine.getLatencySamples());
+    for (std::size_t i = latency; i < out.size(); ++i)
+    {
+        REQUIRE (juce::exactlyEqual (out.left[i], input.left[i - latency]));
+        REQUIRE (juce::exactlyEqual (out.right[i], input.right[i - latency]));
+    }
+}
+
+TEST_CASE ("With every module off the latency stays, and Layer Only is the delayed input", "[unit][engine][output]")
+{
+    // The switched-off Pitch module still delays its input by its latency, so
+    // the layer stays aligned with the dry signal (ARCHITECTURE §5.3, AD-02).
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    const auto latency = static_cast<std::size_t> (engine.getLatencySamples());
+    REQUIRE (latency > 0);
+
+    const auto input = makeNoise (24000);
+
+    auto layerOnly = allModulesOff();
+    test::setChoice (layerOnly, ParamId::outputMode, params::OutputMode::LayerOnly);
+    const auto layer = render (input, 512, layerOnly);
+    for (std::size_t i = latency; i < layer.size(); ++i)
+        REQUIRE (juce::exactlyEqual (layer.left[i], input.left[i - latency]));
+
+    // Blend at 50%: dry and layer both at unity, so twice the delayed input.
+    const auto blend = render (input, 512, allModulesOff());
+    for (std::size_t i = latency; i < blend.size(); ++i)
+        REQUIRE_THAT (blend.left[i], WithinAbs (2.0f * input.left[i - latency], 1e-6));
+}
+
+TEST_CASE ("Mix 100% sounds like Layer Only", "[unit][engine][output]")
+{
+    auto full = ParamSnapshot::defaults();
+    full.set (ParamId::mix, 100.0f);
+    auto layerOnly = ParamSnapshot::defaults();
+    test::setChoice (layerOnly, ParamId::outputMode, params::OutputMode::LayerOnly);
+
+    const auto input = makeNoise (24000);
+    const auto a = render (input, 512, full);
+    const auto b = render (input, 512, layerOnly);
+    CHECK (a.left == b.left);
+    CHECK (a.right == b.right);
+}
+
+TEST_CASE ("Switching modules, Output Mode or Mix during playback never clicks", "[unit][engine][output]")
+{
+    // A 220 Hz sine with the reverb dry (its tail makes steps hard to judge).
+    // Each switch toggles every 0.25 s; the largest step anywhere must stay
+    // close to the largest step of the same render settled on or off.
+    auto base = ParamSnapshot::defaults();
+    base.set (ParamId::spaceMix, 0.0f);
+    const auto input = makeSine (static_cast<std::size_t> (2.0 * kSampleRate));
+    const auto period = static_cast<std::size_t> (0.25 * kSampleRate) / 256;
+
+    struct Switch
+    {
+        const char* name;
+        ParamId id;
+        float on, off;
+    };
+    const Switch switches[] = {
+        {"pitchOn", ParamId::pitchOn, 1.0f, 0.0f}, {"grainOn", ParamId::grainOn, 1.0f, 0.0f},
+        {"spaceOn", ParamId::spaceOn, 1.0f, 0.0f}, {"toneOn", ParamId::toneOn, 1.0f, 0.0f},
+        {"widthOn", ParamId::widthOn, 1.0f, 0.0f}, {"outputMode", ParamId::outputMode, 0.0f, 1.0f},
+        {"mix", ParamId::mix, 50.0f, 100.0f},
+    };
+
+    for (const auto& sw : switches)
+    {
+        INFO (sw.name);
+        auto on = base, off = base;
+        on.set (sw.id, sw.on);
+        off.set (sw.id, sw.off);
+
+        const auto settledOn = render (input, 256, on);
+        const auto settledOff = render (input, 256, off);
+        const auto toggling =
+            renderChanging (input, [&] (std::size_t chunk) { return (chunk / period) % 2 == 0 ? on : off; });
+
+        const auto from = static_cast<std::size_t> (0.5 * kSampleRate); // past the start-up
+        const auto steady = std::max (largestStep (settledOn.left, from, input.size()),
+                                      largestStep (settledOff.left, from, input.size()));
+        CHECK (test::allFinite (toggling.left));
+        CHECK (largestStep (toggling.left, from, input.size()) < 1.25f * steady + 0.005f);
+    }
+}

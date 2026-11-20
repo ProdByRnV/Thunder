@@ -253,3 +253,40 @@ TEST_CASE ("The utilities do not allocate or block", "[realtime][util]")
     CHECK (report.allocations == 0);
     CHECK (report.deallocations == 0);
 }
+
+TEST_CASE ("Switching every module, Output Mode and Mix does not allocate or block", "[realtime][engine]")
+{
+    // Including the reverb ringing out on silence after it is switched off.
+    ThunderEngine engine;
+    engine.prepare (48000.0);
+
+    const auto input = test::sine (220.0, 48000.0, 1.0);
+    std::vector<float> left (256), right (256);
+    float* channels[] = {left.data(), right.data()};
+    auto snapshot = params::ParamSnapshot::defaults();
+    const ParamId switches[] = {ParamId::pitchOn, ParamId::grainOn, ParamId::spaceOn, ParamId::toneOn,
+                                ParamId::widthOn};
+
+    const auto report = test::runInRealtimeSection (
+        [&]
+        {
+            for (std::size_t chunk = 0; chunk < 600; ++chunk)
+            {
+                const auto start = (chunk * 256) % (input.size() - 256);
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, left.begin());
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, right.begin());
+
+                for (std::size_t s = 0; s < std::size (switches); ++s)
+                    snapshot.set (switches[s], ((chunk / (20 + 7 * s)) % 2) == 0 ? 1.0f : 0.0f);
+                snapshot.set (ParamId::outputMode, (chunk / 33) % 2 == 0 ? 0.0f : 1.0f);
+                snapshot.set (ParamId::mix, static_cast<float> (chunk % 101));
+                snapshot.set (ParamId::hpFreq, 20.0f + static_cast<float> (chunk % 50) * 39.0f);
+                snapshot.set (ParamId::widthAmount, static_cast<float> (chunk % 201));
+
+                engine.process (channels, 256, {}, snapshot);
+            }
+        });
+
+    CHECK (report.allocations == 0);
+    CHECK (report.deallocations == 0);
+}

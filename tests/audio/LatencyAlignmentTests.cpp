@@ -39,12 +39,15 @@ std::vector<float> render (double sampleRate, const std::vector<float>& input, c
     return left;
 }
 
-// Unison, no reverb: the output is the aligned dry plus the (unshifted) layer.
+// Unison, with no reverb, grains or filters: the output is the aligned dry plus
+// the (unshifted) pitch path, which is what carries the latency.
 ParamSnapshot unisonDry()
 {
     auto s = ParamSnapshot::defaults();
     test::setSemitoneShift (s, 0.0f);
     s.set (ParamId::spaceMix, 0.0f);
+    s.set (ParamId::grainOn, 0.0f);
+    s.set (ParamId::toneOn, 0.0f);
     return s;
 }
 } // namespace
@@ -73,6 +76,27 @@ TEST_CASE ("An impulse comes out at exactly the reported latency", "[unit][audio
             // Nothing arrives early.
             CHECK (energy (out, 0, expectedAt - 1) < 0.01);
         }
+    }
+}
+
+TEST_CASE ("With every module on, nothing arrives before the latency", "[unit][audio][latency]")
+{
+    // Grains, reverb and filters only ever add later copies; the dry impulse
+    // still lands exactly on the latency.
+    for (const auto sampleRate : {44100.0, 48000.0, 96000.0})
+    {
+        INFO ("sample rate " << sampleRate);
+        constexpr std::size_t position = 3000;
+        int latency = 0;
+        auto snapshot = ParamSnapshot::defaults();
+        test::setSemitoneShift (snapshot, 0.0f);
+        const auto out =
+            render (sampleRate, impulse (static_cast<std::size_t> (sampleRate), position), snapshot, 512, &latency);
+
+        const auto expectedAt = position + static_cast<std::size_t> (latency);
+        CHECK (energy (out, 0, expectedAt - 1) < 0.01);
+        CHECK (out[expectedAt] > 1.0f); // the dry impulse (1) plus the layer's first sample
+        CHECK (allFinite (out));
     }
 }
 

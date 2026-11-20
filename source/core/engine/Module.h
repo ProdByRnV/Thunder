@@ -46,6 +46,12 @@ public:
     virtual int getLatencySamples() const noexcept { return 0; }
 
     virtual double getTailSeconds() const noexcept { return 0.0; }
+
+    // False when reset() is too slow for the audio thread (it clears large
+    // buffers; measured in tests/measure/ChainMeasure.cpp). A switched-off
+    // ModuleSlot then lets such a module ring out on silence instead of resetting
+    // it when it comes back on.
+    virtual bool canResetInstantly() const noexcept { return true; }
 };
 
 } // namespace thunder

@@ -185,3 +185,77 @@ TEST_CASE ("Grains switch on and off without a click", "[unit][grains][engine]")
     for (auto i = offFrom; i < 2 * period - 256; ++i)
         REQUIRE (juce::exactlyEqual (out[i], input[i]));
 }
+
+namespace
+{
+// A stand-in for the reverb: a slow-decaying echo that can't be reset on the
+// audio thread. It counts its calls.
+class SlowReset final : public Module
+{
+public:
+    void prepare (const PrepareSpec&) override { reset(); }
+    void reset() noexcept override
+    {
+        state = {};
+        ++resets;
+    }
+
+    void process (juce::dsp::AudioBlock<float>& block, const ProcessContext&) noexcept override
+    {
+        ++processed;
+        for (std::size_t ch = 0; ch < 2; ++ch)
+        {
+            auto* x = block.getChannelPointer (ch);
+            for (std::size_t i = 0; i < block.getNumSamples(); ++i)
+            {
+                state[ch] = 0.999f * state[ch] + 0.05f * x[i]; // ~14k samples to fall 120 dB
+                x[i] = state[ch];
+            }
+        }
+    }
+
+    double getTailSeconds() const noexcept override { return 1.0; }
+    bool canResetInstantly() const noexcept override { return false; }
+
+    std::array<float, 2> state{};
+    int resets = 0;
+    int processed = 0;
+};
+} // namespace
+
+TEST_CASE ("A module that can't be reset rings out on silence when switched off", "[unit][engine]")
+{
+    ModuleSlot<SlowReset> slot{ParamId::grainOn};
+    slot.prepare ({kRate, 256, 2});
+    const auto resetsAfterPrepare = slot.get().resets;
+
+    // On for 0.25 s, off for 1.5 s, on again.
+    const auto input = sine (220.0, kRate, 2.0);
+    const auto offAt = static_cast<std::size_t> (0.25 * kRate) / 256 * 256;
+    const auto onAt = static_cast<std::size_t> (1.75 * kRate) / 256 * 256;
+
+    int processedWhenSettled = -1;
+    const auto out = runSlot (slot, input,
+                              [&] (std::size_t start)
+                              {
+                                  // Half a second before switching back on, it has rung out.
+                                  if (start == onAt - static_cast<std::size_t> (0.5 * kRate) / 256 * 256)
+                                      processedWhenSettled = slot.get().processed;
+                                  return start < offAt || start >= onAt;
+                              });
+
+    // It kept running after the switch-off, unheard, then stopped once silent:
+    // ~14k samples of ringing is about 55 chunks, far fewer than the 1.5 s off.
+    const auto chunksWhileOn = static_cast<int> (offAt / 256);
+    REQUIRE (processedWhenSettled > chunksWhileOn + 4);
+    CHECK (processedWhenSettled < chunksWhileOn + 4 + 80);
+    CHECK_FALSE (slot.isDraining());
+
+    // Never reset by the slot, not even when switched back on.
+    CHECK (slot.get().resets == resetsAfterPrepare);
+
+    // While off, the input passes untouched.
+    for (auto i = offAt + 2000; i < onAt; ++i)
+        REQUIRE (juce::exactlyEqual (out[i], input[i]));
+    CHECK (allFinite (out));
+}

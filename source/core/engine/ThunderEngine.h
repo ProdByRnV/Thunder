@@ -1,10 +1,13 @@
 #pragma once
 
 #include "ModuleSlot.h"
+#include "OutputStage.h"
 
 #include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
 #include "core/dsp/space/SpaceModule.h"
+#include "core/dsp/tone/ToneModule.h"
+#include "core/dsp/width/WidthModule.h"
 #include "core/host/TransportState.h"
 #include "core/params/ParamSnapshot.h"
 #include "core/util/LatencyDelay.h"
@@ -24,17 +27,16 @@ namespace thunder
 //
 // Per chunk:
 //   input gain, sanitise
-//     ├─ dry path: delayed by the engine latency ──────────┐
-//     └─ layer:    Pitch → Grains → Space ─────────────────┴─ dry + layer → output gain → sanitise
+//     ├─ dry path: delayed by the engine latency ──────────────────────┐
+//     └─ layer:    Pitch → Grains → Space → Tone → Width ──────────────┴─ Output Mode / Mix → output gain → sanitise
 //
-// The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → …). Time
-// (v0.8) will go between Pitch and Grains.
+// The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → Tone → Width →
+// Shape → Duck). Time (v0.8) will go between Pitch and Grains, Shape and Duck
+// after Width. Every module sits in a ModuleSlot with its own click-free on/off
+// switch (PRD FR-CORE-009); a switched-off module costs nothing and the latency
+// never changes.
 //
-// TODO(PRD): Output Mode and the Mix law (T-0.4-03) replace the plain sum of
-// dry and layer, which is what Blend sounds like at the default Mix (50%: both
-// at unity). Grains has its on/off switch (grainOn) through a ModuleSlot; the
-// other modules get theirs with T-0.4-06, and until then Pitch and Space are
-// always on.
+// TODO(PRD): Auto Gain, Layer Level and the safety limiter (T-0.4-04/05, 2F).
 class ThunderEngine
 {
 public:
@@ -84,6 +86,9 @@ public:
     std::uint64_t getModuleResets() const noexcept { return moduleResets.load (std::memory_order_relaxed); }
 
 private:
+    // The layer chain in processing order (PRD DEC-005).
+    std::array<Module*, 5> chain() noexcept { return {&pitch, &grains, &space, &tone, &width}; }
+
     void processChunk (float* const* channels, int numSamples, const ProcessContext& context) noexcept;
     void runModule (Module& module, juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept;
     void sanitise (float* const* channels, int numSamples) noexcept;
@@ -97,9 +102,12 @@ private:
     util::GainSmoother inputGain;
     util::GainSmoother outputGain;
 
-    dsp::PitchModule pitch;
+    ModuleSlot<dsp::PitchModule> pitch{params::ParamId::pitchOn};
     ModuleSlot<dsp::GrainModule> grains{params::ParamId::grainOn};
-    dsp::SpaceModule space;
+    ModuleSlot<dsp::SpaceModule> space{params::ParamId::spaceOn};
+    ModuleSlot<dsp::ToneModule> tone{params::ParamId::toneOn};
+    ModuleSlot<dsp::WidthModule> width{params::ParamId::widthOn};
+    OutputStage output;
 
     util::LatencyDelay dryDelay;
     std::array<std::vector<float>, kNumChannels> dry;
