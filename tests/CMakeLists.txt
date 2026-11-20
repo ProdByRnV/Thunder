@@ -23,6 +23,7 @@ target_sources(ThunderTests PRIVATE
     unit/EngineTests.cpp
     unit/GrainModuleTests.cpp
     unit/IntervalFollowerTests.cpp
+    unit/ModuleSlotTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
     unit/PitchModuleTests.cpp
@@ -36,6 +37,7 @@ target_sources(ThunderTests PRIVATE
     realtime/EngineRealtimeTests.cpp
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
+    measure/GrainMeasure.cpp
     measure/PitchConfigMeasure.cpp
     measure/PitchModesMeasure.cpp
     measure/PitchTrackerMeasure.cpp)

@@ -22,6 +22,7 @@ target_sources(ThunderCore INTERFACE
     core/dsp/space/SpaceModule.cpp
     core/dsp/space/SpaceModule.h
     core/engine/Module.h
+    core/engine/ModuleSlot.h
     core/engine/ThunderEngine.cpp
     core/engine/ThunderEngine.h
     core/host/TransportState.cpp
@@ -45,6 +46,7 @@ target_sources(ThunderCore INTERFACE
     core/util/Crossfade.h
     core/util/LatencyDelay.h
     core/util/Math.h
+    core/util/Rng.h
     core/util/Smoother.h
     core/util/SpscFifo.h)
 

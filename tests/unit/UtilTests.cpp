@@ -1,7 +1,10 @@
-// Smoothing, crossfades, the lock-free queue and sample sanitising.
+// Smoothing, crossfades, the lock-free queue, sample sanitising, random
+// numbers and interpolation.
 
+#include "core/dsp/grains/GrainBuffer.h"
 #include "core/util/Crossfade.h"
 #include "core/util/Math.h"
+#include "core/util/Rng.h"
 #include "core/util/Smoother.h"
 #include "core/util/SpscFifo.h"
 
@@ -218,4 +221,87 @@ TEST_CASE ("Non-finite samples are replaced with silence", "[unit][util]")
     const std::vector<float> expected{
         0.5f, 0.0f, 0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::denorm_min()};
     CHECK (data == expected);
+}
+
+TEST_CASE ("The random numbers are PCG32, identical on every platform", "[unit][util]")
+{
+    // The reference sequence of O'Neill's pcg32 demo (seed 42, stream 54).
+    Rng rng (42u, 54u);
+    const std::uint32_t expected[] = {0xa15c02b7u, 0x7b47f409u, 0xba1d3330u, 0x83d2f293u, 0xbfa4784bu, 0xcbed606eu};
+    for (const auto value : expected)
+        CHECK (rng.nextUInt32() == value);
+
+    // The same seed gives the same sequence; reseeding restarts it.
+    Rng a, b;
+    for (int i = 0; i < 1000; ++i)
+        REQUIRE (a.nextUInt32() == b.nextUInt32());
+    a.seed (Rng::kDefaultSeed);
+    Rng c;
+    for (int i = 0; i < 100; ++i)
+        REQUIRE (a.nextUInt32() == c.nextUInt32());
+}
+
+TEST_CASE ("Random floats cover their range evenly", "[unit][util]")
+{
+    Rng rng;
+    double sum = 0.0, lowest = 1.0, highest = -1.0;
+    int buckets[10] = {};
+    constexpr int n = 100000;
+    for (int i = 0; i < n; ++i)
+    {
+        const auto x = rng.nextFloat();
+        REQUIRE (x >= 0.0f);
+        REQUIRE (x < 1.0f);
+        ++buckets[static_cast<int> (x * 10.0f)];
+
+        const auto y = static_cast<double> (rng.nextBipolar());
+        REQUIRE (y >= -1.0);
+        REQUIRE (y < 1.0);
+        sum += y;
+        lowest = std::min (lowest, y);
+        highest = std::max (highest, y);
+    }
+    for (const auto count : buckets)
+        CHECK (std::abs (count - n / 10) < n / 100); // each tenth within 10% of its share
+    CHECK (std::abs (sum / n) < 0.01);
+    CHECK (lowest < -0.999);
+    CHECK (highest > 0.999);
+}
+
+TEST_CASE ("Cubic interpolation passes through the samples and beats linear", "[unit][util]")
+{
+    // Through the samples, and exact on a straight line.
+    CHECK (juce::exactlyEqual (cubicHermite (3.0f, -1.0f, 2.0f, 5.0f, 0.0f), -1.0f));
+    CHECK_THAT (cubicHermite (3.0f, -1.0f, 2.0f, 5.0f, 1.0f), WithinAbs (2.0, 1e-6));
+    for (const auto t : {0.1f, 0.25f, 0.5f, 0.9f})
+        CHECK_THAT (cubicHermite (1.0f, 2.0f, 3.0f, 4.0f, t), WithinAbs (2.0 + t, 1e-6));
+
+    // A 2 kHz sine at 48 kHz read between its samples, through the grain
+    // buffer: the cubic error is far below linear interpolation's
+    // (PRD FR-GRAIN-008).
+    constexpr double rate = 48000.0, hz = 2000.0;
+    const auto w = 2.0 * juce::MathConstants<double>::pi * hz / rate;
+    std::vector<float> s (4096);
+    for (std::size_t i = 0; i < s.size(); ++i)
+        s[i] = static_cast<float> (std::sin (w * static_cast<double> (i)));
+
+    thunder::dsp::GrainBuffer buffer;
+    buffer.prepare (1, 4096);
+    const float* channels[] = {s.data()};
+    buffer.write (channels, 1, static_cast<int> (s.size()));
+
+    double cubicError = 0.0, linearError = 0.0;
+    for (std::int64_t i = 10; i < 4000; ++i)
+    {
+        for (const auto t : {0.2f, 0.5f, 0.7f})
+        {
+            const auto exact = std::sin (w * (static_cast<double> (i) + static_cast<double> (t)));
+            const auto linear = buffer.read (0, i) + t * (buffer.read (0, i + 1) - buffer.read (0, i));
+            cubicError = std::max (cubicError, std::abs (static_cast<double> (buffer.readCubic (0, i, t)) - exact));
+            linearError = std::max (linearError, std::abs (static_cast<double> (linear) - exact));
+        }
+        REQUIRE (juce::exactlyEqual (buffer.readCubic (0, i, 0.0f), buffer.read (0, i)));
+    }
+    CHECK (cubicError < 1e-3);
+    CHECK (cubicError < 0.25 * linearError);
 }

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ModuleSlot.h"
+
+#include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
 #include "core/dsp/space/SpaceModule.h"
 #include "core/host/TransportState.h"
@@ -22,12 +25,16 @@ namespace thunder
 // Per chunk:
 //   input gain, sanitise
 //     ├─ dry path: delayed by the engine latency ──────────┐
-//     └─ layer:    Pitch → Space ──────────────────────────┴─ dry + layer → output gain → sanitise
+//     └─ layer:    Pitch → Grains → Space ─────────────────┴─ dry + layer → output gain → sanitise
+//
+// The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → …). Time
+// (v0.8) will go between Pitch and Grains.
 //
 // TODO(PRD): Output Mode and the Mix law (T-0.4-03) replace the plain sum of
 // dry and layer, which is what Blend sounds like at the default Mix (50%: both
-// at unity). Module on/off switches arrive with T-0.4-06; until then Pitch and
-// Space are always on.
+// at unity). Grains has its on/off switch (grainOn) through a ModuleSlot; the
+// other modules get theirs with T-0.4-06, and until then Pitch and Space are
+// always on.
 class ThunderEngine
 {
 public:
@@ -55,7 +62,12 @@ public:
     // prepare() (ARCHITECTURE §5.7).
     int getLatencySamples() const noexcept { return latencySamples; }
 
-    double getTailSeconds() const noexcept { return space.getTailSeconds(); }
+    // Grains keep replaying the input for a while, and the reverb then rings
+    // out after the last grain.
+    double getTailSeconds() const noexcept { return grains.getTailSeconds() + space.getTailSeconds(); }
+
+    // The grain module, for tests and diagnostics.
+    const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
     bool isPrepared() const noexcept { return prepared; }
 
     // The transport position of the most recent chunk.
@@ -86,6 +98,7 @@ private:
     util::GainSmoother outputGain;
 
     dsp::PitchModule pitch;
+    ModuleSlot<dsp::GrainModule> grains{params::ParamId::grainOn};
     dsp::SpaceModule space;
 
     util::LatencyDelay dryDelay;

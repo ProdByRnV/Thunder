@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/util/Math.h"
+
 #include <juce_core/juce_core.h>
 
 #include <algorithm>
@@ -41,13 +43,10 @@ public:
         reset();
     }
 
-    // [RT] Forgets everything written.
-    void reset() noexcept
-    {
-        for (auto& line : lines)
-            std::fill (line.begin(), line.end(), 0.0f);
-        written = 0;
-    }
+    // [RT] Forgets everything written. Only the count is cleared: reads are
+    // limited to indices written since the reset, so old samples are never seen.
+    // That keeps a reset cheap, even with several megabytes of buffer.
+    void reset() noexcept { written = 0; }
 
     // [RT] Appends `numSamples` samples of each channel.
     void write (const float* const* data, int numChannels, int numSamples) noexcept
@@ -75,6 +74,17 @@ public:
     {
         jassert (index >= getOldestIndex() && index < written);
         return lines[static_cast<std::size_t> (channel)][static_cast<std::size_t> (index & mask)];
+    }
+
+    // [RT] The signal `fraction` (0 … 1) of the way from sample `index` to the
+    // next, by cubic interpolation (util::cubicHermite). It reads index − 1 …
+    // index + 2, all of which must have been written and not yet overwritten.
+    float readCubic (int channel, std::int64_t index, float fraction) const noexcept
+    {
+        jassert (index - 1 >= getOldestIndex() && index + 2 < written);
+        const auto& line = lines[static_cast<std::size_t> (channel)];
+        const auto at = [&] (std::int64_t i) { return line[static_cast<std::size_t> (i & mask)]; };
+        return util::cubicHermite (at (index - 1), at (index), at (index + 1), at (index + 2), fraction);
     }
 
     // How many samples have been written since the last reset: the absolute

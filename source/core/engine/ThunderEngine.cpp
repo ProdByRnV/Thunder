@@ -16,9 +16,10 @@ void ThunderEngine::prepare (double newSampleRate)
 
     const PrepareSpec spec{sampleRate, kMaxChunkSize, kNumChannels};
     pitch.prepare (spec);
+    grains.prepare (spec);
     space.prepare (spec);
 
-    latencySamples = pitch.getLatencySamples() + space.getLatencySamples();
+    latencySamples = pitch.getLatencySamples() + grains.getLatencySamples() + space.getLatencySamples();
     dryDelay.prepare (kNumChannels, latencySamples);
 
     for (auto& channel : dry)
@@ -41,6 +42,7 @@ void ThunderEngine::reset() noexcept
     if (prepared)
     {
         pitch.reset();
+        grains.reset();
         space.reset();
         dryDelay.reset();
     }
@@ -109,6 +111,8 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     // Layer path, processed in place in the output buffer.
     juce::dsp::AudioBlock<float> layer (channels, kNumChannels, static_cast<std::size_t> (numSamples));
     runModule (pitch, layer, context);
+    // (Time, v0.8, goes here.)
+    runModule (grains, layer, context);
     runModule (space, layer, context);
 
     for (int ch = 0; ch < kNumChannels; ++ch)

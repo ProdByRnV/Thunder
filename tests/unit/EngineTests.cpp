@@ -223,3 +223,48 @@ TEST_CASE ("Two engines given the same input sound identical", "[unit][engine]")
     CHECK (first.left == second.left);
     CHECK (first.right == second.right);
 }
+
+TEST_CASE ("Grains sit in the chain after Pitch, with their own switch", "[unit][engine][grains]")
+{
+    // PRD DEC-005, ROADMAP T-0.3-06. Grains add no latency, and their tail
+    // comes before the reverb's.
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+    dsp::PitchModule pitch;
+    dsp::SpaceModule space;
+    pitch.prepare ({kSampleRate, ThunderEngine::kMaxChunkSize, 2});
+    space.prepare ({kSampleRate, ThunderEngine::kMaxChunkSize, 2});
+    CHECK (engine.getLatencySamples() == pitch.getLatencySamples() + space.getLatencySamples());
+    CHECK_THAT (
+        engine.getTailSeconds(),
+        WithinAbs (dsp::GrainModule::kBufferSeconds + 3.0 * dsp::GrainModule::kMaxGrainSeconds + space.getTailSeconds(),
+                   1e-9));
+
+    // With the reverb dry, Grains on (the default) changes the sound, and
+    // switching them off gives a different result whose latency is the same.
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::spaceMix, 0.0f);
+    const auto input = makeNoise (48000);
+    const auto withGrains = render (input, 256, snapshot);
+    snapshot.set (ParamId::grainOn, 0.0f);
+    const auto without = render (input, 256, snapshot);
+
+    CHECK (maxAbsDifference (withGrains.left, without.left) > 0.01f);
+    CHECK (test::allFinite (withGrains.left));
+    CHECK (test::allFinite (withGrains.right));
+}
+
+TEST_CASE ("The grains in the engine start from the first sample after a reset", "[unit][engine][grains]")
+{
+    ThunderEngine engine;
+    engine.prepare (kSampleRate);
+
+    auto noise = makeNoise (48000);
+    float* channels[] = {noise.left.data(), noise.right.data()};
+    engine.process (channels, 48000, {}, ParamSnapshot::defaults());
+    CHECK (engine.getGrains().getGrainsStarted() > 0);
+
+    engine.reset();
+    CHECK (engine.getGrains().getActiveGrains() == 0);
+    CHECK (engine.getGrains().getBuffer().getWriteCount() == 0);
+}
