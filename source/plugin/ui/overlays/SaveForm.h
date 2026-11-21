@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plugin/presets/PresetManager.h"
+#include "plugin/ui/components/Buttons.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -54,7 +55,9 @@ private:
     juce::Label nameLabel, authorLabel, categoryLabel, descriptionLabel;
     juce::TextEditor name, author, description;
     juce::ComboBox category;
-    juce::TextButton cancelButton, saveButton, replaceButton;
+    ThunderButton cancelButton{"Cancel"};
+    ThunderButton saveButton{"Save", ThunderButton::Variant::primary};
+    ThunderButton replaceButton{"Replace it", ThunderButton::Variant::danger};
     juce::String message;
     bool messageIsError = false;
     bool askingToReplace = false;

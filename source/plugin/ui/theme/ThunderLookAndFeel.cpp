@@ -1,6 +1,7 @@
 #include "ThunderLookAndFeel.h"
 
 #include "ThunderFonts.h"
+#include "ThunderPaint.h"
 #include "ThunderTheme.h"
 
 namespace thunder::ui
@@ -57,53 +58,12 @@ ThunderLookAndFeel::ThunderLookAndFeel()
         setColour (id, c);
 }
 
-void ThunderLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
-                                           float startAngle, float endAngle, juce::Slider& slider)
-{
-    // C-KNOB, flat (UI.md §9.1, §15): track, value arc, face, pointer.
-    const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat();
-    const auto diameter = std::min (bounds.getWidth(), bounds.getHeight());
-    const auto radius = diameter * 0.5f - size::knobTrack;
-    const auto centre = bounds.getCentre();
-    const auto angle = startAngle + sliderPos * (endAngle - startAngle);
-    const auto enabled = slider.isEnabled();
-
-    juce::Path track;
-    track.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, startAngle, endAngle, true);
-    g.setColour (colour::borderSubtle);
-    g.strokePath (track,
-                  juce::PathStrokeType (size::knobTrack, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    const auto bipolar = static_cast<bool> (slider.getProperties()[bipolarProperty]);
-    const auto from = bipolar ? (startAngle + endAngle) * 0.5f : startAngle;
-    if (std::abs (angle - from) > 0.001f)
-    {
-        juce::Path arc;
-        arc.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, std::min (from, angle), std::max (from, angle),
-                           true);
-        g.setColour (enabled ? colour::accentPrimary : colour::textDisabled);
-        g.strokePath (
-            arc, juce::PathStrokeType (size::knobTrack, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-
-    const auto face = juce::Rectangle<float> (diameter * size::knobFace, diameter * size::knobFace).withCentre (centre);
-    g.setColour (colour::bgRaised);
-    g.fillEllipse (face);
-    g.setColour (colour::borderSubtle);
-    g.drawEllipse (face, border::width);
-
-    const auto pointerFrom = centre.getPointOnCircumference (diameter * 0.5f * size::knobPointerFrom, angle);
-    const auto pointerTo = centre.getPointOnCircumference (diameter * 0.5f * size::knobPointerTo, angle);
-    g.setColour (enabled ? colour::textPrimary : colour::textDisabled);
-    g.drawLine ({pointerFrom, pointerTo}, size::knobPointer);
-}
-
 void ThunderLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool highlighted, bool)
 {
     // C-CHECKBOX (UI.md §9.8): a 14 px box, then the label; the whole row clicks.
     const auto boxSize = static_cast<float> (size::checkboxBox);
     const auto box = juce::Rectangle<float> (boxSize, boxSize)
-                         .withPosition (0.0f, (static_cast<float> (button.getHeight()) - boxSize) * 0.5f)
+                         .withPosition (border::focusOffset, (static_cast<float> (button.getHeight()) - boxSize) * 0.5f)
                          .reduced (border::width * 0.5f);
 
     if (button.getToggleState())
@@ -122,31 +82,34 @@ void ThunderLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton
     {
         g.setColour (highlighted ? colour::bgHover : colour::bgRaised);
         g.fillRoundedRectangle (box, radius::sm);
+        g.setColour (colour::borderStrong);
+        g.drawRoundedRectangle (box, radius::sm, border::width);
     }
 
-    g.setColour (colour::borderStrong);
-    g.drawRoundedRectangle (box, radius::sm, border::width);
+    if (button.hasKeyboardFocus (false))
+        paint::drawFocusRing (g, box, radius::sm);
 
     g.setColour (button.isEnabled() ? (highlighted ? colour::textPrimary : colour::textSecondary)
                                     : colour::textDisabled);
-    g.setFont (fonts::ui (type::label, fonts::Weight::medium));
-    g.drawFittedText (button.getButtonText(), button.getLocalBounds().withTrimmedLeft (size::checkboxBox + space::s2),
+    g.setFont (fonts::ui (type::label, fonts::Weight::medium).withExtraKerningFactor (type::labelTracking));
+    g.drawFittedText (button.getButtonText(),
+                      button.getLocalBounds().withTrimmedLeft (size::checkboxBox + space::s2 +
+                                                               static_cast<int> (border::focusOffset)),
                       juce::Justification::centredLeft, 1);
 }
 
 void ThunderLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& background,
                                                bool highlighted, bool down)
 {
-    // C-BUTTON (UI.md §9.6): secondary style unless the button is "on".
+    // C-BUTTON, secondary (UI.md §9.6), for any plain JUCE button.
     const auto bounds = button.getLocalBounds().toFloat().reduced (border::width * 0.5f);
     auto fill = button.getToggleState() ? colour::accentPrimary : background;
     if (!button.getToggleState() && (highlighted || down))
         fill = colour::bgHover;
 
-    g.setColour (fill);
-    g.fillRoundedRectangle (bounds, radius::sm);
-    g.setColour (button.hasKeyboardFocus (false) ? colour::borderStrong : colour::borderSubtle);
-    g.drawRoundedRectangle (bounds, radius::sm, border::width);
+    paint::fillRaised (g, bounds, radius::sm, fill, colour::borderSubtle);
+    if (button.hasKeyboardFocus (false))
+        paint::drawFocusRing (g, bounds, radius::sm);
 }
 
 juce::Font ThunderLookAndFeel::getTextButtonFont (juce::TextButton&, int)
@@ -159,10 +122,11 @@ void ThunderLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
 {
     // C-DROPDOWN (UI.md §9.5).
     const auto bounds = juce::Rectangle<int> (width, height).toFloat().reduced (border::width * 0.5f);
-    g.setColour (box.isMouseOver (true) && box.isEnabled() ? colour::bgHover : colour::bgRaised);
-    g.fillRoundedRectangle (bounds, radius::sm);
-    g.setColour (box.hasKeyboardFocus (true) ? colour::borderStrong : colour::borderSubtle);
-    g.drawRoundedRectangle (bounds, radius::sm, border::width);
+    paint::fillRaised (g, bounds, radius::sm,
+                       box.isMouseOver (true) && box.isEnabled() ? colour::bgHover : colour::bgRaised,
+                       box.isPopupActive() ? colour::borderStrong : colour::borderSubtle);
+    if (box.hasKeyboardFocus (true))
+        paint::drawFocusRing (g, bounds, radius::sm);
 
     const auto chevronArea = juce::Rectangle<float> (static_cast<float> (height), static_cast<float> (height))
                                  .withRightX (bounds.getRight())
@@ -172,7 +136,8 @@ void ThunderLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height,
     chevron.lineTo (chevronArea.getCentreX(), chevronArea.getBottom() - chevronArea.getHeight() * 0.2f);
     chevron.lineTo (chevronArea.getRight(), chevronArea.getY() + chevronArea.getHeight() * 0.3f);
     g.setColour (box.isEnabled() ? colour::textSecondary : colour::textDisabled);
-    g.strokePath (chevron, juce::PathStrokeType (border::width * 1.5f));
+    g.strokePath (chevron,
+                  juce::PathStrokeType (size::iconStroke, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 
 juce::Font ThunderLookAndFeel::getComboBoxFont (juce::ComboBox&)
@@ -186,9 +151,101 @@ void ThunderLookAndFeel::positionComboBoxText (juce::ComboBox& box, juce::Label&
     label.setFont (getComboBoxFont (box));
 }
 
+// ---- Menus (UI.md §9.5: elevation 3, the selected item marked with a cyan bar)
+// ---------------------------------------------------------------
+
 juce::Font ThunderLookAndFeel::getPopupMenuFont()
 {
     return fonts::ui (type::body);
+}
+
+void ThunderLookAndFeel::drawPopupMenuBackgroundWithOptions (juce::Graphics& g, int width, int height,
+                                                             const juce::PopupMenu::Options&)
+{
+    const auto bounds = juce::Rectangle<int> (width, height).toFloat();
+    g.fillAll (colour::bgRaised);
+    g.setColour (colour::borderSubtle);
+    g.drawRect (bounds, border::width);
+}
+
+int ThunderLookAndFeel::getPopupMenuBorderSizeWithOptions (const juce::PopupMenu::Options&)
+{
+    return space::s1;
+}
+
+void ThunderLookAndFeel::drawPopupMenuItem (juce::Graphics& g, const juce::Rectangle<int>& area, bool isSeparator,
+                                            bool isActive, bool isHighlighted, bool isTicked, bool hasSubMenu,
+                                            const juce::String& text, const juce::String& shortcutKeyText,
+                                            const juce::Drawable*, const juce::Colour* textColour)
+{
+    if (isSeparator)
+    {
+        g.setColour (colour::borderSubtle);
+        g.fillRect (area.withSizeKeepingCentre (area.getWidth(), 1));
+        return;
+    }
+
+    if (isHighlighted && isActive)
+    {
+        g.setColour (colour::bgHover);
+        g.fillRect (area);
+    }
+
+    // The selected item: a 2 px accent bar on the left (not colour alone: it also reads as a mark).
+    if (isTicked)
+    {
+        g.setColour (colour::accentPrimary);
+        g.fillRect (area.toFloat().withWidth (size::menuSelectedBar));
+    }
+
+    auto r = area.reduced (space::s3, 0);
+    g.setColour (!isActive ? colour::textDisabled : (textColour != nullptr ? *textColour : colour::textPrimary));
+    g.setFont (isTicked ? fonts::ui (type::body, fonts::Weight::semiBold) : fonts::ui (type::body));
+
+    if (hasSubMenu)
+    {
+        const auto arrow = r.removeFromRight (space::s2).toFloat().withSizeKeepingCentre (
+            static_cast<float> (space::s2), static_cast<float> (space::s2));
+        juce::Path p;
+        p.startNewSubPath (arrow.getX(), arrow.getY());
+        p.lineTo (arrow.getRight(), arrow.getCentreY());
+        p.lineTo (arrow.getX(), arrow.getBottom());
+        g.strokePath (p, juce::PathStrokeType (size::iconStroke));
+    }
+
+    if (shortcutKeyText.isNotEmpty())
+    {
+        g.setColour (colour::textSecondary);
+        g.setFont (fonts::ui (type::caption));
+        g.drawText (shortcutKeyText, r, juce::Justification::centredRight);
+        g.setColour (!isActive ? colour::textDisabled : colour::textPrimary);
+        g.setFont (fonts::ui (type::body));
+    }
+
+    g.drawFittedText (text, r, juce::Justification::centredLeft, 1);
+}
+
+void ThunderLookAndFeel::drawPopupMenuSectionHeader (juce::Graphics& g, const juce::Rectangle<int>& area,
+                                                     const juce::String& sectionName)
+{
+    g.setColour (colour::textSecondary);
+    g.setFont (fonts::ui (type::label, fonts::Weight::semiBold).withExtraKerningFactor (type::labelTracking));
+    g.drawText (sectionName.toUpperCase(), area.reduced (space::s3, 0), juce::Justification::bottomLeft);
+}
+
+void ThunderLookAndFeel::getIdealPopupMenuItemSize (const juce::String& text, bool isSeparator, int, int& idealWidth,
+                                                    int& idealHeight)
+{
+    if (isSeparator)
+    {
+        idealWidth = space::s6;
+        idealHeight = space::s2 + 1;
+        return;
+    }
+
+    idealHeight = size::controlHeight;
+    idealWidth = juce::GlyphArrangement::getStringWidthInt (fonts::ui (type::body, fonts::Weight::semiBold), text) +
+                 2 * space::s3 + space::s5;
 }
 
 juce::Font ThunderLookAndFeel::getLabelFont (juce::Label& label)
@@ -219,19 +276,43 @@ void ThunderLookAndFeel::drawTextEditorOutline (juce::Graphics& g, int width, in
                             border::width);
 }
 
+// ---- Tooltips (UI.md §9.14)
+// ------------------------------------------------------------------------------------------
+
+juce::AttributedString ThunderLookAndFeel::tooltipText (const juce::String& text)
+{
+    juce::AttributedString s;
+    s.setWordWrap (juce::AttributedString::byWord);
+
+    const auto firstLine = text.upToFirstOccurrenceOf ("\n", false, false);
+    const auto rest = text.fromFirstOccurrenceOf ("\n", false, false);
+
+    // "Name: what it does" → the name in bold.
+    if (const auto colon = firstLine.indexOf (": "); colon > 0)
+    {
+        s.append (firstLine.substring (0, colon), fonts::ui (type::body, fonts::Weight::semiBold), colour::textPrimary);
+        s.append (firstLine.substring (colon), fonts::ui (type::body), colour::textPrimary);
+    }
+    else
+    {
+        s.append (firstLine, fonts::ui (type::body), colour::textPrimary);
+    }
+
+    if (rest.isNotEmpty())
+        s.append ("\n" + rest, fonts::mono (type::value), colour::textSecondary);
+
+    return s;
+}
+
 juce::Rectangle<int> ThunderLookAndFeel::getTooltipBounds (const juce::String& text, juce::Point<int> screenPos,
                                                            juce::Rectangle<int> parentArea)
 {
-    // C-TOOLTIP (UI.md §9.14): up to 260 wide, body type.
     const auto maxWidth = size::tooltipMaxWidth;
     juce::TextLayout layout;
-    juce::AttributedString s;
-    s.append (text, fonts::ui (type::body), colour::textPrimary);
-    s.setWordWrap (juce::AttributedString::byWord);
-    layout.createLayout (s, static_cast<float> (maxWidth - 2 * space::s2));
+    layout.createLayout (tooltipText (text), static_cast<float> (maxWidth - 2 * space::s2));
 
     const auto w = juce::jmin (maxWidth, static_cast<int> (std::ceil (layout.getWidth())) + 2 * space::s2);
-    const auto h = static_cast<int> (std::ceil (layout.getHeight())) + 2 * space::s1 + space::s1;
+    const auto h = static_cast<int> (std::ceil (layout.getHeight())) + 2 * space::s2;
 
     return juce::Rectangle<int> (
                screenPos.x > parentArea.getCentreX() ? screenPos.x - (w + space::s3) : screenPos.x + space::s5,
@@ -247,12 +328,22 @@ void ThunderLookAndFeel::drawTooltip (juce::Graphics& g, const juce::String& tex
     g.setColour (colour::borderSubtle);
     g.drawRoundedRectangle (bounds.reduced (border::width * 0.5f), radius::sm, border::width);
 
-    juce::AttributedString s;
-    s.append (text, fonts::ui (type::body), colour::textPrimary);
-    s.setWordWrap (juce::AttributedString::byWord);
     juce::TextLayout layout;
-    layout.createLayout (s, bounds.getWidth() - 2.0f * space::s2);
-    layout.draw (g, bounds.reduced (static_cast<float> (space::s2), static_cast<float> (space::s1)));
+    layout.createLayout (tooltipText (text), bounds.getWidth() - 2.0f * space::s2);
+    layout.draw (g, bounds.reduced (static_cast<float> (space::s2)));
+}
+
+void ThunderLookAndFeel::drawCornerResizer (juce::Graphics& g, int w, int h, bool isMouseOver, bool isMouseDragging)
+{
+    // Three short diagonal lines in the bottom-right corner (UI.md §7.1).
+    const auto area = juce::Rectangle<int> (w, h).toFloat().reduced (static_cast<float> (space::s1) * 0.5f);
+    g.setColour (isMouseOver || isMouseDragging ? colour::textSecondary : colour::textDisabled);
+    for (int i = 1; i <= 3; ++i)
+    {
+        const auto t = static_cast<float> (i) / 3.0f;
+        g.drawLine (area.getRight() - area.getWidth() * t, area.getBottom(), area.getRight(),
+                    area.getBottom() - area.getHeight() * t, border::width);
+    }
 }
 
 } // namespace thunder::ui

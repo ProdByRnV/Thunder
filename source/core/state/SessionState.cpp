@@ -31,6 +31,8 @@ juce::ValueTree SessionState::toValueTree() const
     tree.setProperty (ids::presetKey, presetKey, nullptr);
     tree.setProperty (ids::captureBars, captureBars, nullptr);
     tree.setProperty (ids::captureSource, toName (captureSource), nullptr);
+    if (uiScale > 0.0f)
+        tree.setProperty (ids::uiScale, uiScale, nullptr);
     return tree;
 }
 
@@ -49,6 +51,10 @@ SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
     for (const auto valid : kValidCaptureBars)
         if (bars == valid)
             s.captureBars = bars;
+
+    // Any scale the editor can show; anything else (or nothing) means "not set".
+    if (const auto scale = static_cast<float> (tree.getProperty (ids::uiScale, 0.0f)); scale >= 0.75f && scale <= 2.0f)
+        s.uiScale = scale;
 
     if (tree.getProperty (ids::captureSource).toString() == toName (CaptureSource::FullMix))
         s.captureSource = CaptureSource::FullMix;

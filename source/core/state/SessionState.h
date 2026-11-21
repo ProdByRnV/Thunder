@@ -22,6 +22,7 @@ struct SessionState
     juce::String presetKey; // the loaded preset in the library (PRD FR-PRESET-014); empty = Init
     int captureBars = 4;    // 1, 2, 4, 8 or 16
     CaptureSource captureSource = CaptureSource::Layer;
+    float uiScale = 0.0f; // the editor size this session last used (UI.md §10.3); 0 = not set
 
     juce::ValueTree toValueTree() const;
 
@@ -29,7 +30,12 @@ struct SessionState
     // or older session still loads.
     static SessionState fromValueTree (const juce::ValueTree& tree);
 
-    bool operator== (const SessionState&) const = default;
+    bool operator== (const SessionState& other) const noexcept
+    {
+        return presetName == other.presetName && presetModified == other.presetModified &&
+               presetKey == other.presetKey && captureBars == other.captureBars &&
+               captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale);
+    }
 };
 
 } // namespace thunder::state

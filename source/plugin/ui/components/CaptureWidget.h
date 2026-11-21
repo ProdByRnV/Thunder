@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/capture/CaptureStatus.h"
+#include "plugin/ui/components/Buttons.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -22,7 +23,8 @@ namespace thunder::ui
 //   disarm, or to stop a recording (nothing is saved).
 // - The chip shows what is happening, then the new file. Drag it into the DAW;
 //   right-click it for Save as…, Show in folder and Delete capture.
-// - Folder opens the captures folder; ⋯ sets the capture format and folder.
+// - The folder button opens the captures folder. The format and the folder
+//   are chosen in Settings.
 //
 // Message thread only. It polls the processor's capture status on a timer.
 class CaptureWidget final
@@ -61,8 +63,6 @@ private:
     void timerCallback() override;
     void writeSessionChoices();
     void showChipMenu();
-    void showSettingsMenu();
-    void chooseCapturesFolder();
 
     ThunderProcessor& processor;
     capture::CaptureStatus status;
@@ -72,10 +72,9 @@ private:
     juce::Label title;
     juce::ComboBox barsBox;
     juce::ComboBox sourceBox;
-    juce::TextButton armButton;
+    ThunderButton armButton;
     std::unique_ptr<Chip> chip;
-    juce::TextButton folderButton;
-    juce::TextButton menuButton;
+    IconButton folderButton;
     std::unique_ptr<juce::FileChooser> chooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CaptureWidget)

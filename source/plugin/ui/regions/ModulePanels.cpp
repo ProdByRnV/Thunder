@@ -1,6 +1,7 @@
 #include "ModulePanels.h"
 
 #include "plugin/ui/theme/ThunderFonts.h"
+#include "plugin/ui/theme/ThunderIcons.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 
 namespace thunder::ui
@@ -31,6 +32,8 @@ ModulePanel::ModulePanel (juce::AudioProcessorValueTreeState& state, const juce:
     : apvts (state)
     , title (titleText)
     , toggle (state, onParam)
+    , resetButton ("Reset " + titleText, icons::reset())
+    , moduleOnParam (onParam)
     , onWatcher (state, onParam,
                  [this] (float on)
                  {
@@ -39,11 +42,29 @@ ModulePanel::ModulePanel (juce::AudioProcessorValueTreeState& state, const juce:
                  })
 {
     setTitle (titleText);
+    resetButton.setTooltip ("Reset " + titleText + ": every " + titleText + " control back to its default");
+    resetButton.onClick = [this] { resetToDefaults(); };
+    addAndMakeVisible (resetButton);
     addAndMakeVisible (toggle);
     addAndMakeVisible (body);
 }
 
 ModulePanel::~ModulePanel() = default;
+
+void ModulePanel::resetToDefaults()
+{
+    const auto group = params::paramDef (moduleOnParam).group;
+    for (const auto& def : params::kParamDefs)
+    {
+        if (def.group != group || def.param == moduleOnParam)
+            continue;
+
+        auto& p = parameter (apvts, def.param);
+        p.beginChangeGesture();
+        p.setValueNotifyingHost (p.getDefaultValue());
+        p.endChangeGesture();
+    }
+}
 
 ThunderKnob& ModulePanel::addKnob (ParamId id, const juce::String& label, ThunderKnob::Size s)
 {
@@ -98,6 +119,9 @@ void ModulePanel::resized()
     auto header = area.removeFromTop (size::moduleHeaderHeight).reduced (space::s4, 0);
     toggle.setBounds (header.removeFromRight (size::toggleWidth + space::s2)
                           .withSizeKeepingCentre (size::toggleWidth + space::s2, size::controlHeight));
+    header.removeFromRight (space::s2);
+    resetButton.setBounds (
+        header.removeFromRight (size::iconButton).withSizeKeepingCentre (size::iconButton, size::iconButton));
 
     body.setBounds (area.reduced (space::s4, 0).withTrimmedBottom (space::s3));
     layoutBody (body.getLocalBounds());
@@ -219,8 +243,6 @@ TonePanel::TonePanel (juce::AudioProcessorValueTreeState& state)
     , lowPass (addKnob (ParamId::lpFreq, "Low-pass"))
     , lowPassSlope (addSegmented (ParamId::lpSlope, {}, {"12", "24"}))
 {
-    highPassSlope.setTooltip ("High-pass slope (dB/oct)");
-    lowPassSlope.setTooltip ("Low-pass slope (dB/oct)");
 }
 
 void TonePanel::layoutBody (juce::Rectangle<int> area)

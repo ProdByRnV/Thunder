@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plugin/ui/ParamUi.h"
+#include "plugin/ui/components/Buttons.h"
 #include "plugin/ui/components/Controls.h"
 #include "plugin/ui/components/ThunderKnob.h"
 
@@ -27,6 +28,11 @@ public:
     const juce::String& getTitleText() const noexcept { return title; }
     bool isBodyDimmed() const noexcept { return body.getAlpha() < 1.0f; }
 
+    // [MSG] The header's ↺: every control of this module back to its default, as
+    // host gestures (so a host's undo can take it back). The on/off switch stays.
+    void resetToDefaults();
+    IconButton& getResetButton() noexcept { return resetButton; }
+
 protected:
     virtual void layoutBody (juce::Rectangle<int> area) = 0;
 
@@ -44,6 +50,8 @@ protected:
 private:
     juce::String title;
     ThunderToggle toggle;
+    IconButton resetButton;
+    params::ParamId moduleOnParam;
     std::vector<std::unique_ptr<juce::Component>> controls;
     ParameterWatcher onWatcher;
 };

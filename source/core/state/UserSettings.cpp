@@ -12,6 +12,8 @@ constexpr const char* kCapturesFolderKey = "capturesFolder";
 constexpr const char* kCaptureFormatKey = "captureFormat";
 constexpr const char* kPreservePresetSessionKey = "preservePresetSession";
 constexpr const char* kPresetAuthorKey = "presetAuthor";
+constexpr const char* kUiScaleKey = "uiScale";
+constexpr const char* kShowTooltipsKey = "showTooltips";
 
 constexpr const char* kFormat24 = "int24";
 constexpr const char* kFormat32f = "float32";
@@ -71,6 +73,13 @@ UserSettings UserSettings::load (const juce::File& file)
     settings.preservePresetSession = properties.getBoolValue (kPreservePresetSessionKey, true);
     settings.presetAuthor = properties.getValue (kPresetAuthorKey).trim().substring (0, 128);
 
+    // Only a scale the editor can show (75–200%); anything else means "not set".
+    if (const auto scale = static_cast<float> (properties.getDoubleValue (kUiScaleKey));
+        scale >= 0.75f && scale <= 2.0f)
+        settings.uiScale = scale;
+
+    settings.showTooltips = properties.getBoolValue (kShowTooltipsKey, true);
+
     return settings;
 }
 
@@ -85,6 +94,9 @@ bool UserSettings::save (const juce::File& file) const
     properties.setValue (kCaptureFormatKey, captureFormat == capture::CaptureFormat::Float32 ? kFormat32f : kFormat24);
     properties.setValue (kPreservePresetSessionKey, preservePresetSession);
     properties.setValue (kPresetAuthorKey, presetAuthor);
+    if (uiScale > 0.0f)
+        properties.setValue (kUiScaleKey, static_cast<double> (uiScale));
+    properties.setValue (kShowTooltipsKey, showTooltips);
     return properties.save();
 }
 

@@ -24,12 +24,16 @@ inline const juce::Colour bgOverlay{0xcc06070c};
 // Lines
 inline const juce::Colour borderSubtle{0xff232a3b};
 inline const juce::Colour borderStrong{0xff33405a};
+inline const juce::Colour gridBar{0xff2a3348};
+inline const juce::Colour gridBeat{0xff1a2030};
 
 // Energy
 inline const juce::Colour accentPrimary{0xff4fc3ff};
 inline const juce::Colour accentPrimaryDim{0x594fc3ff}; // 35%
 inline const juce::Colour accentSecondary{0xff8b5cff};
+inline const juce::Colour accentSecondaryDim{0x598b5cff};
 inline const juce::Colour accentHot{0xffe8f6ff};
+inline const juce::Colour glowPrimary{0xff4fc3ff};
 
 // Text
 inline const juce::Colour textPrimary{0xffe6eaf2};
@@ -42,6 +46,14 @@ inline const juce::Colour stateWarning{0xffffc94d};
 inline const juce::Colour stateError{0xffff5c7a};
 inline const juce::Colour stateSuccess{0xff5cffb5};
 inline const juce::Colour stateRecording{0xffff5c7a};
+
+// The meters' empty track (§9.9).
+inline const juce::Colour meterTrack{0xff0e1220};
+
+// Elevation (§6.1) and the window's texture (§6.4).
+inline const juce::Colour shadow{0xff000000};
+inline const juce::Colour highlight{0xffffffff}; // raised controls' inner top line, at opacity::topHighlight
+inline const juce::Colour cloud{0xff0f1626};     // the soft blobs behind the visualiser well
 } // namespace colour
 
 // ---- Typography (UI.md §4) -----------------------------------------------------------------------------------------
@@ -54,6 +66,7 @@ inline constexpr float label = 10.5f;
 inline constexpr float value = 12.0f;
 inline constexpr float valueLarge = 16.0f;
 inline constexpr float caption = 10.0f;
+inline constexpr float aboutWordmark = 22.0f; // the About panel's larger logo (§10.4)
 
 // Letter spacing, as a fraction of the font height.
 inline constexpr float wordmarkTracking = 0.28f;
@@ -84,7 +97,47 @@ inline constexpr float pill = 999.0f;
 namespace border
 {
 inline constexpr float width = 1.0f;
+inline constexpr float focusOffset = 2.0f; // the focus ring sits this far outside a control (§9)
 } // namespace border
+
+// ---- Elevation and glow (UI.md §6) ---------------------------------------------------------------------------------
+struct Shadow
+{
+    int blur;
+    int offsetY;
+    float opacity;
+};
+
+namespace elevation
+{
+inline constexpr Shadow popover{24, 8, 0.50f}; // level 3: popovers, menus, tooltips
+inline constexpr Shadow dialog{48, 16, 0.60f}; // level 4: dialogs
+inline constexpr float wellShadow = 0.60f;     // the visualiser well's inner shadow (§6.2)
+inline constexpr int wellShadowSize = 2;
+} // namespace elevation
+
+struct Glow
+{
+    float blur;    // logical px
+    float opacity; // at full level
+};
+
+namespace glow
+{
+inline constexpr Glow subtle{6.0f, 0.25f};
+inline constexpr Glow medium{12.0f, 0.40f};
+inline constexpr Glow strong{24.0f, 0.55f};
+inline constexpr Glow flash{40.0f, 0.70f};
+inline constexpr float hoverBoost = 0.15f; // added to a knob's arc glow on hover (§9.1)
+} // namespace glow
+
+namespace texture
+{
+inline constexpr float grainOpacity = 0.025f; // film grain on the window background (§6.4)
+inline constexpr float vignetteOpacity = 0.15f;
+inline constexpr float cloudOpacity = 0.20f;
+inline constexpr juce::uint32 grainSeed = 0x7d1a9e3bu; // the same grain every time
+} // namespace texture
 
 // ---- Layout (UI.md §7–§9) ------------------------------------------------------------------------------------------
 namespace size
@@ -94,6 +147,11 @@ inline constexpr int baseWidth = 1040;
 inline constexpr int baseHeight = 680;
 inline constexpr float minScale = 0.75f;
 inline constexpr float maxScale = 2.0f;
+inline constexpr float scaleStep = 0.05f;                                              // corner-drag snaps to 5% steps
+inline constexpr float scalePresets[] = {0.75f, 0.9f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f}; // Settings
+inline constexpr int hostFrameWidth = 32;  // room left for a host's plugin-window frame when fitting the screen
+inline constexpr int hostFrameHeight = 64; // (UI.md UQ-03)
+inline constexpr int resizeHandle = 16;
 
 // Regions (§7.2)
 inline constexpr int topBarHeight = 52;
@@ -116,6 +174,7 @@ inline constexpr float knobPointerFrom = 0.30f; // of the radius
 inline constexpr float knobPointerTo = 0.46f;
 inline constexpr float knobArcStart = -0.75f; // × π from 12 o'clock: 225° (UI.md §9.1)
 inline constexpr float knobArcEnd = 0.75f;    // × π: −45°
+inline constexpr float knobSpark = 4.0f;      // the dot at the arc's tip
 inline constexpr int knobDragPixels = 200;    // full range
 inline constexpr float knobFineFactor = 0.1f; // Shift-drag
 inline constexpr float knobWheelStep = 0.01f; // 1% per wheel notch
@@ -126,11 +185,16 @@ inline constexpr int chainNodeWidth = 84;
 inline constexpr int chainNodeHeight = 28;
 inline constexpr int chainDot = 8;
 inline constexpr float chainWire = 2.0f;
+inline constexpr float chainNotch = 5.0f; // the selected node's notch, pointing at the module panel
 inline constexpr int controlHeight = 28;
+inline constexpr int primaryButtonHeight = 32;
+inline constexpr float pressedScale = 0.96f; // a pressed button (§9.6)
 inline constexpr int segmentedSegment = 88;
 inline constexpr int checkboxBox = 14;
 inline constexpr int checkboxRowWidth = 180;
 inline constexpr int iconButton = 28;
+inline constexpr int icon = 16;
+inline constexpr float iconStroke = 1.5f;
 inline constexpr int presetBarWidth = 340;
 inline constexpr int tooltipMaxWidth = 260; // §9.14
 inline constexpr int keyRootWidth = 64;
@@ -139,19 +203,24 @@ inline constexpr int labelHeight = 16;
 inline constexpr int valueHeight = 18;
 inline constexpr int bolt = 18; // logo glyph height
 inline constexpr int wordmarkWidth = 140;
-inline constexpr int placeholderBolt = 64; // visualiser placeholder glyph
+inline constexpr int placeholderBolt = 64; // visualiser glyph while there is nothing to show
+inline constexpr float menuSelectedBar = 2.0f;
+
+// Output panel (§8.5 as laid out in the 4A mockup)
+inline constexpr int outputKnobColumn = 64;
+inline constexpr int meterBar = 8;
+inline constexpr int meterGap = 4;
 
 // Capture bar (§9.10)
 inline constexpr int captureTitleWidth = 64;
 inline constexpr int barsDropdownWidth = 96;
 inline constexpr int sourceDropdownWidth = 104;
 inline constexpr int armButtonWidth = 84;
-inline constexpr int iconButtonWidth = 72;
-inline constexpr int menuButtonWidth = 28;
 inline constexpr int statusWidth = 150;
 inline constexpr int dragThreshold = 4; // px before a press becomes a drag (§16.1)
 
-// Overlays (§9.15–§9.16)
+// Overlays (§9.15–§10.4)
+inline constexpr int dialogButtonWidth = 88;
 inline constexpr int saveFormWidth = 420;
 inline constexpr int saveFormLabelWidth = 96;
 inline constexpr int saveFormDescriptionHeight = 64;
@@ -159,17 +228,34 @@ inline constexpr int toastWidth = 320;
 inline constexpr int toastHeight = 44;
 inline constexpr int maxTextLength = 128;
 inline constexpr int maxDescriptionLength = 1024;
+inline constexpr int settingsWidth = 380;
+inline constexpr int settingsRowHeight = 36;
+inline constexpr int settingsLabelWidth = 180;
+inline constexpr int aboutWidth = 420;
+inline constexpr int aboutHeight = 196;
+inline constexpr int aboutBolt = 30;
 } // namespace size
 
 // ---- Opacity -------------------------------------------------------------------------------------------------------
 namespace opacity
 {
 inline constexpr float disabledBody = 0.40f; // a switched-off module's controls (§8.4)
-inline constexpr float placeholder = 0.18f;  // the visualiser placeholder glyph
+inline constexpr float placeholder = 0.18f;  // the visualiser glyph
 inline constexpr float topHighlight = 0.04f; // raised controls' inner top highlight (§6.1)
+inline constexpr float viewToggle = 0.50f;   // controls inside the visualiser well until hovered (§8.2)
 } // namespace opacity
 
-// ---- Timing (UI.md §9, §13) ----------------------------------------------------------------------------------------
+// ---- Motion and timing (UI.md §9, §13) -----------------------------------------------------------------------------
+namespace motion
+{
+inline constexpr int fast = 80;    // button press, knob spark
+inline constexpr int base = 150;   // hover states, toggle flash, chip appear
+inline constexpr int medium = 220; // popovers, module switch
+inline constexpr int slow = 320;
+inline constexpr int fade = 250;
+inline constexpr int frameHz = 60; // animation updates (UI-FX-004)
+} // namespace motion
+
 namespace timing
 {
 inline constexpr int uiRefreshHz = 20;

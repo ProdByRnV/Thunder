@@ -20,6 +20,7 @@ target_sources(ThunderTests PRIVATE
     support/TestSignals.h
     audio/LatencyAlignmentTests.cpp
     unit/CaptureTests.cpp
+    unit/DesignSystemTests.cpp
     unit/DependencyTests.cpp
     unit/EditorTests.cpp
     unit/EngineTests.cpp
@@ -44,6 +45,7 @@ target_sources(ThunderTests PRIVATE
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
     measure/ChainMeasure.cpp
+    measure/EditorMeasure.cpp
     measure/EditorSnapshot.cpp
     measure/GrainMeasure.cpp
     measure/PitchConfigMeasure.cpp

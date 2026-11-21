@@ -19,6 +19,8 @@ struct UserSettings
     capture::CaptureFormat captureFormat = capture::CaptureFormat::Int24; // PRD FR-CAPT-005
     bool preservePresetSession = true; // keep Key, Scale and Output Mode when loading presets (FR-PRESET-006)
     juce::String presetAuthor;         // remembered after the first save (UI.md §9.16)
+    float uiScale = 0.0f;              // the editor size last chosen (UI.md §10.3); 0 = not set
+    bool showTooltips = true;          // UI.md §10.3
 
     // `<user documents>/Thunder/Captures`.
     static juce::File defaultCapturesFolder();
@@ -35,7 +37,12 @@ struct UserSettings
     // Returns false if the file couldn't be written.
     bool save (const juce::File& file = defaultFile()) const;
 
-    bool operator== (const UserSettings&) const = default;
+    bool operator== (const UserSettings& other) const noexcept
+    {
+        return capturesFolder == other.capturesFolder && captureFormat == other.captureFormat &&
+               preservePresetSession == other.preservePresetSession && presetAuthor == other.presetAuthor &&
+               juce::exactlyEqual (uiScale, other.uiScale) && showTooltips == other.showTooltips;
+    }
 };
 
 } // namespace thunder::state

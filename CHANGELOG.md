@@ -11,12 +11,18 @@ Each release's notes on GitHub are taken from its section below.
   - The module chain shows Pitch, Grains, Space, Tone and Width in processing order. Click a module to see its controls, or its dot to switch it on or off.
   - Output Mode, Mix, Layer, In and Out, Auto Gain and the limiter are always in view.
   - Drag a knob up or down; hold Shift for fine adjustments. The mouse wheel nudges it, and a double-click resets it.
-  - Resize the window from its corner, from 75% to 200%.
+  - Click a knob's value to type an exact one, or right-click the knob to reset, enter, copy or paste its value.
+  - ↺ next to a module's switch resets all of that module's controls.
+  - Hover over any control to see what it does, with its value and range.
+  - Resize the window from its corner in 5% steps, from 75% to 200%, or pick a size in Settings. Each project remembers its size, and a window that wouldn't fit your screen opens smaller.
+  - **Settings** (the gear): window size, tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
+  - **About** (ⓘ or the logo) shows the version and a link for reporting an issue.
+  - Every control gives screen readers its name, what it does and its value.
 - **Presets**:
   - 12 built-in presets, plus Init, which resets every control.
   - ◄ and ► step through the presets; click the name for the full list. A `*` shows when you've changed the sound.
   - Save your own presets, with a name, author, category and description, to `Documents/Thunder/Presets`. Thunder asks before replacing one, and a save never leaves a preset half-written.
-  - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in the ⋯ menu), and switches smoothly while playing.
+  - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in Settings), and switches smoothly while playing.
   - Your project remembers which preset it was on.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).

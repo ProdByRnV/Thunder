@@ -86,10 +86,12 @@ ui::ThunderKnob* findKnob (juce::Component& root, const juce::String& title)
 
 TEST_CASE ("The editor opens at the base size and scales as one", "[unit][ui]")
 {
+    // 100%, unless that wouldn't fit this machine's screen (UI.md UQ-03).
     Fixture f;
-    CHECK (f.editor->getWidth() == ui::theme::size::baseWidth);
-    CHECK (f.editor->getHeight() == ui::theme::size::baseHeight);
+    f.editor->setSize (ui::theme::size::baseWidth, ui::theme::size::baseHeight);
     CHECK_THAT (f.editor->getScale(), WithinAbs (1.0, 1e-6));
+    CHECK (f.editor->getContent().getWidth() == ui::theme::size::baseWidth);
+    CHECK (f.editor->getContent().getHeight() == ui::theme::size::baseHeight);
 
     f.editor->setSize (ui::theme::size::baseWidth * 3 / 2, ui::theme::size::baseHeight * 3 / 2);
     CHECK_THAT (f.editor->getScale(), WithinAbs (1.5, 1e-6));

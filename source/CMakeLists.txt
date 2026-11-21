@@ -113,15 +113,23 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/params/ParameterLayout.h
     plugin/presets/PresetManager.cpp
     plugin/presets/PresetManager.h
+    plugin/ui/ParamHelp.cpp
+    plugin/ui/ParamHelp.h
     plugin/ui/ParamUi.h
+    plugin/ui/components/Buttons.cpp
+    plugin/ui/components/Buttons.h
     plugin/ui/components/CaptureWidget.cpp
     plugin/ui/components/CaptureWidget.h
     plugin/ui/components/Controls.cpp
     plugin/ui/components/Controls.h
     plugin/ui/components/ThunderKnob.cpp
     plugin/ui/components/ThunderKnob.h
+    plugin/ui/overlays/AboutPanel.cpp
+    plugin/ui/overlays/AboutPanel.h
     plugin/ui/overlays/SaveForm.cpp
     plugin/ui/overlays/SaveForm.h
+    plugin/ui/overlays/SettingsPanel.cpp
+    plugin/ui/overlays/SettingsPanel.h
     plugin/ui/regions/ChainRail.cpp
     plugin/ui/regions/ChainRail.h
     plugin/ui/regions/ModulePanels.cpp
@@ -135,6 +143,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/theme/ThunderIcons.h
     plugin/ui/theme/ThunderLookAndFeel.cpp
     plugin/ui/theme/ThunderLookAndFeel.h
+    plugin/ui/theme/ThunderPaint.cpp
+    plugin/ui/theme/ThunderPaint.h
     plugin/ui/theme/ThunderTheme.h)
 
 # The UI fonts (UI.md §4.1), built in when present in assets/fonts.
@@ -162,7 +172,8 @@ endif()
 
 target_link_libraries(ThunderPluginCode INTERFACE
     ThunderCore
-    juce::juce_audio_processors)
+    juce::juce_audio_processors
+    juce::juce_opengl)
 
 # ---------------------------------------------------------------------------
 # Thunder — the plugin (host wrapper + editor).

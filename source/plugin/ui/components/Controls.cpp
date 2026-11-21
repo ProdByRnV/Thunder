@@ -1,5 +1,6 @@
 #include "Controls.h"
 
+#include "plugin/ui/ParamHelp.h"
 #include "plugin/ui/ParamUi.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -9,18 +10,44 @@ namespace thunder::ui
 
 using namespace theme;
 
+namespace
+{
+// Every parameter control: its parameter ID, name, description and tooltip.
+void describeControl (juce::Component& c, params::ParamId id)
+{
+    c.setComponentID (paramIdString (id));
+    c.setTitle (help::name (id));
+    c.setDescription (help::describe (id));
+    c.setMouseClickGrabsKeyboardFocus (false);
+    c.setWantsKeyboardFocus (true);
+    if (auto* tip = dynamic_cast<juce::SettableTooltipClient*> (&c))
+        tip->setTooltip (help::name (id) + ": " + help::describe (id));
+}
+
+// The radio-group ID the segments of one control share (unique per control).
+int nextRadioGroup()
+{
+    static int group = 0x7400;
+    return ++group;
+}
+} // namespace
+
 // ---- SegmentedControl
 // ------------------------------------------------------------------------------------------------
 
 class SegmentedControl::Segment final : public juce::Button
 {
 public:
-    Segment (SegmentedControl& o, int i, const juce::String& label)
+    Segment (SegmentedControl& o, int i, const juce::String& label, int radioGroup)
         : juce::Button (label)
         , owner (o)
         , index (i)
     {
         setClickingTogglesState (false);
+        setRadioGroupId (radioGroup, juce::dontSendNotification);
+        setTitle (label);
+        setMouseClickGrabsKeyboardFocus (false);
+        setWantsKeyboardFocus (true);
         onClick = [this] { owner.choose (index); };
     }
 
@@ -35,11 +62,17 @@ public:
             g.fillRoundedRectangle (bounds, bounds.getHeight() * 0.5f);
         }
 
+        if (hasKeyboardFocus (false))
+            paint::drawFocusRing (g, bounds, bounds.getHeight() * 0.5f);
+
         g.setColour (isSelected ? colour::textOnAccent : (highlighted ? colour::textPrimary : colour::textSecondary));
-        g.setFont (fonts::ui (type::label, fonts::Weight::semiBold));
+        g.setFont (fonts::ui (type::label, fonts::Weight::semiBold).withExtraKerningFactor (type::labelTracking));
         g.drawFittedText (getButtonText().toUpperCase(), getLocalBounds().reduced (space::s1, 0),
                           juce::Justification::centred, 1);
     }
+
+    // The control's tooltip, wherever the pointer is on it.
+    juce::String getTooltip() override { return owner.getTooltip(); }
 
 private:
     SegmentedControl& owner;
@@ -58,6 +91,7 @@ SegmentedControl::SegmentedControl (juce::AudioProcessorValueTreeState& apvts, p
         for (int i = 0; i < count; ++i)
             optionIndices.push_back (i);
 
+    const auto group = nextRadioGroup();
     for (std::size_t i = 0; i < optionIndices.size(); ++i)
     {
         const auto option = optionIndices[i];
@@ -68,7 +102,7 @@ SegmentedControl::SegmentedControl (juce::AudioProcessorValueTreeState& apvts, p
                                      def.choices[static_cast<std::size_t> (option)].data(),
                                      static_cast<int> (def.choices[static_cast<std::size_t> (option)].size()))
                                : juce::String (option == 0 ? "Off" : "On"));
-        segments.push_back (std::make_unique<Segment> (*this, static_cast<int> (i), text));
+        segments.push_back (std::make_unique<Segment> (*this, static_cast<int> (i), text, group));
         addAndMakeVisible (*segments.back());
     }
 
@@ -87,16 +121,59 @@ SegmentedControl::SegmentedControl (juce::AudioProcessorValueTreeState& apvts, p
         nullptr);
     attachment->sendInitialUpdate();
 
-    setComponentID (paramIdString (id));
-    setTitle (juce::String::fromUTF8 (def.name.data(), static_cast<int> (def.name.size())));
+    describeControl (*this, id);
+    setWantsKeyboardFocus (false); // its segments take the focus
+    setFocusContainerType (juce::Component::FocusContainerType::focusContainer);
+}
+
+SegmentedControl::SegmentedControl (const juce::String& titleText, juce::StringArray labels,
+                                    std::function<void (int)> onChoose)
+    : onChooseCallback (std::move (onChoose))
+{
+    const auto group = nextRadioGroup();
+    for (int i = 0; i < labels.size(); ++i)
+    {
+        optionIndices.push_back (i);
+        segments.push_back (std::make_unique<Segment> (*this, i, labels[i], group));
+        addAndMakeVisible (*segments.back());
+    }
+
+    setTitle (titleText);
+    setFocusContainerType (juce::Component::FocusContainerType::focusContainer);
 }
 
 SegmentedControl::~SegmentedControl() = default;
+
+juce::Button& SegmentedControl::getSegment (int index)
+{
+    return *segments[static_cast<std::size_t> (index)];
+}
+
+void SegmentedControl::setSelectedOption (int index)
+{
+    selected = index;
+    for (std::size_t i = 0; i < segments.size(); ++i)
+        segments[i]->setToggleState (static_cast<int> (i) == selected, juce::dontSendNotification);
+    repaint();
+}
+
+std::unique_ptr<juce::AccessibilityHandler> SegmentedControl::createAccessibilityHandler()
+{
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::group);
+}
 
 void SegmentedControl::choose (int index)
 {
     if (index < 0 || index >= getNumSegments())
         return;
+
+    if (attachment == nullptr)
+    {
+        setSelectedOption (index);
+        if (onChooseCallback)
+            onChooseCallback (index);
+        return;
+    }
 
     attachment->setValueAsCompleteGesture (static_cast<float> (optionIndices[static_cast<std::size_t> (index)]));
 }
@@ -123,33 +200,60 @@ void SegmentedControl::resized()
 // -----------------------------------------------------------------------------------------------------
 
 ThunderToggle::ThunderToggle (juce::AudioProcessorValueTreeState& apvts, params::ParamId id)
+    : flash (*this)
 {
-    const auto& def = params::paramDef (id);
-    setComponentID (paramIdString (id));
-    setTitle (juce::String::fromUTF8 (def.name.data(), static_cast<int> (def.name.size())));
-    setTooltip (getTitle());
+    describeControl (*this, id);
     attachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, paramIdString (id), *this);
+    wasOn = getToggleState();
+    ready = true; // no flash for the value it opens with
 }
 
 ThunderToggle::~ThunderToggle() = default;
 
+void ThunderToggle::buttonStateChanged()
+{
+    // Flash when it turns on, from a click or from the host (§9.2).
+    if (const auto on = getToggleState(); on != wasOn)
+    {
+        wasOn = on;
+        if (on && ready)
+            flash.trigger();
+    }
+}
+
 void ThunderToggle::paintButton (juce::Graphics& g, bool highlighted, bool)
 {
-    const auto track = getLocalBounds().toFloat().withSizeKeepingCentre (static_cast<float> (size::toggleWidth),
-                                                                         static_cast<float> (size::toggleHeight));
-    const auto on = getToggleState();
+    drawPillToggle (g, getLocalBounds().toFloat(), getToggleState(), highlighted, flash.getLevel(),
+                    hasKeyboardFocus (false));
+}
+
+void drawPillToggle (juce::Graphics& g, juce::Rectangle<float> area, bool on, bool highlighted, float flashLevel,
+                     bool focused)
+{
+    const auto track =
+        area.withSizeKeepingCentre (static_cast<float> (size::toggleWidth), static_cast<float> (size::toggleHeight));
+    const auto r = track.getHeight() * 0.5f;
+
+    if (flashLevel > 0.0f)
+    {
+        g.setColour (colour::glowPrimary.withAlpha (glow::medium.opacity * flashLevel));
+        g.fillRoundedRectangle (track.expanded (space::s1 * flashLevel), r + space::s1 * flashLevel);
+    }
 
     g.setColour (on ? colour::accentPrimary : (highlighted ? colour::bgHover : colour::bgRaised));
-    g.fillRoundedRectangle (track, track.getHeight() * 0.5f);
+    g.fillRoundedRectangle (track, r);
     g.setColour (on ? colour::accentPrimary : colour::borderStrong);
-    g.drawRoundedRectangle (track.reduced (border::width * 0.5f), track.getHeight() * 0.5f, border::width);
+    g.drawRoundedRectangle (track.reduced (border::width * 0.5f), r, border::width);
 
     const auto knob = static_cast<float> (size::toggleKnob);
     const auto inset = (track.getHeight() - knob) * 0.5f;
     const auto x = on ? track.getRight() - inset - knob : track.getX() + inset;
     g.setColour (colour::textPrimary);
     g.fillEllipse (x, track.getY() + inset, knob, knob);
+
+    if (focused)
+        paint::drawFocusRing (g, track, r);
 }
 
 // ---- ParamCheckbox
@@ -158,7 +262,7 @@ void ThunderToggle::paintButton (juce::Graphics& g, bool highlighted, bool)
 ParamCheckbox::ParamCheckbox (juce::AudioProcessorValueTreeState& apvts, params::ParamId id, const juce::String& label)
     : juce::ToggleButton (label.toUpperCase())
 {
-    setComponentID (paramIdString (id));
+    describeControl (*this, id);
     setTitle (label);
     attachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, paramIdString (id), *this);
@@ -180,9 +284,7 @@ ParamDropdown::ParamDropdown (juce::AudioProcessorValueTreeState& apvts, params:
         addItem (juce::String::fromUTF8 (choice.data(), static_cast<int> (choice.size())), i + 1);
     }
 
-    setComponentID (paramIdString (id));
-    setTitle (juce::String::fromUTF8 (def.name.data(), static_cast<int> (def.name.size())));
-    setTooltip (getTitle());
+    describeControl (*this, id);
     attachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, paramIdString (id), *this);
 }

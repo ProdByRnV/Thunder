@@ -33,7 +33,7 @@ public:
         const auto& s = owner.status;
         const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
 
-        g.setColour (theme::colour::bgPanel);
+        g.setColour (theme::colour::bgRaised);
         g.fillRoundedRectangle (bounds, theme::radius::sm);
 
         if (s.phase == Phase::Recording)
@@ -105,6 +105,7 @@ private:
 CaptureWidget::CaptureWidget (ThunderProcessor& p)
     : processor (p)
     , chip (std::make_unique<Chip> (*this))
+    , folderButton ("Open the captures folder", icons::folder())
 {
     title.setText ("CAPTURE", juce::dontSendNotification);
     title.setFont (fonts::ui (theme::type::label, fonts::Weight::semiBold));
@@ -113,13 +114,15 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
 
     for (const auto bars : kBarChoices)
         barsBox.addItem (juce::String (bars) + (bars == 1 ? " bar" : " bars"), bars);
-    barsBox.setTooltip ("Capture length");
+    barsBox.setTitle ("Capture length");
+    barsBox.setTooltip ("Capture length: how many bars to record");
     barsBox.onChange = [this] { writeSessionChoices(); };
     addAndMakeVisible (barsBox);
 
     sourceBox.addItem ("Layer", 1);
     sourceBox.addItem ("Full Mix", 2);
-    sourceBox.setTooltip ("Layer: the layer alone. Full Mix: everything Thunder outputs.");
+    sourceBox.setTitle ("Capture source");
+    sourceBox.setTooltip ("Capture source: Layer records the layer alone; Full Mix records everything Thunder outputs");
     sourceBox.onChange = [this] { writeSessionChoices(); };
     addAndMakeVisible (sourceBox);
 
@@ -130,15 +133,8 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
     chip->setTooltip ("Drag into your DAW. Right-click for Save as and Show in folder.");
     addAndMakeVisible (*chip);
 
-    folderButton.setButtonText ("Folder");
-    folderButton.setTooltip ("Open the captures folder");
     folderButton.onClick = [this] { openCapturesFolder(); };
     addAndMakeVisible (folderButton);
-
-    menuButton.setButtonText (juce::String::fromUTF8 ("\xe2\x8b\xaf"));
-    menuButton.setTooltip ("Capture format and folder");
-    menuButton.onClick = [this] { showSettingsMenu(); };
-    addAndMakeVisible (menuButton);
 
     // Show the session's choices, and the last capture if there is one.
     const auto session = processor.getSessionState();
@@ -185,9 +181,7 @@ void CaptureWidget::resized()
     row.removeFromLeft (theme::space::s3 + theme::space::s3);
     armButton.setBounds (row.removeFromLeft (theme::size::armButtonWidth));
 
-    menuButton.setBounds (row.removeFromRight (theme::size::menuButtonWidth));
-    row.removeFromRight (theme::space::s1);
-    folderButton.setBounds (row.removeFromRight (theme::size::iconButtonWidth));
+    folderButton.setBounds (row.removeFromRight (theme::size::iconButton));
     row.removeFromRight (theme::space::s2);
     row.removeFromLeft (theme::space::s3);
     chip->setBounds (row);
@@ -330,56 +324,6 @@ void CaptureWidget::openCapturesFolder()
     const auto folder = processor.getCapturesFolder();
     if (folder.createDirectory())
         folder.startAsProcess();
-}
-
-void CaptureWidget::showSettingsMenu()
-{
-    const auto settings = state::UserSettings::load (processor.getSettingsFile());
-    const auto is32 = settings.captureFormat == capture::CaptureFormat::Float32;
-
-    auto setFormat = [this] (capture::CaptureFormat format)
-    {
-        auto s = state::UserSettings::load (processor.getSettingsFile());
-        s.captureFormat = format;
-        s.save (processor.getSettingsFile());
-    };
-
-    juce::PopupMenu format;
-    format.addItem ("24-bit", true, !is32, [setFormat] { setFormat (capture::CaptureFormat::Int24); });
-    format.addItem ("32-bit float", true, is32, [setFormat] { setFormat (capture::CaptureFormat::Float32); });
-
-    juce::PopupMenu menu;
-    menu.addSubMenu ("Capture format", format);
-    menu.addItem (juce::String::fromUTF8 ("Choose the captures folder\xe2\x80\xa6"),
-                  [this] { chooseCapturesFolder(); });
-
-    if (settings.capturesFolder != juce::File())
-        menu.addItem ("Use the default captures folder",
-                      [this]
-                      {
-                          auto s = state::UserSettings::load (processor.getSettingsFile());
-                          s.capturesFolder = juce::File();
-                          s.save (processor.getSettingsFile());
-                      });
-
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&menuButton));
-}
-
-void CaptureWidget::chooseCapturesFolder()
-{
-    chooser = std::make_unique<juce::FileChooser> ("Choose the captures folder", processor.getCapturesFolder());
-
-    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
-                          [this] (const juce::FileChooser& fc)
-                          {
-                              const auto folder = fc.getResult();
-                              if (folder == juce::File() || !folder.isDirectory())
-                                  return;
-
-                              auto s = state::UserSettings::load (processor.getSettingsFile());
-                              s.capturesFolder = folder;
-                              s.save (processor.getSettingsFile());
-                          });
 }
 
 } // namespace thunder::ui

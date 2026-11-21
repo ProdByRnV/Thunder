@@ -9,54 +9,77 @@ namespace thunder::ui
 
 using namespace theme;
 
-// C-ICONBUTTON (UI.md §9.7) with one of Thunder's glyphs.
-class PresetBar::IconButton final : public juce::Button
+namespace
 {
-public:
-    IconButton (const juce::String& name, juce::Path glyph)
-        : juce::Button (name)
-        , icon (std::move (glyph))
-    {
-        setTooltip (name);
-    }
+const juce::String modifiedMark (" *");
+} // namespace
 
-    void paintButton (juce::Graphics& g, bool highlighted, bool down) override
-    {
-        if (highlighted || down)
-        {
-            g.setColour (colour::bgHover);
-            g.fillRoundedRectangle (getLocalBounds().toFloat(), radius::sm);
-        }
+// ---- NameField
+// -------------------------------------------------------------------------------------------------------
 
-        g.setColour (highlighted ? colour::textPrimary : colour::textSecondary);
-        g.fillPath (
-            icons::fitted (icon, getLocalBounds().toFloat().reduced (static_cast<float> (getHeight()) * 0.32f)));
-    }
+PresetBar::NameField::NameField()
+    : juce::Button ("Preset")
+{
+    setTitle ("Preset");
+    setMouseClickGrabsKeyboardFocus (false);
+    setWantsKeyboardFocus (true);
+}
 
-private:
-    juce::Path icon;
-};
+void PresetBar::NameField::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    const auto bounds = getLocalBounds().toFloat().reduced (border::width * 0.5f);
+    paint::fillRaised (g, bounds, radius::sm, highlighted || down ? colour::bgHover : colour::bgRaised,
+                       down ? colour::borderStrong : colour::borderSubtle);
+    if (hasKeyboardFocus (false))
+        paint::drawFocusRing (g, bounds, radius::sm);
+
+    auto area = getLocalBounds().reduced (space::s2, 0);
+    const auto chevronArea = area.removeFromRight (getHeight() / 2)
+                                 .toFloat()
+                                 .withSizeKeepingCentre (static_cast<float> (space::s2) + border::width,
+                                                         static_cast<float> (space::s1) + border::width);
+    juce::Path chevron;
+    chevron.startNewSubPath (chevronArea.getTopLeft());
+    chevron.lineTo (chevronArea.getCentreX(), chevronArea.getBottom());
+    chevron.lineTo (chevronArea.getTopRight());
+    g.setColour (colour::textSecondary);
+    g.strokePath (chevron,
+                  juce::PathStrokeType (size::iconStroke, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // The name, then "*" in the secondary colour when the sound is modified.
+    auto name = getButtonText();
+    const auto modified = name.endsWith (modifiedMark);
+    if (modified)
+        name = name.dropLastCharacters (modifiedMark.length());
+
+    const auto font = fonts::ui (type::body);
+    juce::AttributedString s;
+    s.append (name, font, colour::textPrimary);
+    if (modified)
+        s.append (modifiedMark, font, colour::textSecondary);
+    s.setJustification (juce::Justification::centredLeft);
+    s.setWordWrap (juce::AttributedString::none);
+    s.draw (g, area.reduced (space::s1, 0).toFloat());
+}
+
+// ---- PresetBar
+// -------------------------------------------------------------------------------------------------------
 
 PresetBar::PresetBar (PresetManager& manager)
     : presets (manager)
-    , previous (std::make_unique<IconButton> ("Previous preset", icons::arrow (false)))
-    , next (std::make_unique<IconButton> ("Next preset", icons::arrow (true)))
-    , more (std::make_unique<IconButton> ("More preset options", icons::moreDots()))
+    , previous ("Previous preset", icons::step (false))
+    , next ("Next preset", icons::step (true))
+    , save ("Save preset", icons::save())
+    , more ("More preset options", icons::fromPath (icons::moreDots()))
 {
     setTitle ("Presets");
-    previous->onClick = [this] { stepPreset (-1); };
-    next->onClick = [this] { stepPreset (1); };
-    more->onClick = [this] { showMoreMenu(); };
+    previous.onClick = [this] { stepPreset (-1); };
+    next.onClick = [this] { stepPreset (1); };
+    save.onClick = [this] { requestSave(); };
+    more.onClick = [this] { showMoreMenu(); };
+    nameField.onClick = [this] { showPresetList(); };
 
-    nameButton.onClick = [this] { showPresetList(); };
-    nameButton.setTitle ("Preset");
-
-    saveButton.setButtonText ("Save");
-    saveButton.setTooltip ("Save this sound as a preset");
-    saveButton.onClick = [this] { requestSave(); };
-
-    for (auto* c :
-         std::initializer_list<juce::Component*>{previous.get(), &nameButton, next.get(), &saveButton, more.get()})
+    for (auto* c : std::initializer_list<juce::Component*>{&previous, &nameField, &next, &save, &more})
         addAndMakeVisible (c);
 
     refresh();
@@ -65,18 +88,14 @@ PresetBar::PresetBar (PresetManager& manager)
 
 PresetBar::~PresetBar() = default;
 
-void PresetBar::paint (juce::Graphics&) {}
-
 void PresetBar::resized()
 {
     auto area = getLocalBounds();
-    previous->setBounds (area.removeFromLeft (size::iconButton));
-    more->setBounds (area.removeFromRight (size::iconButton));
-    area.removeFromRight (space::s1);
-    saveButton.setBounds (area.removeFromRight (size::iconButtonWidth));
-    area.removeFromRight (space::s1);
-    next->setBounds (area.removeFromRight (size::iconButton));
-    nameButton.setBounds (area.reduced (space::s1, 0));
+    previous.setBounds (area.removeFromLeft (size::iconButton));
+    more.setBounds (area.removeFromRight (size::iconButton));
+    save.setBounds (area.removeFromRight (size::iconButton));
+    next.setBounds (area.removeFromRight (size::iconButton));
+    nameField.setBounds (area.reduced (space::s1, 0));
 }
 
 void PresetBar::timerCallback()
@@ -87,12 +106,16 @@ void PresetBar::timerCallback()
 void PresetBar::refresh()
 {
     const auto current = presets.getCurrent();
-    const auto text = current.name + (current.modified ? " *" : "");
-    if (nameButton.getButtonText() != text)
-        nameButton.setButtonText (text);
+    const auto text = current.name + (current.modified ? modifiedMark : juce::String());
+    if (nameField.getButtonText() != text)
+    {
+        nameField.setButtonText (text);
+        nameField.setDescription (current.modified ? "Modified" : juce::String());
+    }
 
     const auto& meta = presets.getLoadedMetadata();
-    nameButton.setTooltip (meta.description.isNotEmpty() ? current.name + "\n" + meta.description : current.name);
+    nameField.setTooltip (meta.description.isNotEmpty() ? current.name + ": " + meta.description
+                                                        : current.name + ": click for the preset list");
 }
 
 void PresetBar::report (const juce::String& message)
@@ -135,7 +158,7 @@ void PresetBar::showPresetList()
                           " could not be read",
                       false, false, nullptr);
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&nameButton));
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&nameField));
 }
 
 void PresetBar::showMoreMenu()
@@ -148,11 +171,7 @@ void PresetBar::showMoreMenu()
                       if (onSave)
                           onSave (true);
                   });
-    menu.addSeparator();
-    const auto preserve = presets.getPreserveSession();
-    menu.addItem ("Keep Key, Scale and Output Mode when loading", true, preserve,
-                  [this, preserve] { presets.setPreserveSession (!preserve); });
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (more.get()));
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&more));
 }
 
 void PresetBar::requestSave()
@@ -169,12 +188,28 @@ TopBar::TopBar (juce::AudioProcessorValueTreeState& apvts, PresetManager& preset
     : presetBar (presets)
     , keyRoot (apvts, params::ParamId::keyRoot)
     , keyScale (apvts, params::ParamId::keyScale)
+    , settingsButton ("Settings", icons::gear())
+    , aboutButton ("About Thunder", icons::info())
 {
-    keyRoot.setTooltip ("Key");
-    keyScale.setTooltip ("Scale");
-    addAndMakeVisible (presetBar);
-    addAndMakeVisible (keyRoot);
-    addAndMakeVisible (keyScale);
+    settingsButton.onClick = [this]
+    {
+        if (onSettings)
+            onSettings();
+    };
+    aboutButton.onClick = [this]
+    {
+        if (onAbout)
+            onAbout();
+    };
+
+    for (auto* c :
+         std::initializer_list<juce::Component*>{&presetBar, &keyRoot, &keyScale, &settingsButton, &aboutButton})
+        addAndMakeVisible (c);
+}
+
+juce::Rectangle<int> TopBar::logoBounds() const
+{
+    return getLocalBounds().reduced (space::s4, 0).withWidth (size::bolt + space::s2 + size::wordmarkWidth);
 }
 
 void TopBar::paint (juce::Graphics& g)
@@ -184,7 +219,7 @@ void TopBar::paint (juce::Graphics& g)
     g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
 
     // Logo: bolt glyph and wordmark (UI.md §2.1).
-    auto area = getLocalBounds().reduced (space::s4, 0);
+    auto area = logoBounds();
     const auto boltArea = area.removeFromLeft (size::bolt).withSizeKeepingCentre (size::bolt, size::bolt).toFloat();
     g.setColour (colour::accentPrimary);
     g.fillPath (icons::fitted (icons::bolt(), boltArea));
@@ -192,12 +227,18 @@ void TopBar::paint (juce::Graphics& g)
     area.removeFromLeft (space::s2);
     g.setColour (colour::textPrimary);
     g.setFont (fonts::ui (type::wordmark, fonts::Weight::semiBold).withExtraKerningFactor (type::wordmarkTracking));
-    g.drawText ("THUNDER", area.removeFromLeft (size::wordmarkWidth), juce::Justification::centredLeft);
+    g.drawText ("THUNDER", area, juce::Justification::centredLeft);
 
     g.setColour (colour::textSecondary);
     g.setFont (fonts::ui (type::label, fonts::Weight::semiBold).withExtraKerningFactor (type::labelTracking));
     g.drawText ("KEY", keyRoot.getBounds().withX (keyRoot.getX() - space::s6).withWidth (space::s6 - space::s2),
                 juce::Justification::centredRight);
+}
+
+void TopBar::mouseUp (const juce::MouseEvent& e)
+{
+    if (e.mouseWasClicked() && logoBounds().contains (e.getPosition()) && onAbout)
+        onAbout();
 }
 
 void TopBar::resized()
@@ -207,11 +248,15 @@ void TopBar::resized()
     presetBar.setBounds (
         area.removeFromLeft (size::presetBarWidth).withSizeKeepingCentre (size::presetBarWidth, size::controlHeight));
 
-    auto key = area.removeFromRight (size::keyRootWidth + space::s2 + size::keyScaleWidth);
-    keyScale.setBounds (
-        key.removeFromRight (size::keyScaleWidth).withSizeKeepingCentre (size::keyScaleWidth, size::controlHeight));
-    key.removeFromRight (space::s2);
-    keyRoot.setBounds (key.withSizeKeepingCentre (size::keyRootWidth, size::controlHeight));
+    const auto centred = [] (juce::Rectangle<int> r, int w, int h) { return r.withSizeKeepingCentre (w, h); };
+    aboutButton.setBounds (centred (area.removeFromRight (size::iconButton), size::iconButton, size::iconButton));
+    area.removeFromRight (space::s1);
+    settingsButton.setBounds (centred (area.removeFromRight (size::iconButton), size::iconButton, size::iconButton));
+    area.removeFromRight (space::s4);
+
+    keyScale.setBounds (centred (area.removeFromRight (size::keyScaleWidth), size::keyScaleWidth, size::controlHeight));
+    area.removeFromRight (space::s2);
+    keyRoot.setBounds (centred (area.removeFromRight (size::keyRootWidth), size::keyRootWidth, size::controlHeight));
 }
 
 } // namespace thunder::ui

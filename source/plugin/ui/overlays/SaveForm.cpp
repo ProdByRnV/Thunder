@@ -86,13 +86,8 @@ SaveForm::SaveForm (PresetManager& manager, bool saveAs)
         field->onEscapeKey = [this] { cancel(); };
     author.onReturnKey = [this] { submit(); };
 
-    cancelButton.setButtonText ("Cancel");
     cancelButton.onClick = [this] { cancel(); };
-    saveButton.setButtonText ("Save");
-    saveButton.setToggleState (true, juce::dontSendNotification); // primary
     saveButton.onClick = [this] { submit(); };
-    replaceButton.setButtonText ("Replace it");
-    replaceButton.setColour (juce::TextButton::textColourOffId, colour::stateError);
     replaceButton.onClick = [this] { confirmReplace(); };
 
     for (auto* c :
@@ -116,6 +111,7 @@ void SaveForm::paint (juce::Graphics& g)
 {
     g.fillAll (colour::bgOverlay);
 
+    paint::drawShadow (g, panelBounds(), elevation::dialog);
     const auto panel = panelBounds().toFloat();
     g.setColour (colour::bgPanel);
     g.fillRoundedRectangle (panel, radius::lg);
@@ -156,10 +152,10 @@ void SaveForm::resized()
 
     area.removeFromTop (space::s1 + size::labelHeight); // the message line
     auto buttons = area.removeFromBottom (size::controlHeight);
-    saveButton.setBounds (buttons.removeFromRight (size::iconButtonWidth + space::s4));
+    saveButton.setBounds (buttons.removeFromRight (size::dialogButtonWidth));
     buttons.removeFromRight (space::s2);
     replaceButton.setBounds (saveButton.getBounds());
-    cancelButton.setBounds (buttons.removeFromRight (size::iconButtonWidth + space::s4));
+    cancelButton.setBounds (buttons.removeFromRight (size::dialogButtonWidth));
 }
 
 bool SaveForm::keyPressed (const juce::KeyPress& key)
@@ -282,14 +278,18 @@ void Toast::show (const juce::String& newText, bool isError)
 void Toast::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat().reduced (border::width * 0.5f);
-    g.setColour (colour::bgRaised);
-    g.fillRoundedRectangle (bounds, radius::md);
-    g.setColour (error ? colour::stateError : colour::borderSubtle);
-    g.drawRoundedRectangle (bounds, radius::md, border::width);
+    paint::fillRaised (g, bounds, radius::md, colour::bgRaised, error ? colour::stateError : colour::borderSubtle);
+
+    // A status dot: red for errors, green otherwise (the words say which, too).
+    auto area = getLocalBounds().reduced (space::s3, space::s1);
+    const auto dot = static_cast<float> (size::chainDot);
+    g.setColour (error ? colour::stateError : colour::stateSuccess);
+    g.fillEllipse (area.removeFromLeft (size::chainDot).toFloat().withSizeKeepingCentre (dot, dot));
+    area.removeFromLeft (space::s2);
 
     g.setColour (colour::textPrimary);
     g.setFont (fonts::ui (type::body));
-    g.drawFittedText (text, getLocalBounds().reduced (space::s3, space::s1), juce::Justification::centredLeft, 2);
+    g.drawFittedText (text, area, juce::Justification::centredLeft, 2);
 }
 
 void Toast::mouseUp (const juce::MouseEvent&)
