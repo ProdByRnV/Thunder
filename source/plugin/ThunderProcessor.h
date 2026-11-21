@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/capture/CaptureStatus.h"
+#include "core/capture/CaptureWriter.h"
 #include "core/engine/ThunderEngine.h"
 #include "core/params/ParamSnapshot.h"
 #include "core/state/SessionState.h"
@@ -65,12 +67,27 @@ public:
 
     const ThunderEngine& getEngine() const noexcept { return engine; }
 
+    // [MSG] Capture (PRD FR-CAPT-*). Arming uses the session's bars and source
+    // and the global captures folder and format.
+    void armCapture();
+    void cancelCapture();
+    capture::CaptureStatus getCaptureStatus() const;
+    capture::CaptureWriter& getCaptureWriter() noexcept { return captureWriter; }
+
+    // [MSG] Where captures are written: the user's setting, or the default.
+    // `settingsFile` is the global settings file; tests point it elsewhere.
+    juce::File getCapturesFolder() const;
+    void setSettingsFile (const juce::File& file) { settingsFile = file; }
+    const juce::File& getSettingsFile() const noexcept { return settingsFile; }
+
 private:
     juce::AudioProcessorValueTreeState apvts;
     params::ParamRefs parameterRefs{};
     params::ParamSnapshot snapshot = params::ParamSnapshot::defaults();
 
     ThunderEngine engine;
+    capture::CaptureWriter captureWriter{engine.getCapture()}; // after the engine: destroyed first
+    juce::File settingsFile;
 
     mutable juce::CriticalSection sessionLock; // never taken on the audio thread
     state::SessionState session;

@@ -19,8 +19,8 @@ namespace thunder
 // are time-aligned in both modes. Both gains glide over 20 ms, so moving Mix or
 // switching mode never clicks.
 //
-// TODO(PRD): Auto Gain and Layer Level come before this, and the safety limiter
-// after Output Gain (T-0.4-04/05, subphase 2F).
+// Auto Gain and Layer Level come before this, Output Gain and the safety
+// limiter after it (ThunderEngine::processChunk).
 class OutputStage
 {
 public:

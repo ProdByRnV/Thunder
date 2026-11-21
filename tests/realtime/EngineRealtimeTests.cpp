@@ -15,6 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <memory>
 #include <vector>
 
 using namespace thunder;
@@ -296,4 +297,70 @@ TEST_CASE ("Switching every module, Output Mode, Mix and the gains, and a reset,
 
     CHECK (report.allocations == 0);
     CHECK (report.deallocations == 0);
+}
+
+TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
+{
+    // Arming, recording a Layer and a Full Mix capture, finishing, failing and
+    // cancelling all happen on the audio thread. The queue is allocated
+    // beforehand on the message thread, as the processor does when arming.
+    ThunderEngine engine;
+    engine.prepare (48000.0);
+    auto& capture = engine.getCapture();
+    capture.allocateQueue();
+
+    const auto snapshot = params::ParamSnapshot::defaults();
+    std::vector<float> left (512, 0.1f), right (512, 0.1f);
+    float* channels[] = {left.data(), right.data()};
+
+    TransportState transport;
+    transport.isPlaying = true;
+    transport.hasHostInfo = true;
+
+    auto playSeconds = [&] (double seconds)
+    {
+        for (int done = 0; done < static_cast<int> (seconds * 48000.0); done += 512)
+        {
+            engine.process (channels, 512, transport, snapshot);
+            transport = transport.advancedBy (512, 48000.0);
+        }
+    };
+
+    // The queue is drained between sections, as the writer thread would.
+    auto drain = [&capture]
+    {
+        auto block = std::make_unique<capture::CaptureBlock>();
+        while (capture.getQueue().pop (block.get(), 1) == 1)
+        {
+        }
+    };
+
+    test::RealtimeReport total;
+    for (const auto source : {capture::CaptureSource::Layer, capture::CaptureSource::FullMix})
+    {
+        capture.arm (1, source);
+        accumulate (total, test::runInRealtimeSection ([&] { playSeconds (1.0); }));
+        drain();
+        accumulate (total, test::runInRealtimeSection ([&] { playSeconds (1.5); })); // finishes
+        drain();
+    }
+
+    capture.arm (2, capture::CaptureSource::Layer);
+    accumulate (total, test::runInRealtimeSection ([&] { playSeconds (2.5); }));
+    capture.cancel();
+    accumulate (total, test::runInRealtimeSection ([&] { playSeconds (0.1); }));
+    drain();
+
+    capture.arm (2, capture::CaptureSource::FullMix);
+    accumulate (total, test::runInRealtimeSection (
+                           [&]
+                           {
+                               playSeconds (2.5);
+                               engine.reset(); // fails the recording
+                           }));
+    drain();
+
+    CHECK (total.allocations == 0);
+    CHECK (total.deallocations == 0);
+    CHECK (capture.getPhase() == capture::CaptureController::Phase::Idle);
 }

@@ -3,6 +3,7 @@
 #include "ModuleSlot.h"
 #include "OutputStage.h"
 
+#include "core/capture/CaptureController.h"
 #include "core/dsp/gain/AutoGain.h"
 #include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
@@ -40,6 +41,11 @@ namespace thunder
 // never changes.
 //
 // The limiter looks ahead 1.5 ms; that is part of the reported latency.
+//
+// Capture (PRD FR-CAPT-*) taps the end of every chunk: the output for Full Mix
+// captures, or, while a Layer capture is armed or recording, the layer as
+// Output Mode "Layer Only" would play it (after Output Gain and its own safety
+// limiter), so both are on the output's timeline.
 class ThunderEngine
 {
 public:
@@ -70,6 +76,11 @@ public:
     // Grains keep replaying the input for a while, and the reverb then rings
     // out after the last grain.
     double getTailSeconds() const noexcept { return grains.getTailSeconds() + space.getTailSeconds(); }
+
+    // Capture control and its queue (arm/cancel from the message thread; the
+    // writer drains the queue).
+    capture::CaptureController& getCapture() noexcept { return capture; }
+    const capture::CaptureController& getCapture() const noexcept { return capture; }
 
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
@@ -117,6 +128,11 @@ private:
 
     util::LatencyDelay dryDelay;
     std::array<std::vector<float>, kNumChannels> dry;
+
+    capture::CaptureController capture;
+    std::array<std::vector<float>, kNumChannels> layerTap; // the layer for Layer captures
+    dsp::SafetyLimiter layerTapLimiter;
+    bool layerTapActive = false;
 
     std::atomic<std::uint64_t> nonFiniteReplaced{0};
     std::atomic<std::uint64_t> moduleResets{0};

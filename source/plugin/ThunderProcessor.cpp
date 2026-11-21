@@ -1,8 +1,10 @@
 #include "ThunderProcessor.h"
 
+#include "ThunderEditor.h"
 #include "core/host/TransportState.h"
 #include "core/state/StateIds.h"
 #include "core/state/StateManager.h"
+#include "core/state/UserSettings.h"
 #include "params/ParameterLayout.h"
 
 namespace thunder
@@ -13,6 +15,7 @@ ThunderProcessor::ThunderProcessor()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
     , apvts (*this, nullptr, state::ids::parameters, createParameterLayout())
+    , settingsFile (state::UserSettings::defaultFile())
 {
     // Cache a pointer to every parameter's live value once, so the audio thread
     // never looks parameters up by name.
@@ -79,8 +82,7 @@ void ThunderProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
 juce::AudioProcessorEditor* ThunderProcessor::createEditor()
 {
-    // Temporary: a generic list of every parameter, until Thunder's own UI (v0.5).
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new ThunderEditor (*this);
 }
 
 bool ThunderProcessor::hasEditor() const
@@ -162,6 +164,34 @@ void ThunderProcessor::setSessionState (const state::SessionState& newState)
 {
     const juce::ScopedLock lock (sessionLock);
     session = newState;
+}
+
+juce::File ThunderProcessor::getCapturesFolder() const
+{
+    return state::UserSettings::load (settingsFile).getCapturesFolder();
+}
+
+void ThunderProcessor::armCapture()
+{
+    const auto current = getSessionState();
+    const auto settings = state::UserSettings::load (settingsFile);
+
+    captureWriter.setSettings ({settings.getCapturesFolder(), settings.captureFormat, current.presetName});
+
+    auto& controller = engine.getCapture();
+    controller.allocateQueue();
+    controller.arm (current.captureBars, current.captureSource);
+    captureWriter.start();
+}
+
+void ThunderProcessor::cancelCapture()
+{
+    engine.getCapture().cancel();
+}
+
+capture::CaptureStatus ThunderProcessor::getCaptureStatus() const
+{
+    return capture::CaptureStatus::from (engine.getCapture(), captureWriter);
 }
 
 } // namespace thunder

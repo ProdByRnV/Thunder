@@ -11,6 +11,15 @@ add_library(ThunderCore INTERFACE)
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(ThunderCore INTERFACE
+    core/capture/CaptureController.cpp
+    core/capture/CaptureController.h
+    core/capture/CaptureNaming.cpp
+    core/capture/CaptureNaming.h
+    core/capture/CaptureStatus.cpp
+    core/capture/CaptureStatus.h
+    core/capture/CaptureTypes.h
+    core/capture/CaptureWriter.cpp
+    core/capture/CaptureWriter.h
     core/dsp/gain/AutoGain.h
     core/dsp/gain/LoudnessMeter.h
     core/dsp/gain/SafetyLimiter.h
@@ -52,6 +61,8 @@ target_sources(ThunderCore INTERFACE
     core/state/StateIds.h
     core/state/StateManager.cpp
     core/state/StateManager.h
+    core/state/UserSettings.cpp
+    core/state/UserSettings.h
     core/util/Crossfade.h
     core/util/LatencyDelay.h
     core/util/Math.h
@@ -80,10 +91,15 @@ target_compile_definitions(ThunderCore INTERFACE
 add_library(ThunderPluginCode INTERFACE)
 
 target_sources(ThunderPluginCode INTERFACE
+    plugin/ThunderEditor.cpp
+    plugin/ThunderEditor.h
     plugin/ThunderProcessor.cpp
     plugin/ThunderProcessor.h
     plugin/params/ParameterLayout.cpp
-    plugin/params/ParameterLayout.h)
+    plugin/params/ParameterLayout.h
+    plugin/ui/components/CaptureWidget.cpp
+    plugin/ui/components/CaptureWidget.h
+    plugin/ui/theme/ThunderTheme.h)
 
 target_link_libraries(ThunderPluginCode INTERFACE
     ThunderCore

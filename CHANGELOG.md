@@ -7,7 +7,7 @@ Each release's notes on GitHub are taken from its section below.
 
 - Runs as a VST3 plugin on Windows, macOS and Linux, and as an AU on macOS.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
-- A temporary editor lists every control until Thunder's own interface arrives.
+- The editor lists every control, with the capture bar along the bottom, until Thunder's own interface arrives.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).
   - **Semitone:** −24 to +24 semitones, plus Fine (±100 cents).
@@ -30,3 +30,8 @@ Each release's notes on GitHub are taken from its section below.
   - A **safety limiter** keeps the output under −0.3 dBFS.
 - The layer stays exactly in time with your melody: Thunder reports its latency (about 82 ms) to your DAW, which compensates for it.
 - Offline bounces sound exactly like playback.
+- **Capture**: record 1, 2, 4, 8 or 16 bars of the layer, or of Thunder's whole output, to a WAV file and drag it straight into your DAW.
+  - Arm it and press play: recording starts at the next bar, and the file starts exactly on that bar.
+  - A loop that wraps around on a bar line keeps recording; if playback stops or jumps elsewhere, the capture is cancelled and no file is left behind.
+  - 24-bit or 32-bit float at your project's sample rate, saved to `Documents/Thunder/Captures` or a folder you choose, with descriptive names such as `Thunder_A-min_140bpm_4bars_20261121-143005.wav`.
+  - Right-click a capture to Save as…, Show in folder or Delete it.

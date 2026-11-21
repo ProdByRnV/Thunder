@@ -29,6 +29,12 @@ void ThunderEngine::prepare (double newSampleRate)
 
     for (auto& channel : dry)
         channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
+    for (auto& channel : layerTap)
+        channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
+
+    layerTapLimiter.prepare (sampleRate);
+    layerTapActive = false;
+    capture.prepare (sampleRate, latencySamples);
 
     inputGain.prepare (sampleRate);
     layerLevel.prepare (sampleRate);
@@ -55,6 +61,8 @@ void ThunderEngine::reset() noexcept
         autoGain.reset();
         output.reset();
         limiter.reset();
+        layerTapLimiter.reset();
+        capture.reset();
     }
 }
 
@@ -94,6 +102,14 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
 
     transport = hostTransport;
 
+    // The layer tap runs only while a Layer capture is armed or recording. Its
+    // limiter starts fresh; the recording starts at a bar line at least one
+    // latency later, by which time the limiter's look-ahead is full.
+    capture.handleRequests();
+    if (capture.wantsLayer() && !layerTapActive)
+        layerTapLimiter.reset();
+    layerTapActive = capture.wantsLayer();
+
     for (int offset = 0; offset < numSamples;)
     {
         const auto chunk = std::min (kMaxChunkSize, numSamples - offset);
@@ -131,15 +147,34 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     // the layer with the aligned dry signal, then Output Gain.
     autoGain.process (channels, dryChannels, kNumChannels, numSamples, context.params.isOn (ParamId::autoGain));
     layerLevel.apply (channels, kNumChannels, numSamples);
+
+    float* tapChannels[kNumChannels] = {layerTap[0].data(), layerTap[1].data()};
+    if (layerTapActive)
+        for (int ch = 0; ch < kNumChannels; ++ch)
+            juce::FloatVectorOperations::copy (tapChannels[ch], channels[ch], numSamples);
+
     output.process (channels, dryChannels, kNumChannels, numSamples, context.params);
-    outputGain.apply (channels, kNumChannels, numSamples);
+
+    // One smoother for both, so the tap gets exactly the output's gain curve.
+    float* gained[2 * kNumChannels] = {channels[0], channels[1], tapChannels[0], tapChannels[1]};
+    outputGain.apply (gained, layerTapActive ? 2 * kNumChannels : kNumChannels, numSamples);
 
     // Gains can push extreme (but finite) input to Inf; never let that reach
     // the limiter or the output.
     sanitise (channels, numSamples);
 
     // Nothing leaves above −0.3 dBFS.
-    limiter.process (channels, kNumChannels, numSamples, context.params.isOn (ParamId::safetyLimiter));
+    const auto limiterOn = context.params.isOn (ParamId::safetyLimiter);
+    limiter.process (channels, kNumChannels, numSamples, limiterOn);
+
+    if (layerTapActive)
+    {
+        for (auto* tap : tapChannels)
+            util::replaceNonFinite (tap, numSamples);
+        layerTapLimiter.process (tapChannels, kNumChannels, numSamples, limiterOn);
+    }
+
+    capture.process (channels, layerTapActive ? tapChannels : nullptr, numSamples, context.transport, context.params);
 }
 
 void ThunderEngine::runModule (Module& module, juce::dsp::AudioBlock<float>& block,
