@@ -21,6 +21,7 @@ target_sources(ThunderTests PRIVATE
     audio/LatencyAlignmentTests.cpp
     unit/CaptureTests.cpp
     unit/DependencyTests.cpp
+    unit/EditorTests.cpp
     unit/EngineTests.cpp
     unit/GainTests.cpp
     unit/GrainModuleTests.cpp
@@ -28,6 +29,7 @@ target_sources(ThunderTests PRIVATE
     unit/ModuleSlotTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
+    unit/PresetTests.cpp
     unit/PitchModuleTests.cpp
     unit/PitchTrackerTests.cpp
     unit/ProcessorTests.cpp
@@ -42,6 +44,7 @@ target_sources(ThunderTests PRIVATE
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
     measure/ChainMeasure.cpp
+    measure/EditorSnapshot.cpp
     measure/GrainMeasure.cpp
     measure/PitchConfigMeasure.cpp
     measure/PitchModesMeasure.cpp

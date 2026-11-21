@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures to build")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 
-project(Thunder VERSION 0.1.0 LANGUAGES C CXX)
+project(Thunder VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,8 +17,8 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-# Thunder is a plugin only: no standalone app. CLAP, and LV2 on Linux, are
-# added later.
+# Plugin formats built by juce_add_plugin. CLAP is added separately (below),
+# LV2 on Linux later.
 if(APPLE)
     set(_thunder_default_formats "VST3;AU")
 else()
@@ -52,6 +52,12 @@ add_subdirectory(external/signalsmith-stretch EXCLUDE_FROM_ALL)
 # warning settings don't apply to them.
 target_include_directories(signalsmith-linear SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/signalsmith-linear/include")
 target_include_directories(signalsmith-stretch SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/signalsmith-stretch/include")
+
+# CLAP, through clap-juce-extensions (PRD NFR-COMP-001).
+option(THUNDER_BUILD_CLAP "Build the CLAP plugin" ON)
+if(THUNDER_BUILD_CLAP)
+    add_subdirectory(external/clap-juce-extensions EXCLUDE_FROM_ALL)
+endif()
 
 include(cmake/CloudSeed.cmake)
 include(cmake/CompilerSettings.cmake)

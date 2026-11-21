@@ -19,7 +19,8 @@ struct SessionState
 {
     juce::String presetName;
     bool presetModified = false;
-    int captureBars = 4; // 1, 2, 4, 8 or 16
+    juce::String presetKey; // the loaded preset in the library (PRD FR-PRESET-014); empty = Init
+    int captureBars = 4;    // 1, 2, 4, 8 or 16
     CaptureSource captureSource = CaptureSource::Layer;
 
     juce::ValueTree toValueTree() const;

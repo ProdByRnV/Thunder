@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Night Static" author="Thunder" category="Atmos"
+        description="An octave up, scattered into slow grains under a long cloud reverb."/>
+  <Params>
+    <P id="grainAmount" v="60"/>
+    <P id="grainSize" v="140"/>
+    <P id="grainDensity" v="24"/>
+    <P id="grainPosSpread" v="45"/>
+    <P id="grainPanSpread" v="70"/>
+    <P id="spaceMix" v="55"/>
+    <P id="spaceDecay" v="72"/>
+    <P id="spacePreDelay" v="30"/>
+    <P id="lpFreq" v="9000"/>
+    <P id="widthAmount" v="130"/>
+  </Params>
+</ThunderPreset>

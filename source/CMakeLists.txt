@@ -6,6 +6,15 @@
 # work. That way JUCE code is never compiled twice into one binary, and anything
 # that links only ThunderCore can't reach the GUI modules.
 # ---------------------------------------------------------------------------
+# Factory presets, built into the plugin (PRD FR-PRESET-001). Each file lists
+# only the settings it changes.
+file(GLOB THUNDER_FACTORY_PRESETS CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/assets/presets/*.thunderpreset")
+juce_add_binary_data(ThunderPresetData
+    HEADER_NAME ThunderPresetData.h
+    NAMESPACE ThunderPresetData
+    SOURCES ${THUNDER_FACTORY_PRESETS})
+set_target_properties(ThunderPresetData PROPERTIES POSITION_INDEPENDENT_CODE ON FOLDER "data")
+
 add_library(ThunderCore INTERFACE)
 
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -56,6 +65,10 @@ target_sources(ThunderCore INTERFACE
     core/params/ParamSnapshot.h
     core/params/ParamText.cpp
     core/params/ParamText.h
+    core/presets/PresetDocument.cpp
+    core/presets/PresetDocument.h
+    core/presets/PresetLibrary.cpp
+    core/presets/PresetLibrary.h
     core/state/SessionState.cpp
     core/state/SessionState.h
     core/state/StateIds.h
@@ -77,7 +90,8 @@ target_link_libraries(ThunderCore INTERFACE
     juce::juce_data_structures
     juce::juce_dsp
     signalsmith-stretch
-    thunder_cloudseed)
+    thunder_cloudseed
+    ThunderPresetData)
 
 target_compile_definitions(ThunderCore INTERFACE
     THUNDER_VERSION_STRING="${PROJECT_VERSION}")
@@ -97,9 +111,54 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ThunderProcessor.h
     plugin/params/ParameterLayout.cpp
     plugin/params/ParameterLayout.h
+    plugin/presets/PresetManager.cpp
+    plugin/presets/PresetManager.h
+    plugin/ui/ParamUi.h
     plugin/ui/components/CaptureWidget.cpp
     plugin/ui/components/CaptureWidget.h
+    plugin/ui/components/Controls.cpp
+    plugin/ui/components/Controls.h
+    plugin/ui/components/ThunderKnob.cpp
+    plugin/ui/components/ThunderKnob.h
+    plugin/ui/overlays/SaveForm.cpp
+    plugin/ui/overlays/SaveForm.h
+    plugin/ui/regions/ChainRail.cpp
+    plugin/ui/regions/ChainRail.h
+    plugin/ui/regions/ModulePanels.cpp
+    plugin/ui/regions/ModulePanels.h
+    plugin/ui/regions/OutputPanel.cpp
+    plugin/ui/regions/OutputPanel.h
+    plugin/ui/regions/TopBar.cpp
+    plugin/ui/regions/TopBar.h
+    plugin/ui/theme/ThunderFonts.cpp
+    plugin/ui/theme/ThunderFonts.h
+    plugin/ui/theme/ThunderIcons.h
+    plugin/ui/theme/ThunderLookAndFeel.cpp
+    plugin/ui/theme/ThunderLookAndFeel.h
     plugin/ui/theme/ThunderTheme.h)
+
+# The UI fonts (UI.md §4.1), built in when present in assets/fonts.
+set(THUNDER_FONT_FILES
+    "${PROJECT_SOURCE_DIR}/assets/fonts/Inter/Inter-Regular.ttf"
+    "${PROJECT_SOURCE_DIR}/assets/fonts/Inter/Inter-Medium.ttf"
+    "${PROJECT_SOURCE_DIR}/assets/fonts/Inter/Inter-SemiBold.ttf"
+    "${PROJECT_SOURCE_DIR}/assets/fonts/JetBrainsMono/JetBrainsMono-Medium.ttf")
+set(_thunder_fonts_present ON)
+foreach(font IN LISTS THUNDER_FONT_FILES)
+    if(NOT EXISTS "${font}")
+        set(_thunder_fonts_present OFF)
+    endif()
+endforeach()
+
+if(_thunder_fonts_present)
+    juce_add_binary_data(ThunderFontData
+        HEADER_NAME ThunderFontData.h
+        NAMESPACE ThunderFontData
+        SOURCES ${THUNDER_FONT_FILES})
+    set_target_properties(ThunderFontData PROPERTIES POSITION_INDEPENDENT_CODE ON FOLDER "data")
+    target_link_libraries(ThunderPluginCode INTERFACE ThunderFontData)
+    target_compile_definitions(ThunderPluginCode INTERFACE THUNDER_EMBEDDED_FONTS=1)
+endif()
 
 target_link_libraries(ThunderPluginCode INTERFACE
     ThunderCore
@@ -131,6 +190,13 @@ juce_add_plugin(Thunder
 
 target_sources(Thunder PRIVATE
     plugin/PluginEntry.cpp)
+
+if(THUNDER_BUILD_CLAP)
+    clap_juce_extensions_plugin(TARGET Thunder
+        CLAP_ID "com.prodbyrnv.thunder"
+        CLAP_FEATURES audio-effect stereo
+        CLAP_SUPPORT_URL "https://github.com/ProdByRnV/Thunder/issues")
+endif()
 
 target_compile_definitions(Thunder PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0)

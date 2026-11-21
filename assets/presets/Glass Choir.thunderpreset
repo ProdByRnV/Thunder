@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Glass Choir" author="Thunder" category="Shimmer"
+        description="Two octaves up, airy and wide, with a bright, long tail."/>
+  <Params>
+    <P id="pitchOctave" v="+2"/>
+    <P id="pitchMix" v="80"/>
+    <P id="grainAmount" v="55"/>
+    <P id="grainSize" v="180"/>
+    <P id="grainDensity" v="18"/>
+    <P id="grainPosSpread" v="35"/>
+    <P id="hpFreq" v="400"/>
+    <P id="spaceMix" v="65"/>
+    <P id="spaceDecay" v="88"/>
+    <P id="widthAmount" v="160"/>
+  </Params>
+</ThunderPreset>

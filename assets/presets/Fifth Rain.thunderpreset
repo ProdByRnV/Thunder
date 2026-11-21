@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Fifth Rain" author="Thunder" category="Harmony"
+        description="A fifth above in your key, with light grains and a short room-like tail."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchInterval" v="5th"/>
+    <P id="grainAmount" v="30"/>
+    <P id="grainSize" v="60"/>
+    <P id="grainDensity" v="30"/>
+    <P id="spaceMix" v="35"/>
+    <P id="spaceDecay" v="45"/>
+  </Params>
+</ThunderPreset>

@@ -96,7 +96,11 @@ TEST_CASE ("Saved state restores every parameter and session setting", "[unit][p
     CHECK_THAT (valueOf (restored, ParamId::pitchSemitones), WithinAbs (-7.0, 1e-6));
     CHECK_THAT (valueOf (restored, ParamId::grainOn), WithinAbs (0.0, 1e-6));
     CHECK_THAT (valueOf (restored, ParamId::spaceMix), WithinAbs (40.0, 1e-3)); // untouched → default
-    CHECK (restored.getSessionState() == session);
+    // The knobs moved away from the loaded sound (Init), so it is saved as modified.
+    auto expected = session;
+    expected.presetModified = true;
+    CHECK (restored.getSessionState() == expected);
+    CHECK (restored.getPresetManager().getCurrent().modified);
     CHECK_FALSE (restored.lastLoadWasFromNewerVersion());
 
     // The saved data is versioned.

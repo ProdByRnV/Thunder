@@ -25,6 +25,8 @@ env:
   # are easier to read.
   THUNDER_CONFIG: ${{ startsWith(github.ref, 'refs/tags/v') && 'Release' || 'RelWithDebInfo' }}
   PLUGINVAL_VERSION: v1.0.4
+  CLAP_VALIDATOR_VERSION: "0.4.1"
+  CLAP_VALIDATOR_BUILD: 0.4.1-127-g152b982
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,12 +49,14 @@ jobs:
             platform: windows-x86_64
             parallel: 4
             pluginval: Windows
+            clapvalidator: windows
           # Universal binary (Apple silicon + Intel), set in CMakeLists.txt.
           - name: macOS (Apple Clang)
             os: macos-latest
             platform: macos-universal
             parallel: 3
             pluginval: macOS
+            clapvalidator: macos-universal
           # Capped at 2: JUCE's unity translation units are large, and the plugin
           # and the test runner each compile their own copy.
           - name: Linux (GCC)
@@ -60,13 +64,15 @@ jobs:
             platform: linux-x86_64
             parallel: 2
             pluginval: Linux
-          # pluginval publishes no ARM64 Linux build, so this job builds, tests
-          # and packages but does not run it.
+            clapvalidator: ubuntu-22.04
+          # pluginval and clap-validator publish no ARM64 Linux build, so this job
+          # builds, tests and packages but does not run them.
           - name: Linux ARM64 (GCC)
             os: ubuntu-24.04-arm
             platform: linux-arm64
             parallel: 2
             pluginval: ""
+            clapvalidator: ""
 
     steps:
       - name: Check out
@@ -92,9 +98,10 @@ jobs:
       - name: Build tests
         run: cmake --build build --config ${{ env.THUNDER_CONFIG }} --target ThunderTests --parallel ${{ matrix.parallel }}
 
-      # Thunder_All builds every plugin format; "Thunder" alone is only the shared code.
+      # Thunder_All builds the JUCE formats, Thunder_CLAP the CLAP; "Thunder" alone is
+      # only the shared code.
       - name: Build plugin
-        run: cmake --build build --config ${{ env.THUNDER_CONFIG }} --target Thunder_All --parallel ${{ matrix.parallel }}
+        run: cmake --build build --config ${{ env.THUNDER_CONFIG }} --target Thunder_All Thunder_CLAP --parallel ${{ matrix.parallel }}
 
       - name: Unit tests
         run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L unit --output-on-failure -V
@@ -132,7 +139,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           dir="${{ steps.artefacts.outputs.dir }}"
-          for bundle in "$dir/VST3/Thunder.vst3" "$dir/AU/Thunder.component"; do
+          for bundle in "$dir/VST3/Thunder.vst3" "$dir/AU/Thunder.component" "$dir/CLAP/Thunder.clap"; do
             codesign --force --sign - --deep "$bundle"
             codesign --verify --strict --verbose=2 "$bundle"
           done
@@ -157,6 +164,33 @@ jobs:
             Linux)   xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
           esac
 
+      # CLAP: checked by the CLAP project's own validator.
+      - name: Download clap-validator
+        if: matrix.clapvalidator != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o clap-validator.zip "https://github.com/free-audio/clap-validator/releases/download/${CLAP_VALIDATOR_VERSION}/clap-validator-${CLAP_VALIDATOR_BUILD}-${{ matrix.clapvalidator }}.zip"
+          mkdir -p clap-validator && cd clap-validator && unzip -q ../clap-validator.zip
+          # The macOS and Linux archives wrap a tarball (to keep the executable bit).
+          for t in *.tar.gz; do if [ -f "$t" ]; then tar xzf "$t"; fi; done
+          ls -laR | head -20
+
+      - name: clap-validator (CLAP)
+        if: matrix.clapvalidator != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe=$(find clap-validator -type f \( -name clap-validator -o -name clap-validator.exe \) | head -n 1)
+          test -n "$exe" || { echo "::error::clap-validator not found"; exit 1; }
+          chmod +x "$exe"
+          clap="${{ steps.artefacts.outputs.dir }}/CLAP/Thunder.clap"
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a "$exe" validate "$clap"
+          else
+            "$exe" validate "$clap"
+          fi
+
       # AU: installed where macOS looks for components, then checked by Apple's
       # own validator and by pluginval.
       - name: auval + pluginval (AU)
@@ -180,9 +214,10 @@ jobs:
           dir="${{ steps.artefacts.outputs.dir }}"
           mkdir -p "staging/$name"
           cp -R "$dir/VST3" "staging/$name/"
+          cp -R "$dir/CLAP" "staging/$name/"
           if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
           cp README.md "staging/$name/"
-          # Copyright notices that the bundled MIT-licensed components require
+          # Copyright notices that the bundled third-party components (MIT, OFL) require
           # to travel with the binaries, taken from each component's own
           # licence file in external/.
           {
@@ -191,7 +226,12 @@ jobs:
               "Signalsmith Stretch|external/signalsmith-stretch/LICENSE.txt" \
               "Signalsmith Linear|external/signalsmith-linear/LICENSE.txt" \
               "Cloud Seed reverb algorithm (Ghost Note Audio)|external/CloudSeedCore/LICENSE" \
-              "VST3 SDK (Steinberg Media Technologies GmbH)|external/JUCE/modules/juce_audio_processors_headless/format_types/VST3_SDK/LICENSE.txt"; do
+              "VST3 SDK (Steinberg Media Technologies GmbH)|external/JUCE/modules/juce_audio_processors_headless/format_types/VST3_SDK/LICENSE.txt" \
+              "CLAP|external/clap-juce-extensions/clap-libs/clap/LICENSE" \
+              "CLAP helpers|external/clap-juce-extensions/clap-libs/clap-helpers/LICENSE" \
+              "clap-juce-extensions|external/clap-juce-extensions/LICENSE.md" \
+              "Inter font|assets/fonts/Inter/OFL.txt" \
+              "JetBrains Mono font|assets/fonts/JetBrainsMono/OFL.txt"; do
               title="${entry%%|*}"; file="${entry#*|}"
               test -f "$file" || { echo "::error::Missing licence file $file"; exit 1; }
               printf '\n==== %s ====\n\n' "$title"

@@ -17,6 +17,8 @@ struct UserSettings
 {
     juce::File capturesFolder;                                            // empty → the default
     capture::CaptureFormat captureFormat = capture::CaptureFormat::Int24; // PRD FR-CAPT-005
+    bool preservePresetSession = true; // keep Key, Scale and Output Mode when loading presets (FR-PRESET-006)
+    juce::String presetAuthor;         // remembered after the first save (UI.md §9.16)
 
     // `<user documents>/Thunder/Captures`.
     static juce::File defaultCapturesFolder();

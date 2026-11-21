@@ -28,6 +28,7 @@ juce::ValueTree SessionState::toValueTree() const
     juce::ValueTree tree{ids::session};
     tree.setProperty (ids::presetName, presetName, nullptr);
     tree.setProperty (ids::presetModified, presetModified, nullptr);
+    tree.setProperty (ids::presetKey, presetKey, nullptr);
     tree.setProperty (ids::captureBars, captureBars, nullptr);
     tree.setProperty (ids::captureSource, toName (captureSource), nullptr);
     return tree;
@@ -42,6 +43,7 @@ SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
 
     s.presetName = tree.getProperty (ids::presetName, s.presetName).toString();
     s.presetModified = static_cast<bool> (tree.getProperty (ids::presetModified, s.presetModified));
+    s.presetKey = tree.getProperty (ids::presetKey, s.presetKey).toString();
 
     const auto bars = static_cast<int> (tree.getProperty (ids::captureBars, s.captureBars));
     for (const auto valid : kValidCaptureBars)

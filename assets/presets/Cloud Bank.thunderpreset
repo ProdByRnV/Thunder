@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Cloud Bank" author="Thunder" category="Atmos"
+        description="The melody itself, unshifted, smeared into a slow cloud of grains and reverb."/>
+  <Params>
+    <P id="pitchOn" v="0"/>
+    <P id="grainAmount" v="65"/>
+    <P id="grainSize" v="200"/>
+    <P id="grainPosSpread" v="70"/>
+    <P id="lpFreq" v="7000"/>
+    <P id="spaceMix" v="70"/>
+    <P id="spaceDecay" v="90"/>
+    <P id="widthAmount" v="150"/>
+  </Params>
+</ThunderPreset>

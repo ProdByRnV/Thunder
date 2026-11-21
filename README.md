@@ -18,9 +18,9 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 
 | Platform | Formats |
 |---|---|
-| Windows 10/11 (x64) | VST3 (CLAP planned) |
-| macOS 11+ (Apple silicon + Intel) | VST3, AU (CLAP planned) |
-| Linux x86_64 | VST3 (LV2 and CLAP planned) |
+| Windows 10/11 (x64) | VST3, CLAP |
+| macOS 11+ (Apple silicon + Intel) | VST3, AU, CLAP |
+| Linux x86_64 | VST3, CLAP |
 
 ## Building from source
 
@@ -44,4 +44,4 @@ On Windows, if the submodule step fails with "Filename too long", enable long pa
 
 Presets are available too, e.g. `cmake --preset vs2026` then `cmake --build --preset vs2026-release` on Windows.
 
-The built plugins are in `build/source/Thunder_artefacts/Release/` (for example `VST3/Thunder.vst3`). Copy them to your system plugin folder, or configure with `-DTHUNDER_COPY_AFTER_BUILD=ON` to have the build do it.
+The built plugins are in `build/source/Thunder_artefacts/Release/`: `VST3/Thunder.vst3`, `CLAP/Thunder.clap`, and `AU/Thunder.component` on macOS. Copy them to your system plugin folders; configuring with `-DTHUNDER_COPY_AFTER_BUILD=ON` copies the VST3 and AU for you.

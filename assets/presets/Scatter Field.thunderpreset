@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Scatter Field" author="Thunder" category="Experimental"
+        description="Dense, short grains thrown across time, pitch and the stereo field."/>
+  <Params>
+    <P id="grainAmount" v="85"/>
+    <P id="grainSize" v="40"/>
+    <P id="grainDensity" v="60"/>
+    <P id="grainPosSpread" v="90"/>
+    <P id="grainPitchSpread" v="7"/>
+    <P id="grainPanSpread" v="100"/>
+    <P id="grainReverse" v="40"/>
+    <P id="spaceMix" v="45"/>
+  </Params>
+</ThunderPreset>

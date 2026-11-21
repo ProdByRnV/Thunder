@@ -132,7 +132,9 @@ void ThunderProcessor::changeProgramName (int, const juce::String&) {}
 
 void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    const auto tree = state::createState (apvts.copyState(), getSessionState(), THUNDER_VERSION_STRING);
+    auto current = getSessionState();
+    current.presetModified = presetManager.isModified();
+    const auto tree = state::createState (apvts.copyState(), current, THUNDER_VERSION_STRING);
 
     if (const auto xml = tree.createXml())
         copyXmlToBinary (*xml, destData);
@@ -151,6 +153,7 @@ void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     apvts.replaceState (loaded->parameters);
     setSessionState (loaded->session);
+    presetManager.rememberLoadedSound (loaded->session);
     loadedNewerState.store (loaded->fromNewerVersion);
 }
 
@@ -176,7 +179,10 @@ void ThunderProcessor::armCapture()
     const auto current = getSessionState();
     const auto settings = state::UserSettings::load (settingsFile);
 
-    captureWriter.setSettings ({settings.getCapturesFolder(), settings.captureFormat, current.presetName});
+    // Init isn't a name worth putting in a file name.
+    const auto preset = presetManager.getCurrent();
+    captureWriter.setSettings (
+        {settings.getCapturesFolder(), settings.captureFormat, preset.isInit() ? juce::String() : preset.name});
 
     auto& controller = engine.getCapture();
     controller.allocateQueue();

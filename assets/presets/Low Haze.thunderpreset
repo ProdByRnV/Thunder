@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Low Haze" author="Thunder" category="Atmos"
+        description="An octave down, soft and wide, sinking into a dark reverb."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="hpFreq" v="60"/>
+    <P id="lpFreq" v="4500"/>
+    <P id="grainAmount" v="45"/>
+    <P id="grainSize" v="220"/>
+    <P id="grainDensity" v="10"/>
+    <P id="spaceMix" v="60"/>
+    <P id="spaceDecay" v="80"/>
+    <P id="widthAmount" v="150"/>
+  </Params>
+</ThunderPreset>

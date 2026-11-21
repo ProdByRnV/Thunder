@@ -364,3 +364,37 @@ TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
     CHECK (total.deallocations == 0);
     CHECK (capture.getPhase() == capture::CaptureController::Phase::Idle);
 }
+
+TEST_CASE ("Switching presets while playing does not allocate or block on the audio thread", "[realtime][presets]")
+{
+    // Presets load on the message thread; the audio thread then only glides to
+    // the new values and crossfades modes, which must stay allocation-free.
+    ThunderProcessor processor;
+    processor.getPresetManager().setUserFolder (
+        juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("ThunderNoUserPresets"));
+    processor.prepareToPlay (48000.0, 512);
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < 512; ++i)
+            buffer.setSample (ch, i, 0.2f * std::sin (0.05f * static_cast<float> (i)));
+
+    juce::MidiBuffer midi;
+    test::RealtimeReport total;
+    const auto entries = processor.getPresetManager().getListing().entries;
+
+    for (int round = 0; round < 2; ++round)
+        for (const auto& entry : entries)
+        {
+            REQUIRE (processor.getPresetManager().load (entry).isEmpty());
+            accumulate (total, test::runInRealtimeSection (
+                                   [&]
+                                   {
+                                       for (int b = 0; b < 4; ++b)
+                                           processor.processBlock (buffer, midi);
+                                   }));
+        }
+
+    CHECK (total.allocations == 0);
+    CHECK (total.deallocations == 0);
+}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Dust Bloom" author="Thunder" category="Lo-Fi"
+        description="An octave down through a narrow, dusty band, with some grains played backwards."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainSize" v="260"/>
+    <P id="grainDensity" v="7"/>
+    <P id="grainPosSpread" v="30"/>
+    <P id="grainReverse" v="30"/>
+    <P id="hpFreq" v="250"/>
+    <P id="lpFreq" v="3200"/>
+    <P id="lpSlope" v="24 dB/oct"/>
+    <P id="spaceMix" v="30"/>
+    <P id="widthAmount" v="80"/>
+  </Params>
+</ThunderPreset>

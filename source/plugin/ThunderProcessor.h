@@ -5,6 +5,7 @@
 #include "core/engine/ThunderEngine.h"
 #include "core/params/ParamSnapshot.h"
 #include "core/state/SessionState.h"
+#include "presets/PresetManager.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -77,8 +78,15 @@ public:
     // [MSG] Where captures are written: the user's setting, or the default.
     // `settingsFile` is the global settings file; tests point it elsewhere.
     juce::File getCapturesFolder() const;
-    void setSettingsFile (const juce::File& file) { settingsFile = file; }
+    void setSettingsFile (const juce::File& file)
+    {
+        settingsFile = file;
+        presetManager.setSettingsFile (file);
+    }
     const juce::File& getSettingsFile() const noexcept { return settingsFile; }
+
+    // [MSG] Presets (PRD FR-PRESET-*).
+    PresetManager& getPresetManager() noexcept { return presetManager; }
 
 private:
     juce::AudioProcessorValueTreeState apvts;
@@ -91,6 +99,11 @@ private:
 
     mutable juce::CriticalSection sessionLock; // never taken on the audio thread
     state::SessionState session;
+
+    PresetManager presetManager{
+        apvts,
+        {[this] { return getSessionState(); }, [this] (const state::SessionState& s) { setSessionState (s); }},
+        settingsFile};
 
     std::atomic<bool> loadedNewerState{false};
 

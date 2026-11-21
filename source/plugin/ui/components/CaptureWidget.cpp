@@ -2,6 +2,7 @@
 
 #include "core/state/UserSettings.h"
 #include "plugin/ThunderProcessor.h"
+#include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 
 namespace thunder::ui
@@ -59,14 +60,14 @@ public:
         {
             // ⠿ drag handle
             g.setColour (theme::colour::textSecondary);
-            g.setFont (juce::FontOptions (theme::type::body));
+            g.setFont (fonts::ui (theme::type::body));
             g.drawText (juce::String::fromUTF8 ("\xe2\xa0\xbf"), text.removeFromLeft (theme::space::s3),
                         juce::Justification::centredLeft);
             text.removeFromLeft (theme::space::s1);
         }
 
         g.setColour (s.phase == Phase::Failed ? theme::colour::stateError : theme::colour::textPrimary);
-        g.setFont (juce::FontOptions (theme::type::body));
+        g.setFont (fonts::ui (theme::type::body));
         g.drawFittedText (owner.getChipText(), text, juce::Justification::centredLeft, 1);
     }
 
@@ -106,7 +107,7 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
     , chip (std::make_unique<Chip> (*this))
 {
     title.setText ("CAPTURE", juce::dontSendNotification);
-    title.setFont (juce::FontOptions (theme::type::label));
+    title.setFont (fonts::ui (theme::type::label, fonts::Weight::semiBold));
     title.setColour (juce::Label::textColourId, theme::colour::textSecondary);
     addAndMakeVisible (title);
 

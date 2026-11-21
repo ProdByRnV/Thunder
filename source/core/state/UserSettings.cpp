@@ -10,6 +10,8 @@ namespace
 // Keys in settings.xml. Part of the file format: never rename one.
 constexpr const char* kCapturesFolderKey = "capturesFolder";
 constexpr const char* kCaptureFormatKey = "captureFormat";
+constexpr const char* kPreservePresetSessionKey = "preservePresetSession";
+constexpr const char* kPresetAuthorKey = "presetAuthor";
 
 constexpr const char* kFormat24 = "int24";
 constexpr const char* kFormat32f = "float32";
@@ -66,6 +68,9 @@ UserSettings UserSettings::load (const juce::File& file)
     if (properties.getValue (kCaptureFormatKey) == kFormat32f)
         settings.captureFormat = capture::CaptureFormat::Float32;
 
+    settings.preservePresetSession = properties.getBoolValue (kPreservePresetSessionKey, true);
+    settings.presetAuthor = properties.getValue (kPresetAuthorKey).trim().substring (0, 128);
+
     return settings;
 }
 
@@ -78,6 +83,8 @@ bool UserSettings::save (const juce::File& file) const
     properties.setValue (kCapturesFolderKey,
                          capturesFolder == juce::File() ? juce::String() : capturesFolder.getFullPathName());
     properties.setValue (kCaptureFormatKey, captureFormat == capture::CaptureFormat::Float32 ? kFormat32f : kFormat24);
+    properties.setValue (kPreservePresetSessionKey, preservePresetSession);
+    properties.setValue (kPresetAuthorKey, presetAuthor);
     return properties.save();
 }
 

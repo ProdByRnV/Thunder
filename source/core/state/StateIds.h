@@ -18,6 +18,7 @@ inline const juce::Identifier parameters{"PARAMETERS"};
 inline const juce::Identifier session{"Session"};
 inline const juce::Identifier presetName{"presetName"};
 inline const juce::Identifier presetModified{"presetModified"};
+inline const juce::Identifier presetKey{"presetKey"};
 inline const juce::Identifier captureBars{"captureBars"};
 inline const juce::Identifier captureSource{"captureSource"};
 

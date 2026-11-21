@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Reverse Tide" author="Thunder" category="Experimental"
+        description="An octave down, mostly reversed long grains that swell into each note."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainAmount" v="70"/>
+    <P id="grainSize" v="320"/>
+    <P id="grainDensity" v="6"/>
+    <P id="grainPosSpread" v="60"/>
+    <P id="grainReverse" v="85"/>
+    <P id="spaceMix" v="50"/>
+    <P id="spaceDecay" v="75"/>
+  </Params>
+</ThunderPreset>

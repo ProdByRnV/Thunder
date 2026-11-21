@@ -5,9 +5,19 @@ Each release's notes on GitHub are taken from its section below.
 
 ## Unreleased
 
-- Runs as a VST3 plugin on Windows, macOS and Linux, and as an AU on macOS.
+- Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, and as an AU on macOS.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
-- The editor lists every control, with the capture bar along the bottom, until Thunder's own interface arrives.
+- **Thunder's own dark interface**:
+  - The module chain shows Pitch, Grains, Space, Tone and Width in processing order. Click a module to see its controls, or its dot to switch it on or off.
+  - Output Mode, Mix, Layer, In and Out, Auto Gain and the limiter are always in view.
+  - Drag a knob up or down; hold Shift for fine adjustments. The mouse wheel nudges it, and a double-click resets it.
+  - Resize the window from its corner, from 75% to 200%.
+- **Presets**:
+  - 12 built-in presets, plus Init, which resets every control.
+  - ◄ and ► step through the presets; click the name for the full list. A `*` shows when you've changed the sound.
+  - Save your own presets, with a name, author, category and description, to `Documents/Thunder/Presets`. Thunder asks before replacing one, and a save never leaves a preset half-written.
+  - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in the ⋯ menu), and switches smoothly while playing.
+  - Your project remembers which preset it was on.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).
   - **Semitone:** −24 to +24 semitones, plus Fine (±100 cents).

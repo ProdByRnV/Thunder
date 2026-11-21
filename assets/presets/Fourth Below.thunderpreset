@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="1" createdWith="0.5.0">
+  <Meta name="Fourth Below" author="Thunder" category="Harmony"
+        description="A fourth below in your key, warm and close."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchInterval" v="4th"/>
+    <P id="pitchDirection" v="Down"/>
+    <P id="grainAmount" v="25"/>
+    <P id="lpFreq" v="8000"/>
+    <P id="spaceMix" v="35"/>
+  </Params>
+</ThunderPreset>
