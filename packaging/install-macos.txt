@@ -1,0 +1,39 @@
+Installing Thunder on macOS
+===========================
+
+Thunder runs on macOS 11 or newer, on Apple silicon and Intel Macs, in any DAW
+that loads AU, VST3 or CLAP plugins.
+
+1. Copy the plugins into your plugin folders. In Finder, choose Go > Go to
+   Folder... and enter each folder below. Create a folder if it isn't there.
+
+   AU (Logic Pro, GarageBand):  Thunder.component
+                                ->  ~/Library/Audio/Plug-Ins/Components
+
+   VST3:                        Thunder.vst3
+                                ->  ~/Library/Audio/Plug-Ins/VST3
+
+   CLAP:                        Thunder.clap
+                                ->  ~/Library/Audio/Plug-Ins/CLAP
+
+2. Allow Thunder to open. macOS holds back plugins downloaded from the internet
+   until you allow them. Open Terminal (Applications > Utilities), paste this
+   line and press Return:
+
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Thunder.component ~/Library/Audio/Plug-Ins/VST3/Thunder.vst3 ~/Library/Audio/Plug-Ins/CLAP/Thunder.clap
+
+   It changes nothing but these three plugins. If you left one of them out,
+   Terminal says it can't find it; you can ignore that.
+
+   If your DAW still says Thunder can't be opened, open System Settings >
+   Privacy & Security, scroll down and click "Open Anyway" next to the message
+   about Thunder.
+
+3. Open your DAW and rescan its plugins. If Logic Pro or GarageBand doesn't
+   list Thunder, restart your Mac.
+
+4. Add Thunder as an effect on the track with your melody.
+
+Your presets and captures are saved in Documents/Thunder.
+
+To uninstall, delete the three plugins from those folders.

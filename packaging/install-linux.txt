@@ -1,0 +1,27 @@
+Installing Thunder on Linux
+===========================
+
+Thunder runs on 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12,
+Fedora 36 or newer), on the processor this download is for (x86_64 or ARM64),
+in any DAW that loads VST3 or CLAP plugins, such as REAPER, Bitwig Studio or
+Ardour. It uses FreeType and Fontconfig, which desktop systems already have.
+
+1. Copy the plugins into your plugin folders:
+
+   VST3:  Thunder.vst3 (inside "VST3")  ->  ~/.vst3
+   CLAP:  Thunder.clap (inside "CLAP")  ->  ~/.clap
+
+   Or open a terminal in this folder and run:
+
+     mkdir -p ~/.vst3 ~/.clap
+     cp -r VST3/Thunder.vst3 ~/.vst3/
+     cp CLAP/Thunder.clap ~/.clap/
+
+2. Open your DAW and rescan its plugins.
+
+3. Add Thunder as an effect on the track with your melody.
+
+Your presets and captures are saved in Thunder, in your Documents folder
+(usually ~/Documents/Thunder).
+
+To uninstall, delete ~/.vst3/Thunder.vst3 and ~/.clap/Thunder.clap.

@@ -99,22 +99,18 @@ void CaptureWriter::begin (const CaptureBlock& startBlock)
         s = settings;
     }
 
-    if (!s.folder.createDirectory())
+    // Creates the folder if needed, too.
+    auto claimed =
+        claimCaptureFile (s.folder, buildCaptureName (startBlock.start, s.presetName, juce::Time::getCurrentTime()));
+    if (claimed.stream == nullptr)
     {
         fail (CaptureFailure::CannotCreateFile);
         return;
     }
 
-    finalFile =
-        uniqueCaptureFile (s.folder, buildCaptureName (startBlock.start, s.presetName, juce::Time::getCurrentTime()));
+    finalFile = claimed.finalFile;
     partialFile = partialFileFor (finalFile);
-
-    std::unique_ptr<juce::OutputStream> stream = std::make_unique<juce::FileOutputStream> (partialFile);
-    if (!static_cast<juce::FileOutputStream&> (*stream).openedOk())
-    {
-        fail (CaptureFailure::CannotCreateFile);
-        return;
-    }
+    std::unique_ptr<juce::OutputStream> stream = std::move (claimed.stream);
 
     using Options = juce::AudioFormatWriterOptions;
     const auto isFloat = s.format == CaptureFormat::Float32;
@@ -162,12 +158,14 @@ void CaptureWriter::end (const CaptureBlock& endBlock)
     writer.reset();
     isOpen = false;
 
-    if (!flushed || !partialFile.moveFileTo (finalFile))
+    const auto finished = flushed ? finishCaptureFile (partialFile, finalFile) : juce::File();
+    if (finished == juce::File())
     {
         partialFile.deleteFile();
         fail (CaptureFailure::WriteFailed);
         return;
     }
+    finalFile = finished;
 
     {
         const juce::ScopedLock sl (lock);

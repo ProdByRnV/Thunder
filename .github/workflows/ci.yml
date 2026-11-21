@@ -1,12 +1,15 @@
 # Thunder CI.
 #
 # Every push and pull request: configure, build and test from a clean checkout
-# on every supported desktop platform, validate the plugin with pluginval at the
-# strictest level, and package it. Warnings are errors here.
+# on every supported desktop platform, then package the plugins, install them
+# from the package the way the install instructions say, and validate the
+# installed copies (pluginval at the strictest level, clap-validator, auval).
+# Warnings are errors here.
 #
 # Extra jobs: AddressSanitizer + UndefinedBehaviorSanitizer over the test suite,
-# and RealtimeSanitizer over the real-time tests (audio-path code must never
-# allocate, lock or block).
+# RealtimeSanitizer over the real-time tests (audio-path code must never
+# allocate, lock or block), and a release dry run that collects every package
+# as a release would.
 #
 # A version tag (v*) additionally builds as Release and collects the packages
 # into a DRAFT GitHub release, which the maintainer reviews and publishes by hand.
@@ -27,6 +30,10 @@ env:
   PLUGINVAL_VERSION: v1.0.4
   CLAP_VALIDATOR_VERSION: "0.4.1"
   CLAP_VALIDATOR_BUILD: 0.4.1-127-g152b982
+  CLAP_VALIDATOR_COMMIT: 152b9823e992d782c5c1fd33bca0295478b919aa
+  # The oldest system the Linux packages support (Ubuntu 22.04). Checked below.
+  LINUX_MAX_GLIBC: "2.35"
+  LINUX_MAX_GLIBCXX: "3.4.30"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +46,7 @@ jobs:
   build-and-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 75
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -57,22 +64,29 @@ jobs:
             parallel: 3
             pluginval: macOS
             clapvalidator: macos-universal
+          # Built on the oldest supported Ubuntu so the plugin loads there and on
+          # anything newer (glibc is backward compatible, not forward). GCC 12
+          # uses the C++ runtime Ubuntu 22.04 ships.
           # Capped at 2: JUCE's unity translation units are large, and the plugin
           # and the test runner each compile their own copy.
           - name: Linux (GCC)
-            os: ubuntu-latest
+            os: ubuntu-22.04
             platform: linux-x86_64
             parallel: 2
+            cc: gcc-12
+            cxx: g++-12
             pluginval: Linux
             clapvalidator: ubuntu-22.04
-          # pluginval and clap-validator publish no ARM64 Linux build, so this job
-          # builds, tests and packages but does not run them.
+          # pluginval and clap-validator publish no ARM64 Linux build, so this
+          # job builds both from source (cached between runs).
           - name: Linux ARM64 (GCC)
-            os: ubuntu-24.04-arm
+            os: ubuntu-22.04-arm
             platform: linux-arm64
             parallel: 2
-            pluginval: ""
-            clapvalidator: ""
+            cc: gcc-12
+            cxx: g++-12
+            pluginval: source
+            clapvalidator: source
 
     steps:
       - name: Check out
@@ -83,6 +97,8 @@ jobs:
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         uses: ./.github/actions/install-linux-deps
+        with:
+          extra-packages: ${{ matrix.cc }} ${{ matrix.cxx }}
 
       - name: Configure
         shell: bash
@@ -90,6 +106,7 @@ jobs:
           extra=""
           if [ "${{ runner.os }}" = "Windows" ]; then extra="-A x64"; fi
           if [ "${{ runner.os }}" = "Linux" ]; then extra="-G Ninja"; fi
+          if [ -n "${{ matrix.cxx }}" ]; then export CC="${{ matrix.cc }}" CXX="${{ matrix.cxx }}"; fi
           cmake -S . -B build $extra \
             -DCMAKE_BUILD_TYPE=${{ env.THUNDER_CONFIG }} \
             -DTHUNDER_WARNINGS_AS_ERRORS=ON
@@ -134,7 +151,8 @@ jobs:
           ls -la "$dir"
 
       # macOS refuses to load unsigned code on Apple silicon. Ad-hoc signing needs
-      # no certificate; distribution signing/notarisation is a separate decision.
+      # no certificate. The packages are not notarised; the macOS install
+      # instructions explain how to allow the plugins.
       - name: Sign ad-hoc (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -143,66 +161,6 @@ jobs:
             codesign --force --sign - --deep "$bundle"
             codesign --verify --strict --verbose=2 "$bundle"
           done
-
-      - name: Download pluginval
-        if: matrix.pluginval != ''
-        shell: bash
-        run: |
-          curl -fsSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_${{ matrix.pluginval }}.zip"
-          mkdir -p pluginval && cd pluginval && unzip -q ../pluginval.zip
-          ls -la
-
-      - name: pluginval (VST3, strictness 10)
-        if: matrix.pluginval != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          vst3="${{ steps.artefacts.outputs.dir }}/VST3/Thunder.vst3"
-          case "${{ runner.os }}" in
-            Windows) ./pluginval/pluginval.exe --strictness-level 10 --validate-in-process --validate "$vst3" ;;
-            macOS)   ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
-            Linux)   xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
-          esac
-
-      # CLAP: checked by the CLAP project's own validator.
-      - name: Download clap-validator
-        if: matrix.clapvalidator != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL -o clap-validator.zip "https://github.com/free-audio/clap-validator/releases/download/${CLAP_VALIDATOR_VERSION}/clap-validator-${CLAP_VALIDATOR_BUILD}-${{ matrix.clapvalidator }}.zip"
-          mkdir -p clap-validator && cd clap-validator && unzip -q ../clap-validator.zip
-          # The macOS and Linux archives wrap a tarball (to keep the executable bit).
-          for t in *.tar.gz; do if [ -f "$t" ]; then tar xzf "$t"; fi; done
-          ls -laR | head -20
-
-      - name: clap-validator (CLAP)
-        if: matrix.clapvalidator != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          exe=$(find clap-validator -type f \( -name clap-validator -o -name clap-validator.exe \) | head -n 1)
-          test -n "$exe" || { echo "::error::clap-validator not found"; exit 1; }
-          chmod +x "$exe"
-          clap="${{ steps.artefacts.outputs.dir }}/CLAP/Thunder.clap"
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            xvfb-run -a "$exe" validate "$clap"
-          else
-            "$exe" validate "$clap"
-          fi
-
-      # AU: installed where macOS looks for components, then checked by Apple's
-      # own validator and by pluginval.
-      - name: auval + pluginval (AU)
-        if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-          mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R "${{ steps.artefacts.outputs.dir }}/AU/Thunder.component" ~/Library/Audio/Plug-Ins/Components/
-          killall -9 AudioComponentRegistrar 2>/dev/null || true
-          auval -v aufx Thnd Pbrv
-          ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
-            --validate ~/Library/Audio/Plug-Ins/Components/Thunder.component
 
       - name: Package
         id: package
@@ -216,7 +174,12 @@ jobs:
           cp -R "$dir/VST3" "staging/$name/"
           cp -R "$dir/CLAP" "staging/$name/"
           if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
-          cp README.md "staging/$name/"
+          case "${{ runner.os }}" in
+            Windows) install=packaging/install-windows.txt ;;
+            macOS)   install=packaging/install-macos.txt ;;
+            Linux)   install=packaging/install-linux.txt ;;
+          esac
+          cp "$install" "staging/$name/How to install.txt"
           # Copyright notices that the bundled third-party components (MIT, OFL) require
           # to travel with the binaries, taken from each component's own
           # licence file in external/.
@@ -239,8 +202,230 @@ jobs:
             done
           } > "staging/$name/Third-party notices.txt"
           (cd staging && cmake -E tar cf "../$name.zip" --format=zip "$name")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "file=$name.zip" >> "$GITHUB_OUTPUT"
           ls -la "$name.zip"
+
+      # Everything below works on what users download: the package is unpacked
+      # into a fresh folder, checked, and installed as "How to install.txt" says.
+      - name: Check the package
+        id: unpacked
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf unpacked && mkdir unpacked
+          (cd unpacked && unzip -q "../${{ steps.package.outputs.file }}")
+          root="unpacked/${{ steps.package.outputs.name }}"
+          for path in "How to install.txt" "Third-party notices.txt" VST3/Thunder.vst3 CLAP/Thunder.clap; do
+            test -e "$root/$path" || { echo "::error::The package has no $path"; exit 1; }
+          done
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            test -e "$root/AU/Thunder.component" || { echo "::error::The package has no AU"; exit 1; }
+          fi
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          find "$root" -maxdepth 3 | sort
+
+      # Windows: the C++ runtime is linked in, so the plugin needs no Visual C++
+      # Redistributable (the Universal CRT is part of Windows 10 and 11).
+      - name: Check the binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          objdump="/c/Program Files/LLVM/bin/llvm-objdump.exe"
+          test -x "$objdump" || objdump=$(command -v llvm-objdump)
+          root="${{ steps.unpacked.outputs.root }}"
+          for bin in "$root/VST3/Thunder.vst3/Contents/x86_64-win/Thunder.vst3" "$root/CLAP/Thunder.clap"; do
+            echo "== $bin"
+            "$objdump" -p "$bin" | grep "DLL Name" | tee dlls.txt
+            if grep -iE "msvcp|vcruntime|concrt" dlls.txt; then
+              echo "::error::$bin needs the Visual C++ runtime"
+              exit 1
+            fi
+          done
+
+      # macOS: universal, for macOS 11 and newer, and still validly signed after
+      # the round trip through the zip.
+      - name: Check the binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          root="${{ steps.unpacked.outputs.root }}"
+          for bundle in "$root/VST3/Thunder.vst3" "$root/AU/Thunder.component" "$root/CLAP/Thunder.clap"; do
+            exe="$bundle/Contents/MacOS/Thunder"
+            echo "== $bundle"
+            archs=$(lipo -archs "$exe"); echo "architectures: $archs"
+            case " $archs " in *" arm64 "*) ;; *) echo "::error::$bundle has no arm64 code"; exit 1 ;; esac
+            case " $archs " in *" x86_64 "*) ;; *) echo "::error::$bundle has no x86_64 code"; exit 1 ;; esac
+            for arch in arm64 x86_64; do
+              minos=$(otool -arch "$arch" -l "$exe" | awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "minos" { print $2; exit }')
+              echo "$arch: macOS $minos or newer"
+              test "$minos" = "11.0" || { echo "::error::$bundle ($arch) needs macOS $minos"; exit 1; }
+            done
+            codesign --verify --strict --verbose=2 "$bundle"
+          done
+
+      # Linux: loads on Ubuntu 22.04 (glibc 2.35, GCC 12's C++ runtime) and has
+      # every library it links against.
+      - name: Check the binaries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          root="${{ steps.unpacked.outputs.root }}"
+          newest() { objdump -T "$1" | grep -oE "$2_[0-9.]+" | sed "s/^$2_//" | sort -uV | tail -n 1; }
+          within() { test "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$2"; }
+          so=$(find "$root/VST3/Thunder.vst3/Contents" -name Thunder.so)
+          for bin in "$so" "$root/CLAP/Thunder.clap"; do
+            echo "== $bin"
+            glibc=$(newest "$bin" GLIBC); glibcxx=$(newest "$bin" GLIBCXX)
+            echo "needs glibc $glibc, libstdc++ GLIBCXX $glibcxx"
+            within "$glibc" "$LINUX_MAX_GLIBC" || { echo "::error::$bin needs glibc $glibc (newer than $LINUX_MAX_GLIBC)"; exit 1; }
+            within "$glibcxx" "$LINUX_MAX_GLIBCXX" || { echo "::error::$bin needs GLIBCXX $glibcxx (newer than $LINUX_MAX_GLIBCXX)"; exit 1; }
+            ldd "$bin" | tee ldd.txt
+            if grep -q "not found" ldd.txt; then echo "::error::$bin links against a missing library"; exit 1; fi
+          done
+
+      - name: Install as the instructions say
+        id: installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.unpacked.outputs.root }}"
+          instructions="$root/How to install.txt"
+          case "${{ runner.os }}" in
+            Windows)
+              common="/c/Program Files/Common Files"
+              mkdir -p "$common/VST3" "$common/CLAP"
+              cp -R "$root/VST3/Thunder.vst3" "$common/VST3/"
+              cp "$root/CLAP/Thunder.clap" "$common/CLAP/"
+              echo "vst3=$common/VST3/Thunder.vst3" >> "$GITHUB_OUTPUT"
+              echo "clap=$common/CLAP/Thunder.clap" >> "$GITHUB_OUTPUT"
+              ;;
+            macOS)
+              plugins="$HOME/Library/Audio/Plug-Ins"
+              mkdir -p "$plugins/Components" "$plugins/VST3" "$plugins/CLAP"
+              cp -R "$root/AU/Thunder.component" "$plugins/Components/"
+              cp -R "$root/VST3/Thunder.vst3" "$plugins/VST3/"
+              cp -R "$root/CLAP/Thunder.clap" "$plugins/CLAP/"
+              # Mark them as a browser download would, then run the documented command.
+              for bundle in "$plugins/Components/Thunder.component" "$plugins/VST3/Thunder.vst3" "$plugins/CLAP/Thunder.clap"; do
+                find "$bundle" -exec xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" {} +
+              done
+              command=$(grep -E '^xattr -dr com\.apple\.quarantine ' "$instructions")
+              test -n "$command" || { echo "::error::The macOS instructions have no xattr command"; exit 1; }
+              echo "Running: $command"
+              bash -c "$command"
+              if xattr -lr "$plugins/Components/Thunder.component" "$plugins/VST3/Thunder.vst3" "$plugins/CLAP/Thunder.clap" | grep -q com.apple.quarantine; then
+                echo "::error::The documented command left the quarantine mark"
+                exit 1
+              fi
+              echo "au=$plugins/Components/Thunder.component" >> "$GITHUB_OUTPUT"
+              echo "vst3=$plugins/VST3/Thunder.vst3" >> "$GITHUB_OUTPUT"
+              echo "clap=$plugins/CLAP/Thunder.clap" >> "$GITHUB_OUTPUT"
+              ;;
+            Linux)
+              # The terminal commands from the instructions, run in the package folder.
+              grep -E '^ +(mkdir|cp) ' "$instructions" | sed 's/^ *//' > install.sh
+              test "$(wc -l < install.sh)" -eq 3 || { echo "::error::The Linux instructions' commands changed"; cat install.sh; exit 1; }
+              cat install.sh
+              (cd "$root" && bash -euo pipefail "$GITHUB_WORKSPACE/install.sh")
+              echo "vst3=$HOME/.vst3/Thunder.vst3" >> "$GITHUB_OUTPUT"
+              echo "clap=$HOME/.clap/Thunder.clap" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Download pluginval
+        if: matrix.pluginval != 'source'
+        shell: bash
+        run: |
+          curl -fsSL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/pluginval_${{ matrix.pluginval }}.zip"
+          mkdir -p pluginval && cd pluginval && unzip -q ../pluginval.zip
+          ls -la
+
+      - name: Download clap-validator
+        if: matrix.clapvalidator != 'source'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o clap-validator.zip "https://github.com/free-audio/clap-validator/releases/download/${CLAP_VALIDATOR_VERSION}/clap-validator-${CLAP_VALIDATOR_BUILD}-${{ matrix.clapvalidator }}.zip"
+          mkdir -p clap-validator && cd clap-validator && unzip -q ../clap-validator.zip
+          # The macOS and Linux archives wrap a tarball (to keep the executable bit).
+          for t in *.tar.gz; do if [ -f "$t" ]; then tar xzf "$t"; fi; done
+          ls -laR | head -20
+
+      # The same versions as the downloads above, built for this platform.
+      - name: Cache validators built from source
+        if: matrix.pluginval == 'source'
+        id: validator-cache
+        uses: actions/cache@v4
+        with:
+          path: validators
+          key: validators-${{ matrix.os }}-pluginval-${{ env.PLUGINVAL_VERSION }}-clap-validator-${{ env.CLAP_VALIDATOR_COMMIT }}
+
+      - name: Build validators from source
+        if: matrix.pluginval == 'source' && steps.validator-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$PLUGINVAL_VERSION" --recurse-submodules --shallow-submodules \
+            https://github.com/Tracktion/pluginval.git pluginval-src
+          cmake -S pluginval-src -B pluginval-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build pluginval-build --target pluginval --parallel 2
+          mkdir -p validators
+          cp "$(find pluginval-build -type f -name pluginval -perm -u+x | head -n 1)" validators/
+
+          if ! command -v rustup > /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          fi
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install stable --profile minimal
+          cargo +stable install --git https://github.com/free-audio/clap-validator \
+            --rev "$CLAP_VALIDATOR_COMMIT" --locked --root validators-cargo clap-validator
+          cp validators-cargo/bin/clap-validator validators/
+
+      - name: Use the validators built from source
+        if: matrix.pluginval == 'source'
+        run: |
+          set -euo pipefail
+          mkdir -p pluginval clap-validator
+          cp validators/pluginval pluginval/
+          cp validators/clap-validator clap-validator/
+          chmod +x pluginval/pluginval clap-validator/clap-validator
+
+      - name: pluginval (VST3, strictness 10)
+        shell: bash
+        run: |
+          set -euo pipefail
+          vst3="${{ steps.installed.outputs.vst3 }}"
+          case "${{ runner.os }}" in
+            Windows) ./pluginval/pluginval.exe --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+            macOS)   ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+            Linux)   xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
+          esac
+
+      # CLAP: checked by the CLAP project's own validator.
+      - name: clap-validator (CLAP)
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe=$(find clap-validator -type f \( -name clap-validator -o -name clap-validator.exe \) | head -n 1)
+          test -n "$exe" || { echo "::error::clap-validator not found"; exit 1; }
+          chmod +x "$exe"
+          clap="${{ steps.installed.outputs.clap }}"
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a "$exe" validate "$clap"
+          else
+            "$exe" validate "$clap"
+          fi
+
+      # AU: Apple's own validator and pluginval, on the installed component.
+      - name: auval + pluginval (AU)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aufx Thnd Pbrv
+          ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
+            --validate "${{ steps.installed.outputs.au }}"
 
       - name: Keep the package
         uses: actions/upload-artifact@v4
@@ -340,36 +525,40 @@ jobs:
       - name: Test
         run: ctest --test-dir build-rt -L realtime --output-on-failure -V
 
-  # Version tags only (skipped on every other run). Runs after every platform has
-  # built, passed its tests and pluginval, and the sanitizers have passed.
-  # Creates a DRAFT release: nothing is public until the maintainer publishes it.
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
+  # Every run, after every platform has built, passed its tests and validation,
+  # and the sanitizers have passed: collects the packages exactly as a release
+  # would (all platforms present, checksums, release notes) and keeps the result
+  # as a workflow artefact. Publishes nothing.
+  release-packages:
+    name: Release packages
     needs: [build-and-test, sanitizers, realtime]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    timeout-minutes: 15
     steps:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Check the tag matches the version
+      - name: Read the version
         id: version
         run: |
           set -euo pipefail
           version=$(sed -nE 's/^project\(Thunder VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
-          tag="${GITHUB_REF_NAME}"
-          case "$tag" in
-            "v$version"|"v$version"-*) ;;
-            *) echo "::error::The tag is $tag but CMakeLists.txt says $version"; exit 1 ;;
-          esac
+          test -n "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          case "${GITHUB_REF_NAME}" in
+            "v$version"|"v$version"-*) ;;
+            *) echo "::error::The tag is ${GITHUB_REF_NAME} but CMakeLists.txt says $version"; exit 1 ;;
+          esac
 
       - name: Collect the packages
         uses: actions/download-artifact@v4
         with:
-          pattern: thunder-*-Release
+          pattern: thunder-*-${{ env.THUNDER_CONFIG }}
           path: dist
           merge-multiple: true
 
@@ -378,7 +567,15 @@ jobs:
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
           for platform in windows-x86_64 macos-universal linux-x86_64 linux-arm64; do
-            test -f "dist/Thunder-$version-$platform.zip" || { echo "::error::No package for $platform"; exit 1; }
+            zip="dist/Thunder-$version-$platform.zip"
+            test -f "$zip" || { echo "::error::No package for $platform"; exit 1; }
+            listing=$(unzip -Z1 "$zip")
+            expected="How to install.txt|Third-party notices.txt|VST3/Thunder.vst3/|CLAP/Thunder.clap"
+            if [ "$platform" = "macos-universal" ]; then expected="$expected|AU/Thunder.component/"; fi
+            IFS='|' read -ra paths <<< "$expected"
+            for path in "${paths[@]}"; do
+              grep -qF "Thunder-$version-$platform/$path" <<< "$listing" || { echo "::error::$zip has no $path"; exit 1; }
+            done
           done
           ls -l dist
 
@@ -386,25 +583,58 @@ jobs:
         working-directory: dist
         run: sha256sum Thunder-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
 
+      # A release takes its notes from the version's section of the changelog. A
+      # dry run uses "Unreleased" until that section exists.
       - name: Take the release notes from the changelog
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          awk -v heading="## $version" '
-            index($0, heading) == 1 { found = 1; next }
-            found && /^## / { exit }
-            found { print }
-          ' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+          section() {
+            awk -v heading="## $1" '
+              $0 == heading || index($0, heading " ") == 1 { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md
+          }
+          section "$version" > dist/notes.md
+          if [ ! -s dist/notes.md ] && [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+            section "Unreleased" > dist/notes.md
+          fi
+          test -s dist/notes.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+          cat dist/notes.md
+
+      - name: Keep the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: thunder-release-${{ env.THUNDER_CONFIG }}
+          path: dist
+          if-no-files-found: error
+
+  # Version tags only (skipped on every other run). Creates a DRAFT release from
+  # the collected packages: nothing is public until the maintainer publishes it.
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Get the release
+        uses: actions/download-artifact@v4
+        with:
+          name: thunder-release-${{ env.THUNDER_CONFIG }}
+          path: dist
 
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           prerelease=""
           case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
           gh release create "${GITHUB_REF_NAME}" dist/Thunder-*.zip dist/SHA256SUMS.txt \
             --draft $prerelease \
             --title "Thunder ${GITHUB_REF_NAME#v}" \
-            --notes-file notes.md \
+            --notes-file dist/notes.md \
             --verify-tag

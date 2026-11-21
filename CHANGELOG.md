@@ -45,3 +45,5 @@ Each release's notes on GitHub are taken from its section below.
   - A loop that wraps around on a bar line keeps recording; if playback stops or jumps elsewhere, the capture is cancelled and no file is left behind.
   - 24-bit or 32-bit float at your project's sample rate, saved to `Documents/Thunder/Captures` or a folder you choose, with descriptive names such as `Thunder_A-min_140bpm_4bars_20261121-143005.wav`.
   - Right-click a capture to Save as…, Show in folder or Delete it.
+  - Thunder on several tracks can capture at the same time; each capture gets its own file.
+- **Installing**: each download includes step-by-step instructions for your system. On Linux, Thunder runs on Ubuntu 22.04 or newer (glibc 2.35+), on x86_64 and ARM64.

@@ -18,6 +18,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -174,6 +175,22 @@ std::unique_ptr<juce::AudioFormatReader> openWav (const juce::File& file)
     return std::unique_ptr<juce::AudioFormatReader> (
         juce::WavAudioFormat().createReaderFor (file.createInputStream().release(), true));
 }
+
+// Runs a function once on its own thread.
+class FunctionThread final : public juce::Thread
+{
+public:
+    explicit FunctionThread (std::function<void()> f)
+        : juce::Thread ("Thunder test")
+        , function (std::move (f))
+    {
+    }
+
+    void run() override { function(); }
+
+private:
+    std::function<void()> function;
+};
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -576,6 +593,59 @@ TEST_CASE ("Capture file names never collide", "[unit][capture]")
     CHECK (uniqueCaptureFile (temp.folder, "Thunder_x").getFileName() == "Thunder_x_3.wav");
 }
 
+TEST_CASE ("Captures asking for the same name at once each get their own file", "[unit][capture]")
+{
+    TempFolder temp;
+
+    // Claiming creates the `.partial` straight away, so the next claim moves on.
+    auto a = claimCaptureFile (temp.folder, "Thunder_y");
+    auto b = claimCaptureFile (temp.folder, "Thunder_y");
+    REQUIRE (a.stream != nullptr);
+    REQUIRE (b.stream != nullptr);
+    CHECK (a.finalFile.getFileName() == "Thunder_y.wav");
+    CHECK (b.finalFile.getFileName() == "Thunder_y_2.wav");
+    CHECK (partialFileFor (a.finalFile).existsAsFile());
+    a.stream->writeText ("a", false, false, nullptr);
+    b.stream->writeText ("b", false, false, nullptr);
+    a.stream.reset();
+    b.stream.reset();
+
+    // A file that took the name meanwhile is never replaced.
+    REQUIRE (a.finalFile.replaceWithText ("someone else's"));
+    const auto finishedA = finishCaptureFile (partialFileFor (a.finalFile), a.finalFile);
+    const auto finishedB = finishCaptureFile (partialFileFor (b.finalFile), b.finalFile);
+    CHECK (a.finalFile.loadFileAsString() == "someone else's");
+    CHECK (finishedA.getFileName() == "Thunder_y_3.wav");
+    CHECK (finishedA.loadFileAsString() == "a");
+    CHECK (finishedB == b.finalFile);
+    CHECK (finishedB.loadFileAsString() == "b");
+    CHECK (temp.folder.findChildFiles (juce::File::findFiles, false, "*.partial").isEmpty());
+
+    // Many threads at once, as several instances armed together would, into a
+    // folder none of them has created yet.
+    const auto newFolder = temp.folder.getChildFile ("New");
+    std::vector<std::unique_ptr<juce::Thread>> threads;
+    std::vector<juce::File> claimedFiles (8);
+    for (std::size_t i = 0; i < claimedFiles.size(); ++i)
+        threads.push_back (std::make_unique<FunctionThread> (
+            [&newFolder, &claimedFiles, i]
+            {
+                auto c = claimCaptureFile (newFolder, "Thunder_z");
+                if (c.stream != nullptr)
+                    claimedFiles[i] = c.finalFile;
+            }));
+    for (auto& t : threads)
+        t->startThread();
+    for (auto& t : threads)
+        CHECK (t->stopThread (5000));
+
+    juce::StringArray names;
+    for (const auto& f : claimedFiles)
+        names.addIfNotAlreadyThere (f.getFileName());
+    CHECK (names.size() == static_cast<int> (claimedFiles.size()));
+    CHECK_FALSE (names.contains ({}));
+}
+
 TEST_CASE ("A capture becomes a complete WAV file", "[unit][capture]")
 {
     for (const auto format : {CaptureFormat::Int24, CaptureFormat::Float32})
@@ -796,23 +866,33 @@ public:
     }
 };
 
-// Plays `seconds` of quiet noise through the processor, moving the play head.
-void playProcessor (ThunderProcessor& processor, TestPlayHead& head, double seconds)
+// Plays one 512-sample block of quiet noise through each processor (as a DAW
+// does with several tracks), then moves the play head on.
+void playBlock (std::initializer_list<ThunderProcessor*> processors, TestPlayHead& head, juce::Random& random,
+                double sampleRate)
 {
     juce::AudioBuffer<float> buffer (2, 512);
     juce::MidiBuffer midi;
-    juce::Random random (1);
 
-    for (int done = 0; done < static_cast<int> (seconds * 48000.0); done += 512)
+    for (auto* processor : processors)
     {
         for (int ch = 0; ch < 2; ++ch)
             for (int i = 0; i < 512; ++i)
                 buffer.setSample (ch, i, 0.1f * (random.nextFloat() - 0.5f));
 
-        processor.processBlock (buffer, midi);
-        if (head.playing)
-            head.ppq += 512.0 / 24000.0;
+        processor->processBlock (buffer, midi);
     }
+
+    if (head.playing)
+        head.ppq += 512.0 * 2.0 / sampleRate; // 120 bpm: 2 quarter notes a second
+}
+
+// Plays `seconds` of quiet noise through the processor, moving the play head.
+void playProcessor (ThunderProcessor& processor, TestPlayHead& head, double seconds, double sampleRate = 48000.0)
+{
+    juce::Random random (1);
+    for (int done = 0; done < static_cast<int> (seconds * sampleRate); done += 512)
+        playBlock ({&processor}, head, random, sampleRate);
 }
 
 bool waitFor (const std::function<bool()>& condition)
@@ -859,6 +939,119 @@ TEST_CASE ("The plugin captures bars to a file on its writer thread", "[unit][ca
     CHECK (reader->lengthInSamples == 96000);
 
     processor.setPlayHead (nullptr);
+}
+
+TEST_CASE ("A finished capture is ready to drag: closed, complete and movable", "[unit][capture][plugin]")
+{
+    // What a DAW does with a dropped file: open it, read it to the end, and
+    // often copy or move it into the project. The writer must have let go of it.
+    constexpr double rate = 44100.0;
+    TempFolder temp;
+    state::UserSettings settings;
+    settings.capturesFolder = temp.folder.getChildFile ("Captures");
+    REQUIRE (settings.save (temp.folder.getChildFile ("settings.xml")));
+
+    ThunderProcessor processor;
+    processor.setSettingsFile (temp.folder.getChildFile ("settings.xml"));
+    TestPlayHead head;
+    processor.setPlayHead (&head);
+    processor.prepareToPlay (rate, 512);
+
+    auto session = processor.getSessionState();
+    session.captureBars = 1;
+    processor.setSessionState (session);
+
+    head.ppq = 3.0;
+    processor.armCapture();
+    playProcessor (processor, head, 3.0, rate);
+    REQUIRE (waitFor ([&] { return processor.getCaptureStatus().phase == CaptureStatus::Phase::Ready; }));
+
+    const auto file = processor.getCaptureStatus().file;
+    REQUIRE (file.existsAsFile());
+    CHECK (file.hasFileExtension ("wav"));
+    CHECK (settings.capturesFolder.findChildFiles (juce::File::findFiles, false, "*.partial").isEmpty());
+
+    {
+        const auto reader = openWav (file);
+        REQUIRE (reader != nullptr);
+        CHECK (reader->bitsPerSample == 24); // the default format
+        CHECK (juce::exactlyEqual (reader->sampleRate, rate));
+        CHECK (reader->lengthInSamples == 88200); // one 4/4 bar at 120 bpm
+
+        juce::AudioBuffer<float> audio (2, static_cast<int> (reader->lengthInSamples));
+        REQUIRE (reader->read (&audio, 0, audio.getNumSamples(), 0, true, true));
+        CHECK (audio.getMagnitude (0, audio.getNumSamples() - 4410, 4410) > 0.0f); // audio to the very end
+    }
+
+    // Movable (Windows refuses while any handle is open), and back.
+    const auto moved = temp.folder.getChildFile ("moved.wav");
+    REQUIRE (file.moveFileTo (moved));
+    REQUIRE (moved.moveFileTo (file));
+
+    processor.setPlayHead (nullptr);
+}
+
+TEST_CASE ("Several instances capturing together each write their own file", "[unit][capture][plugin]")
+{
+    // A DAW with Thunder on three tracks, all armed for the same bar.
+    TempFolder temp;
+    state::UserSettings settings;
+    settings.capturesFolder = temp.folder.getChildFile ("Captures");
+    REQUIRE (settings.save (temp.folder.getChildFile ("settings.xml")));
+
+    TestPlayHead head;
+    std::vector<std::unique_ptr<ThunderProcessor>> instances;
+    for (int i = 0; i < 3; ++i)
+    {
+        auto& p = *instances.emplace_back (std::make_unique<ThunderProcessor>());
+        p.setSettingsFile (temp.folder.getChildFile ("settings.xml"));
+        p.setPlayHead (&head);
+        p.prepareToPlay (48000.0, 512);
+        auto session = p.getSessionState();
+        session.captureBars = 1;
+        p.setSessionState (session);
+    }
+
+    head.ppq = 3.0;
+    for (auto& p : instances)
+        p->armCapture();
+
+    juce::Random random (7);
+    for (int done = 0; done < static_cast<int> (3.0 * 48000.0); done += 512)
+        playBlock ({instances[0].get(), instances[1].get(), instances[2].get()}, head, random, 48000.0);
+
+    const auto allReady = waitFor (
+        [&]
+        {
+            for (auto& p : instances)
+                if (p->getCaptureStatus().phase != CaptureStatus::Phase::Ready)
+                    return false;
+            return true;
+        });
+    for (auto& p : instances)
+    {
+        const auto status = p->getCaptureStatus();
+        INFO ("phase " << static_cast<int> (status.phase) << ", failure " << static_cast<int> (status.failure) << ": "
+                       << status.describe());
+        CHECK (status.phase == CaptureStatus::Phase::Ready);
+    }
+    REQUIRE (allReady);
+
+    juce::StringArray names;
+    for (auto& p : instances)
+    {
+        const auto file = p->getCaptureStatus().file;
+        names.addIfNotAlreadyThere (file.getFileName());
+        const auto reader = openWav (file);
+        REQUIRE (reader != nullptr);
+        CHECK (reader->lengthInSamples == 96000);
+    }
+    CHECK (names.size() == 3);
+    CHECK (settings.capturesFolder.findChildFiles (juce::File::findFiles, false, "*.wav").size() == 3);
+    CHECK (settings.capturesFolder.findChildFiles (juce::File::findFiles, false, "*.partial").isEmpty());
+
+    for (auto& p : instances)
+        p->setPlayHead (nullptr);
 }
 
 TEST_CASE ("The capture bar arms, shows progress and offers the file for drag-out", "[unit][capture][plugin]")

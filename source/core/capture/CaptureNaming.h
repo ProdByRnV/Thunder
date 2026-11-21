@@ -32,4 +32,24 @@ juce::File uniqueCaptureFile (const juce::File& folder, const juce::String& name
 // The file a capture is written to until it is complete; never offered for drag-out.
 juce::File partialFileFor (const juce::File& finalFile);
 
+// A capture's name, claimed by creating its `.partial` file.
+struct ClaimedCaptureFile
+{
+    juce::File finalFile;
+    std::unique_ptr<juce::FileOutputStream> stream; // the open `.partial`; null if it couldn't be created
+};
+
+// [BG] Creates the folder if needed, picks a unique name (uniqueCaptureFile) and
+// creates its `.partial`, in one step under a lock every Thunder instance in the
+// process shares. Several instances armed together start on the same bar and
+// second, so they ask for the same name (and maybe a new folder) at the same
+// moment; each still gets its own file. The lock guards the shared folder, not
+// any instance's state (PRD NFR-REL-004).
+ClaimedCaptureFile claimCaptureFile (const juce::File& folder, const juce::String& name);
+
+// [BG] Renames a finished `.partial` to `wanted`, or to the next free name if a
+// capture from another process has taken it meanwhile; never replaces a file.
+// Returns the file it became, or juce::File() if the rename failed.
+juce::File finishCaptureFile (const juce::File& partial, const juce::File& wanted);
+
 } // namespace thunder::capture

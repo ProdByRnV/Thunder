@@ -11,6 +11,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Windows: link the C++ runtime into the plugin, so it doesn't depend on the
+# Visual C++ Redistributable a user has installed, or an older one their DAW has
+# already loaded. Set before any target (dependencies included) is created.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # Group targets into folders in IDEs that support it.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 

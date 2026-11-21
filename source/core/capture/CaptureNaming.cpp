@@ -92,4 +92,45 @@ juce::File partialFileFor (const juce::File& finalFile)
     return juce::File (finalFile.getFullPathName() + ".partial");
 }
 
+namespace
+{
+// Shared by every instance in the process (the plugin binary is loaded once per process).
+juce::CriticalSection& namingLock()
+{
+    static juce::CriticalSection lock;
+    return lock;
+}
+} // namespace
+
+ClaimedCaptureFile claimCaptureFile (const juce::File& folder, const juce::String& name)
+{
+    const juce::ScopedLock sl (namingLock());
+
+    ClaimedCaptureFile claimed;
+
+    // Another process may create the folder at the same moment, which makes our
+    // attempt fail although the folder is there.
+    if (!folder.createDirectory() && !folder.isDirectory())
+        return claimed;
+
+    claimed.finalFile = uniqueCaptureFile (folder, name);
+    claimed.stream = std::make_unique<juce::FileOutputStream> (partialFileFor (claimed.finalFile));
+    if (!claimed.stream->openedOk())
+        claimed.stream.reset();
+
+    return claimed;
+}
+
+juce::File finishCaptureFile (const juce::File& partial, const juce::File& wanted)
+{
+    const juce::ScopedLock sl (namingLock());
+
+    // juce::File::moveFileTo deletes an existing target, so check first.
+    auto target = wanted;
+    if (target.exists())
+        target = uniqueCaptureFile (wanted.getParentDirectory(), wanted.getFileNameWithoutExtension());
+
+    return partial.moveFileTo (target) ? target : juce::File();
+}
+
 } // namespace thunder::capture

@@ -286,3 +286,188 @@ TEST_CASE ("An offline bounce sounds exactly like real-time playback", "[unit][p
     }
     CHECK (realtime.getMagnitude (0, 0, realtime.getNumSamples()) > 0.1f);
 }
+
+namespace
+{
+// A few seconds of a stepping melody, the same every time.
+juce::AudioBuffer<float> melody (double rate, double seconds)
+{
+    juce::AudioBuffer<float> input (2, static_cast<int> (seconds * rate));
+    for (int i = 0; i < input.getNumSamples(); ++i)
+    {
+        const auto t = static_cast<double> (i) / rate;
+        const auto note = 60.0 + 2.0 * std::floor (std::fmod (t * 3.0, 5.0));
+        const auto hz = 440.0 * std::pow (2.0, (note - 69.0) / 12.0);
+        const auto s = static_cast<float> (0.3 * std::sin (2.0 * juce::MathConstants<double>::pi * hz * t));
+        input.setSample (0, i, s);
+        input.setSample (1, i, 0.7f * s);
+    }
+    return input;
+}
+
+// Plays `input` through the processor in 256-sample blocks.
+juce::AudioBuffer<float> render (ThunderProcessor& processor, const juce::AudioBuffer<float>& input)
+{
+    juce::AudioBuffer<float> out (input);
+    juce::MidiBuffer midi;
+    for (int start = 0; start < out.getNumSamples(); start += 256)
+    {
+        const auto n = std::min (256, out.getNumSamples() - start);
+        juce::AudioBuffer<float> block (out.getArrayOfWritePointers(), 2, start, n);
+        processor.processBlock (block, midi);
+    }
+    return out;
+}
+
+bool identical (const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b)
+{
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < a.getNumSamples(); ++i)
+            if (!juce::exactlyEqual (a.getSample (ch, i), b.getSample (ch, i)))
+                return false;
+    return true;
+}
+
+// Settings away from the defaults in every module (grains included, so their
+// seeded randomness is covered too).
+void setNonDefaults (ThunderProcessor& p)
+{
+    setValue (p, ParamId::pitchSemitones, -5.0f);
+    setValue (p, ParamId::grainPitchSpread, 7.0f);
+    setValue (p, ParamId::grainPanSpread, 80.0f);
+    setValue (p, ParamId::spaceDecay, 70.0f);
+    setValue (p, ParamId::hpFreq, 320.0f);
+    setValue (p, ParamId::mix, 70.0f);
+}
+} // namespace
+
+TEST_CASE ("Reopening a saved session sounds identical", "[unit][plugin][state]")
+{
+    // PRD NFR-REL-001. The host restores the state, then gets the plugin ready
+    // to play (or, on a reload during a session, restores it and resets).
+    constexpr double rate = 48000.0;
+    const auto input = melody (rate, 3.0);
+
+    juce::MemoryBlock saved;
+    juce::AudioBuffer<float> original;
+    {
+        ThunderProcessor source;
+        setNonDefaults (source);
+        source.getStateInformation (saved);
+        source.prepareToPlay (rate, 256);
+        original = render (source, input);
+    }
+    CHECK (original.getMagnitude (0, 0, original.getNumSamples()) > 0.1f);
+
+    SECTION ("State restored before playback starts")
+    {
+        ThunderProcessor reopened;
+        reopened.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+        reopened.prepareToPlay (rate, 256);
+        CHECK (identical (render (reopened, input), original));
+    }
+
+    SECTION ("State restored into a running instance, then a reset")
+    {
+        ThunderProcessor reopened;
+        reopened.prepareToPlay (rate, 256);
+        render (reopened, melody (rate, 0.5)); // something else played first
+        reopened.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+        reopened.reset();
+        CHECK (identical (render (reopened, input), original));
+    }
+}
+
+TEST_CASE ("Instances don't affect each other", "[unit][plugin]")
+{
+    // PRD NFR-REL-004: two instances with different settings, playing block by
+    // block side by side, sound exactly as they do alone.
+    constexpr double rate = 48000.0;
+    const auto input = melody (rate, 2.0);
+
+    const auto alone = [&] (bool changed)
+    {
+        ThunderProcessor p;
+        if (changed)
+            setNonDefaults (p);
+        p.prepareToPlay (rate, 256);
+        return render (p, input);
+    };
+    const auto aloneA = alone (false);
+    const auto aloneB = alone (true);
+
+    ThunderProcessor a, b;
+    setNonDefaults (b);
+    a.prepareToPlay (rate, 256);
+    b.prepareToPlay (rate, 256);
+
+    juce::AudioBuffer<float> outA (input), outB (input);
+    juce::MidiBuffer midi;
+    for (int start = 0; start < input.getNumSamples(); start += 256)
+    {
+        const auto n = std::min (256, input.getNumSamples() - start);
+        juce::AudioBuffer<float> blockA (outA.getArrayOfWritePointers(), 2, start, n);
+        juce::AudioBuffer<float> blockB (outB.getArrayOfWritePointers(), 2, start, n);
+        a.processBlock (blockA, midi);
+        b.processBlock (blockB, midi);
+    }
+
+    CHECK (identical (outA, aloneA));
+    CHECK (identical (outB, aloneB));
+    CHECK_FALSE (identical (outA, outB));
+}
+
+TEST_CASE ("Opening and closing the editor over and over while playing is safe", "[unit][plugin][ui]")
+{
+    // PRD NFR-REL-003 ("editor open/close spam").
+    ThunderProcessor processor;
+    processor.prepareToPlay (48000.0, 256);
+    const auto input = melody (48000.0, 0.1);
+
+    for (int round = 0; round < 25; ++round)
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+        REQUIRE (editor != nullptr);
+        setValue (processor, ParamId::mix, static_cast<float> ((round * 37) % 100));
+        const auto out = render (processor, input);
+        for (int ch = 0; ch < 2; ++ch)
+            REQUIRE (std::isfinite (out.getMagnitude (ch, 0, out.getNumSamples())));
+        processor.editorBeingDeleted (editor.get()); // as the host wrapper does
+        editor.reset();
+    }
+    CHECK (processor.getActiveEditor() == nullptr);
+}
+
+TEST_CASE ("A reverb tail fades to silence without denormals", "[unit][plugin][space]")
+{
+    // PRD FR-SPACE-005: as a tail decays, its numbers would become denormal
+    // (very slow on most CPUs). The audio path flushes them to zero, on Intel and
+    // ARM alike, so the tail ends in true silence instead.
+    constexpr double rate = 48000.0;
+    ThunderProcessor processor;
+    for (const auto id : {ParamId::pitchOn, ParamId::grainOn, ParamId::autoGain})
+        setValue (processor, id, 0.0f);
+    setValue (processor, ParamId::outputMode, static_cast<float> (static_cast<int> (params::OutputMode::LayerOnly)));
+    setValue (processor, ParamId::spaceMix, 100.0f);
+    setValue (processor, ParamId::spaceDecay, 0.0f);
+    processor.prepareToPlay (rate, 256);
+
+    juce::AudioBuffer<float> input (2, static_cast<int> (20.0 * rate));
+    input.clear();
+    for (int i = 0; i < 4800; ++i) // a 100 ms burst, then silence
+        for (int ch = 0; ch < 2; ++ch)
+            input.setSample (ch, i, 0.5f * std::sin (static_cast<float> (i) * 0.07f));
+
+    const auto out = render (processor, input);
+    CHECK (out.getMagnitude (0, 0, static_cast<int> (rate)) > 0.01f); // the reverb is audible
+
+    int subnormals = 0;
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < out.getNumSamples(); ++i)
+            if (std::fpclassify (out.getSample (ch, i)) == FP_SUBNORMAL)
+                ++subnormals;
+    CHECK (subnormals == 0);
+
+    const auto lastSecond = static_cast<int> (19.0 * rate);
+    CHECK (out.getMagnitude (lastSecond, out.getNumSamples() - lastSecond) < 1.0e-10f); // below −200 dB
+}

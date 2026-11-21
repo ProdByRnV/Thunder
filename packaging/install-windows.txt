@@ -1,0 +1,25 @@
+Installing Thunder on Windows
+=============================
+
+Thunder runs on Windows 10 and 11 (64-bit), in any DAW that loads VST3 or CLAP
+plugins.
+
+1. Copy the plugins into your plugin folders:
+
+   VST3:  the "Thunder.vst3" folder (inside "VST3")
+          ->  C:\Program Files\Common Files\VST3
+
+   CLAP:  "Thunder.clap" (inside "CLAP")
+          ->  C:\Program Files\Common Files\CLAP
+
+   Create the CLAP folder if it isn't there. Windows asks for administrator
+   permission to copy into these folders.
+
+2. Open your DAW and rescan its plugins. In FL Studio: Options > Manage plugins
+   > Find installed plugins.
+
+3. Add Thunder as an effect on the track with your melody.
+
+Your presets and captures are saved in Documents\Thunder.
+
+To uninstall, delete Thunder.vst3 and Thunder.clap from those folders.

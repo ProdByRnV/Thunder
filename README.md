@@ -20,14 +20,16 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 |---|---|
 | Windows 10/11 (x64) | VST3, CLAP |
 | macOS 11+ (Apple silicon + Intel) | VST3, AU, CLAP |
-| Linux x86_64 | VST3, CLAP |
+| Linux x86_64 and ARM64 (Ubuntu 22.04+ or another distribution with glibc 2.35+) | VST3, CLAP |
+
+Each download includes `How to install.txt` with the steps for your system.
 
 ## Building from source
 
 Requirements:
 
 - CMake 3.24 or newer
-- A C++20 compiler: Visual Studio 2022/2026 (Windows), Xcode 14+ (macOS), or GCC 11+/Clang 14+ (Linux)
+- A C++20 compiler: Visual Studio 2022/2026 (Windows), Xcode 14+ (macOS), or GCC 12+/Clang 14+ (Linux)
 - Git
 - On Linux, the JUCE dependencies (ALSA, FreeType, X11 and friends) — see [JUCE's Linux dependencies](https://github.com/juce-framework/JUCE/blob/master/docs/Linux%20Dependencies.md)
 
