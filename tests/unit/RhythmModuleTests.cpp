@@ -168,6 +168,32 @@ TEST_CASE ("The clock follows the host while it plays and keeps time while it is
     CHECK (clock.next (playingAt (8.0), 256).jumped);
 }
 
+TEST_CASE ("Without the host's sample count the clock takes song time from the song position", "[unit][rhythm]")
+{
+    // Some hosts report a song position but no time in samples: free-running
+    // movement (Static's Hz rate) must still follow the song.
+    juce::AudioPlayHead::PositionInfo info;
+    info.setIsPlaying (true);
+    info.setBpm (120.0);
+    info.setPpqPosition (6.0);
+    info.setPpqPositionOfLastBarStart (4.0);
+    const auto t = TransportState::fromPosition (info);
+    CHECK (t.samplePositionMissing);
+
+    MusicalClock clock;
+    clock.prepare (kRate);
+    CHECK_THAT (clock.next (t, 256).seconds, WithinAbs (3.0, 1e-12)); // 6 quarters at 120 BPM
+    const auto later = t.advancedBy (24000, kRate);
+    CHECK_THAT (clock.next (later, 256).seconds, WithinAbs (3.5, 1e-9));
+
+    info.setTimeInSamples (48000);
+    const auto reported = TransportState::fromPosition (info);
+    CHECK_FALSE (reported.samplePositionMissing);
+    MusicalClock other;
+    other.prepare (kRate);
+    CHECK_THAT (other.next (reported, 256).seconds, WithinAbs (1.0, 1e-12)); // the host's count wins
+}
+
 TEST_CASE ("A delayed transport is where the delayed audio belongs in the song", "[unit][rhythm]")
 {
     const auto t = playingAt (4.25);

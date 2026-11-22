@@ -166,15 +166,15 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     // In the chain's order.
     modules.push_back (std::make_unique<ui::PitchPanel> (apvts));
     modules.push_back (std::make_unique<ui::TimePanel> (apvts));
-    modules.push_back (std::make_unique<ui::GrainsPanel> (apvts));
-    modules.push_back (std::make_unique<ui::StaticPanel> (apvts));
+    modules.push_back (std::make_unique<ui::GrainsPanel> (apvts, visuals));
+    modules.push_back (std::make_unique<ui::StaticPanel> (apvts, visuals));
     modules.push_back (std::make_unique<ui::SpacePanel> (apvts));
     auto tone = std::make_unique<ui::TonePanel> (apvts, visuals);
     tonePanel = tone.get();
     modules.push_back (std::move (tone));
-    modules.push_back (std::make_unique<ui::WidthPanel> (apvts));
-    modules.push_back (std::make_unique<ui::ShapePanel> (apvts));
-    modules.push_back (std::make_unique<ui::DuckPanel> (apvts));
+    modules.push_back (std::make_unique<ui::WidthPanel> (apvts, visuals));
+    modules.push_back (std::make_unique<ui::ShapePanel> (apvts, visuals));
+    modules.push_back (std::make_unique<ui::DuckPanel> (apvts, visuals));
 
     // Children in reading order, which is also the keyboard order (UI.md §14).
     content.addAndMakeVisible (topBar);
@@ -446,8 +446,9 @@ void ThunderEditor::updateVisuals (bool showing, double seconds)
     if (showing)
     {
         parts = visualiser.wantedParts();
-        if (tonePanel->isVisible())
-            parts |= UiBridge::kSpectrum; // the Tone module's mini curve
+        for (auto& m : modules)
+            if (m->isVisible())
+                parts |= m->wantedParts(); // the module panel's live display
     }
     visuals.setWanted (parts);
     if (parts == 0)
@@ -457,8 +458,9 @@ void ThunderEditor::updateVisuals (bool showing, double seconds)
     visualiser.refresh (changes, seconds);
     if (changes.meters)
         output.refreshMeters();
-    if (changes.spectrum && tonePanel->isVisible())
-        tonePanel->getCurve().repaint();
+    for (auto& m : modules)
+        if (m->isVisible())
+            m->refresh (changes);
 }
 
 void ThunderEditor::rememberView (ui::VisualiserRegion::View view)

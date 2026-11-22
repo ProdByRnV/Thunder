@@ -277,10 +277,25 @@ void ThunderKnob::resized()
 void ThunderKnob::updateValueText()
 {
     if (!value.isBeingEdited())
-        value.setText (dial.getTextFromValue (dial.getValue()), juce::dontSendNotification);
+        value.setText (formatter ? formatter (dial.getValue()) : dial.getTextFromValue (dial.getValue()),
+                       juce::dontSendNotification);
 
     if (auto* p = apvts.getParameter (paramIdString (paramId)))
-        dial.setTooltip (help::tooltip (paramId, *p));
+    {
+        // With a formatter, the value and range read the way the knob shows them.
+        if (formatter)
+            dial.setTooltip (help::name (paramId) + ": " + help::describe (paramId) + "\n" +
+                             formatter (dial.getValue()) + "  (" + formatter (dial.getMinimum()) + " to " +
+                             formatter (dial.getMaximum()) + ")");
+        else
+            dial.setTooltip (help::tooltip (paramId, *p));
+    }
+}
+
+void ThunderKnob::setValueFormatter (std::function<juce::String (double)> format)
+{
+    formatter = std::move (format);
+    updateValueText();
 }
 
 void ThunderKnob::showValueEditor()

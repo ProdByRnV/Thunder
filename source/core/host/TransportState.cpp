@@ -72,6 +72,8 @@ TransportState TransportState::fromPosition (const juce::Optional<juce::AudioPla
 
     if (const auto samples = position->getTimeInSamples(); samples.hasValue())
         state.samplePosition = *samples;
+    else
+        state.samplePositionMissing = true;
 
     return state;
 }

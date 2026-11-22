@@ -138,6 +138,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/components/CaptureWidget.h
     plugin/ui/components/Meters.cpp
     plugin/ui/components/Meters.h
+    plugin/ui/components/ModuleDisplays.cpp
+    plugin/ui/components/ModuleDisplays.h
     plugin/ui/components/Controls.cpp
     plugin/ui/components/Controls.h
     plugin/ui/components/ThunderKnob.cpp

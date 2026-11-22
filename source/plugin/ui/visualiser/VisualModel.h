@@ -7,6 +7,7 @@
 #include "core/params/Enums.h"
 #include "plugin/bridge/UiBridge.h"
 
+#include <array>
 #include <vector>
 
 namespace thunder::ui
@@ -38,6 +39,7 @@ public:
         bool spectrum = false;
         bool meters = false;
         bool grains = false;
+        bool modules = false; // the module displays' data (any frame arrived)
     };
 
     // [MSG] Reads what has arrived; `seconds` have passed since the last call.
@@ -53,6 +55,17 @@ public:
     const MeterModel& getMeters() const noexcept { return meters; }
     const SpectrumAnalyser& getSpectrum() const noexcept { return spectrum; }
     const visual::GrainSnapshot& getGrains() const noexcept { return grains; }
+
+    // The module panels' live displays (UI.md §11): what the modules did in
+    // the newest frame, Duck's largest reduction in the last update, and
+    // Static's movement over the last kTraceSeconds.
+    static constexpr int kTracePoints = 200;
+    static constexpr double kTraceSeconds = 2.0;
+    static constexpr int kStaticTargets = 5;
+    const visual::ModuleActivity& getActivity() const noexcept { return activity; }
+    float getDuckReductionDb() const noexcept { return duckReductionDb; }
+    // Static's value for `target` at trace point `index` (0 oldest … kTracePoints − 1 newest).
+    float getStaticTrace (int target, int index) const noexcept;
 
     // How long the song position has stood still (the waveform dims after 2 s).
     double getSecondsStopped() const noexcept { return secondsStopped; }
@@ -70,6 +83,14 @@ private:
     std::vector<visual::SpectrumSample> spectrumScratch;
     bool frozen = false;
     double secondsStopped = 1.0e9; // nothing has moved yet
+
+    void addActivity (const visual::WaveFrame& frame, double frameSeconds) noexcept;
+    visual::ModuleActivity activity;
+    float duckReductionDb = 0.0f;
+    float pendingDuckDb = 0.0f; // the largest in the frames read so far this update
+    std::array<std::array<float, kTracePoints>, kStaticTargets> staticTrace{};
+    int traceHead = 0; // the next point written (the oldest)
+    double traceClock = 0.0;
 };
 
 } // namespace thunder::ui

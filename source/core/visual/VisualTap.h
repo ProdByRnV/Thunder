@@ -68,9 +68,10 @@ public:
     void tapLayer (const float* const* layer, const float* const* dry, int numSamples) noexcept;
 
     // [RT] The final output of the same chunk; `transport` is its position, and
-    // `limiterGainDb` the safety limiter's gain (≤ 0) after it.
-    void tapOutput (const float* const* output, int numSamples, const TransportState& transport,
-                    float limiterGainDb) noexcept;
+    // `limiterGainDb` the safety limiter's gain (≤ 0) after it. `activity` is
+    // what the modules with live displays did in it.
+    void tapOutput (const float* const* output, int numSamples, const TransportState& transport, float limiterGainDb,
+                    const ModuleActivity& activity) noexcept;
 
     // [RT] After the chunk: about 60 times a second, where every sounding grain
     // is. `sounding` is false while the Grains module is switched off.

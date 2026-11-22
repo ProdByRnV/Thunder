@@ -1,6 +1,7 @@
 #include "ModulePanels.h"
 
 #include "core/dsp/shape/ShapeModule.h"
+#include "core/dsp/space/SpaceModule.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderIcons.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -23,6 +24,17 @@ juce::Rectangle<int> knobIn (juce::Rectangle<int> cellArea, ThunderKnob::Size s)
 int knobHeight (ThunderKnob::Size s)
 {
     return ThunderKnob::preferredBounds (s).getHeight();
+}
+
+// A caption over a control that carries its own name (a dropdown, a display).
+void setUpCaption (juce::Label& caption, const juce::String& text)
+{
+    caption.setText (text, juce::dontSendNotification);
+    caption.setFont (fonts::ui (type::label, fonts::Weight::medium));
+    caption.setColour (juce::Label::textColourId, colour::textSecondary);
+    caption.setJustificationType (juce::Justification::centred);
+    caption.setInterceptsMouseClicks (false, false);
+    caption.setAccessible (false);
 }
 } // namespace
 
@@ -225,7 +237,7 @@ void TimePanel::layoutBody (juce::Rectangle<int> area)
 // ---- Grains (§11.3)
 // ----------------------------------------------------------------------------------------------------
 
-GrainsPanel::GrainsPanel (juce::AudioProcessorValueTreeState& state)
+GrainsPanel::GrainsPanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Grains", ParamId::grainOn)
     , amount (addKnob (ParamId::grainAmount, "Amount", ThunderKnob::Size::large))
     , grainSize (addKnob (ParamId::grainSize, "Size"))
@@ -237,10 +249,23 @@ GrainsPanel::GrainsPanel (juce::AudioProcessorValueTreeState& state)
     , scaleLock (state, ParamId::grainScaleLock, "Scale lock")
     , tempoSync (state, ParamId::grainSync, "Tempo sync")
     , freeze (state, ParamId::grainFreeze, "Freeze", colour::accentPrimary)
+    , cloud (visuals, state)
 {
     for (juce::Component* c : {static_cast<juce::Component*> (&scaleLock), static_cast<juce::Component*> (&tempoSync),
                                static_cast<juce::Component*> (&freeze)})
         addAndMakeVisible (*c);
+    body.addAndMakeVisible (cloud);
+}
+
+std::uint32_t GrainsPanel::wantedParts() const noexcept
+{
+    return UiBridge::kGrains;
+}
+
+void GrainsPanel::refresh (const VisualModel::Changes& changes)
+{
+    if (changes.grains)
+        cloud.repaint();
 }
 
 void GrainsPanel::layoutHeader (juce::Rectangle<int> area)
@@ -266,12 +291,13 @@ void GrainsPanel::layoutBody (juce::Rectangle<int> area)
     pitchSpread.setBounds (knobIn (cell (row2, 0), ThunderKnob::Size::medium));
     panSpread.setBounds (knobIn (cell (row2, 1), ThunderKnob::Size::medium));
     reverse.setBounds (knobIn (cell (row2, 2), ThunderKnob::Size::medium));
+    cloud.setBounds (cell (row2, 3).withSizeKeepingCentre (size::grainCloudWidth, size::grainCloudHeight));
 }
 
 // ---- Static (§11.4)
 // ----------------------------------------------------------------------------------------------------
 
-StaticPanel::StaticPanel (juce::AudioProcessorValueTreeState& state)
+StaticPanel::StaticPanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Static", ParamId::staticOn)
     , character (addSegmented (ParamId::staticCharacter))
     , amount (addKnob (ParamId::staticAmount, "Amount", ThunderKnob::Size::large))
@@ -285,8 +311,10 @@ StaticPanel::StaticPanel (juce::AudioProcessorValueTreeState& state)
                        rate.setVisible (on < 0.5f);
                        rateSynced.setVisible (on >= 0.5f);
                    })
+    , trace (visuals, state)
 {
     character.setAccent (colour::accentSecondary);
+    body.addAndMakeVisible (trace);
 
     const std::array<std::pair<ParamId, const char*>, 5> chips{{{ParamId::staticTgtPosition, "Position"},
                                                                 {ParamId::staticTgtPitch, "Pitch"},
@@ -310,6 +338,11 @@ void StaticPanel::layoutBody (juce::Rectangle<int> area)
     rateSynced.setBounds (rate.getBounds());
     sync.setBounds (cell (row, 2).withSizeKeepingCentre (size::checkboxRowWidth / 2, size::controlHeight));
 
+    // The trace: as wide as the last column allows (UI.md §11.4 asks for 200).
+    const auto traceCell = cell (row, 3);
+    trace.setBounds (traceCell.withSizeKeepingCentre (std::min (size::staticTraceWidth, traceCell.getWidth()),
+                                                      size::staticTraceHeight));
+
     area.removeFromTop (space::s3);
     auto chipRow = area.removeFromTop (size::controlHeight);
     for (auto* chip : targets)
@@ -317,6 +350,12 @@ void StaticPanel::layoutBody (juce::Rectangle<int> area)
         chip->setBounds (chipRow.removeFromLeft (size::chipWidth));
         chipRow.removeFromLeft (size::chipGap);
     }
+}
+
+void StaticPanel::refresh (const VisualModel::Changes& changes)
+{
+    if (changes.modules)
+        trace.repaint();
 }
 
 // ---- Space (§11.5)
@@ -329,7 +368,24 @@ SpacePanel::SpacePanel (juce::AudioProcessorValueTreeState& state)
     , decay (addKnob (ParamId::spaceDecay, "Decay"))
     , preDelay (addKnob (ParamId::spacePreDelay, "Pre-delay"))
     , damping (addKnob (ParamId::spaceDamping, "Damping"))
+    , modeWatcher (state, ParamId::spaceMode,
+                   [this] (float m)
+                   {
+                       currentMode = static_cast<params::SpaceMode> (juce::roundToInt (m));
+                       decay.refreshValueText();
+                   })
 {
+    // Decay reads as the decay time of the current mode (UI.md §11.5).
+    decay.setValueFormatter (
+        [this] (double percent)
+        { return decayText (dsp::SpaceModule::decaySeconds (currentMode, static_cast<float> (percent))); });
+}
+
+juce::String SpacePanel::decayText (double seconds)
+{
+    if (seconds < 9.95)
+        return juce::String (seconds, 1) + " s";
+    return juce::String (juce::roundToInt (seconds)) + " s";
 }
 
 void SpacePanel::layoutBody (juce::Rectangle<int> area)
@@ -385,30 +441,53 @@ void TonePanel::layoutBody (juce::Rectangle<int> area)
                                 .withSizeKeepingCentre (size::dialogButtonWidth * 2, size::controlHeight));
 }
 
+std::uint32_t TonePanel::wantedParts() const noexcept
+{
+    return UiBridge::kSpectrum; // the curve's spectrum
+}
+
+void TonePanel::refresh (const VisualModel::Changes& changes)
+{
+    if (changes.spectrum)
+        curve.repaint();
+}
+
 // ---- Width (§11.7)
 // -----------------------------------------------------------------------------------------------------
 
-WidthPanel::WidthPanel (juce::AudioProcessorValueTreeState& state)
+WidthPanel::WidthPanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Width", ParamId::widthOn)
     , width (addKnob (ParamId::widthAmount, "Width", ThunderKnob::Size::large))
     , autopan (addCheckbox (ParamId::autopanOn, "Autopan"))
     , autopanRate (addDropdown (ParamId::autopanRate))
     , autopanDepth (addKnob (ParamId::autopanDepth, "Depth"))
+    , correlation (visuals.getMeters())
 {
-    autopanRateCaption.setText ("RATE", juce::dontSendNotification);
-    autopanRateCaption.setFont (fonts::ui (type::label, fonts::Weight::medium));
-    autopanRateCaption.setColour (juce::Label::textColourId, colour::textSecondary);
-    autopanRateCaption.setJustificationType (juce::Justification::centred);
-    autopanRateCaption.setInterceptsMouseClicks (false, false);
-    autopanRateCaption.setAccessible (false); // the dropdown carries the name
+    setUpCaption (autopanRateCaption, "RATE");
     body.addAndMakeVisible (autopanRateCaption);
+    setUpCaption (correlationCaption, "CORRELATION");
+    body.addAndMakeVisible (correlationCaption);
+    body.addAndMakeVisible (correlation);
+}
+
+void WidthPanel::refresh (const VisualModel::Changes& changes)
+{
+    if (changes.meters)
+        correlation.repaint();
 }
 
 void WidthPanel::layoutBody (juce::Rectangle<int> area)
 {
     const auto large = ThunderKnob::Size::large;
     const auto medium = ThunderKnob::Size::medium;
-    width.setBounds (knobIn (cell (area.removeFromTop (knobHeight (large)), 0), large));
+    auto row1 = area.removeFromTop (knobHeight (large));
+    width.setBounds (knobIn (cell (row1, 0), large));
+
+    // The correlation of the output, larger than the Output panel's (UI.md
+    // §11.7 row 3, here beside Width: the body has no third row).
+    auto meterArea = cell (row1, 1, 2);
+    correlationCaption.setBounds (meterArea.removeFromTop (size::labelHeight));
+    correlation.setBounds (meterArea.withSizeKeepingCentre (meterArea.getWidth(), size::correlationMiniHeight));
 
     // Row 2 (UI.md §11.7): Autopan, its rate and depth.
     area.removeFromTop (space::s2);
@@ -423,12 +502,26 @@ void WidthPanel::layoutBody (juce::Rectangle<int> area)
 // ---- Duck (§11.9)
 // ------------------------------------------------------------------------------------------------------
 
-DuckPanel::DuckPanel (juce::AudioProcessorValueTreeState& state)
+DuckPanel::DuckPanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Duck", ParamId::duckOn)
     , mode (addSegmented (ParamId::duckMode, {static_cast<int> (params::enumIndex (params::DuckMode::Envelope))}))
     , amount (addKnob (ParamId::duckAmount, "Amount"))
     , release (addKnob (ParamId::duckRelease, "Release"))
+    , meter (visuals, state)
 {
+    setUpCaption (meterCaption, "REDUCTION");
+    body.addAndMakeVisible (meterCaption);
+    body.addAndMakeVisible (meter);
+}
+
+void DuckPanel::refresh (const VisualModel::Changes& changes)
+{
+    const auto reduction = meter.getValueText();
+    if (changes.modules && reduction != shownReduction)
+    {
+        shownReduction = reduction;
+        meter.repaint();
+    }
 }
 
 void DuckPanel::layoutBody (juce::Rectangle<int> area)
@@ -441,18 +534,29 @@ void DuckPanel::layoutBody (juce::Rectangle<int> area)
     auto row = area.removeFromTop (knobHeight (medium));
     amount.setBounds (knobIn (cell (row, 0), medium));
     release.setBounds (knobIn (cell (row, 1), medium));
+
+    auto meterArea = cell (row, 2, 2);
+    meterCaption.setBounds (meterArea.removeFromTop (size::labelHeight));
+    meter.setBounds (meterArea.withSizeKeepingCentre (meterArea.getWidth(), size::reductionMeterHeight));
 }
 
 // ---- Shape (§11.8)
 // -----------------------------------------------------------------------------------------------------
 
-ShapePanel::ShapePanel (juce::AudioProcessorValueTreeState& state)
+ShapePanel::ShapePanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Shape", ParamId::shapeOn)
     , shape (addSegmented (ParamId::shapeType))
     , rate (addDropdown (ParamId::shapeRate))
     , depth (addKnob (ParamId::shapeDepth, "Depth"))
     , smooth (addKnob (ParamId::shapeSmooth, "Smooth"))
+    , display (visuals, state)
+    , typeWatcher (state, ParamId::shapeType, [this] (float) { display.repaint(); })
+    , depthWatcher (state, ParamId::shapeDepth, [this] (float) { display.repaint(); })
+    , smoothWatcher (state, ParamId::shapeSmooth, [this] (float) { display.repaint(); })
+    , visualModel (visuals)
 {
+    body.addAndMakeVisible (display);
+
     // Each segment draws its curve over one cycle (full level at the top).
     shape.setOptionPainter (
         [] (juce::Graphics& g, int option, juce::Rectangle<float> area, juce::Colour ink)
@@ -478,13 +582,21 @@ ShapePanel::ShapePanel (juce::AudioProcessorValueTreeState& state)
             g.strokePath (curve, juce::PathStrokeType (size::shapeThumbStroke, juce::PathStrokeType::mitered));
         });
 
-    rateCaption.setText ("RATE", juce::dontSendNotification);
-    rateCaption.setFont (fonts::ui (type::label, fonts::Weight::medium));
-    rateCaption.setColour (juce::Label::textColourId, colour::textSecondary);
-    rateCaption.setJustificationType (juce::Justification::centred);
-    rateCaption.setInterceptsMouseClicks (false, false);
-    rateCaption.setAccessible (false); // the dropdown carries the name
+    setUpCaption (rateCaption, "RATE");
     body.addAndMakeVisible (rateCaption);
+}
+
+void ShapePanel::refresh (const VisualModel::Changes& changes)
+{
+    // The playhead moves only while the song does (or Shape counts its own time).
+    const auto& activity = visualModel.getActivity();
+    if (changes.modules &&
+        (!juce::exactlyEqual (activity.shapePhase, shownPhase) || !juce::exactlyEqual (activity.shapeGain, shownGain)))
+    {
+        shownPhase = activity.shapePhase;
+        shownGain = activity.shapeGain;
+        display.repaint();
+    }
 }
 
 void ShapePanel::layoutBody (juce::Rectangle<int> area)
@@ -504,6 +616,9 @@ void ShapePanel::layoutBody (juce::Rectangle<int> area)
 
     depth.setBounds (knobIn (cell (row, 1), medium));
     smooth.setBounds (knobIn (cell (row, 2), medium));
+
+    area.removeFromTop (space::s3);
+    display.setBounds (area.removeFromTop (size::shapeDisplayHeight).withWidth (size::shapeDisplayWidth));
 }
 
 } // namespace thunder::ui

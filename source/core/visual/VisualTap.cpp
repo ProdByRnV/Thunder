@@ -194,7 +194,7 @@ void VisualTap::finishFrame() noexcept
 }
 
 void VisualTap::tapOutput (const float* const* output, int numSamples, const TransportState& transport,
-                           float limiterGainDb) noexcept
+                           float limiterGainDb, const ModuleActivity& activity) noexcept
 {
     if ((active & kFrames) == 0)
         return;
@@ -225,6 +225,10 @@ void VisualTap::tapOutput (const float* const* output, int numSamples, const Tra
         current.sumRR += right * right;
         current.sumLR += left * right;
         current.limiterReductionDb = std::max (current.limiterReductionDb, reduction);
+
+        const auto duckReduction = std::max (current.activity.duckReductionDb, activity.duckReductionDb);
+        current.activity = activity;
+        current.activity.duckReductionDb = duckReduction;
 
         if (++currentCount >= frameSamples)
             finishFrame();
@@ -268,6 +272,7 @@ void VisualTap::tapGrains (const dsp::GrainModule& grains, bool sounding, int nu
             spark.semitones = static_cast<float> (12.0 * std::log2 (std::max (1.0e-6, std::abs (grain.step))));
             spark.pan = grain.pan;
             spark.window = static_cast<float> (hann * hann);
+            spark.sizeSeconds = static_cast<float> (grain.length / sampleRate);
         }
     }
 

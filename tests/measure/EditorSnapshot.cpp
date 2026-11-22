@@ -105,3 +105,51 @@ TEST_CASE ("Editor snapshot with the visualiser playing", "[.][editorshot]")
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
 }
+
+TEST_CASE ("Editor snapshot of the module panels' live displays", "[.][editorshot]")
+{
+    constexpr double rate = 48000.0;
+    ThunderProcessor processor;
+    processor.setSettingsFile (
+        juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Thunder-editorshot-settings.xml"));
+    processor.prepareToPlay (rate, 512);
+    test::TestPlayHead head;
+    processor.setPlayHead (&head);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+
+    // Every module with a display on, and moving.
+    auto& apvts = processor.getValueTreeState();
+    for (const auto& [id, value] : {std::pair<const char*, float>{"grainPitchSpread", 7.0f},
+                                    {"grainPosSpread", 60.0f},
+                                    {"staticOn", 1.0f},
+                                    {"staticAmount", 80.0f},
+                                    {"staticRate", 3.0f},
+                                    {"shapeOn", 1.0f},
+                                    {"shapeDepth", 80.0f},
+                                    {"duckOn", 1.0f},
+                                    {"duckAmount", 60.0f},
+                                    {"widthAmount", 140.0f}})
+    {
+        auto* p = apvts.getParameter (id);
+        p->setValueNotifyingHost (p->convertTo0to1 (value));
+    }
+
+    const auto frame = [&e] { e.updateVisuals (true, 512.0 / rate); };
+    for (const auto& [index, name] : {std::pair<int, const char*>{2, "grains"},
+                                      {3, "static"},
+                                      {4, "space"},
+                                      {6, "width"},
+                                      {7, "shape"},
+                                      {8, "duck"}})
+    {
+        e.selectModule (index);
+        e.updateVisuals (true, 0.0);
+        test::playMelody (processor, head, 2.3, rate, 512, frame);
+        save (e, juce::String ("display-") + name, 1.0f);
+    }
+
+    processor.setPlayHead (nullptr);
+    processor.editorBeingDeleted (editor.get());
+}

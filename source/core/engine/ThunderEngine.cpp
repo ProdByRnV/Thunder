@@ -233,7 +233,12 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     // ... and the final output, for the meters, and where the grains read.
     if (visual.isActive())
     {
-        visual.tapOutput (channels, numSamples, context.transport, limiter.getGainReductionDb());
+        visual::ModuleActivity activity;
+        activity.staticValues = staticFrame.values;
+        activity.duckReductionDb = duck.getReductionDb();
+        activity.shapePhase = shape.get().getLastPhase();
+        activity.shapeGain = shape.get().getLastGain();
+        visual.tapOutput (channels, numSamples, context.transport, limiter.getGainReductionDb(), activity);
         visual.tapGrains (grains.get(), grains.isActive(), numSamples);
     }
 }

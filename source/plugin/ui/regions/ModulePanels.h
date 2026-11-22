@@ -3,6 +3,8 @@
 #include "plugin/ui/ParamUi.h"
 #include "plugin/ui/components/Buttons.h"
 #include "plugin/ui/components/Controls.h"
+#include "plugin/ui/components/Meters.h"
+#include "plugin/ui/components/ModuleDisplays.h"
 #include "plugin/ui/components/ThunderKnob.h"
 #include "plugin/ui/visualiser/SpectrumView.h"
 
@@ -35,6 +37,12 @@ public:
     // host gestures (so a host's undo can take it back). The on/off switch stays.
     void resetToDefaults();
     IconButton& getResetButton() noexcept { return resetButton; }
+
+    // [MSG] The visualiser data this panel's live display needs while it is
+    // shown (UiBridge::kFrames | kSpectrum | kGrains; frames always flow for
+    // the meters), and a repaint of the display when its data changed.
+    virtual std::uint32_t wantedParts() const noexcept { return 0; }
+    virtual void refresh (const VisualModel::Changes& changes) { juce::ignoreUnused (changes); }
 
 protected:
     virtual void layoutBody (juce::Rectangle<int> area) = 0;
@@ -102,7 +110,11 @@ private:
 class GrainsPanel final : public ModulePanel
 {
 public:
-    explicit GrainsPanel (juce::AudioProcessorValueTreeState& apvts);
+    GrainsPanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    std::uint32_t wantedParts() const noexcept override;
+    void refresh (const VisualModel::Changes& changes) override;
+    GrainCloudView& getCloud() noexcept { return cloud; }
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -120,6 +132,8 @@ private:
     ParamCheckbox scaleLock;
     ParamCheckbox tempoSync;
     ParamChip freeze;
+
+    GrainCloudView cloud; // row 2, column 4 (UI.md §11.3)
 };
 
 // UI.md §11.4, in Static's violet: Character, Amount, Rate (free, or a note
@@ -127,7 +141,10 @@ private:
 class StaticPanel final : public ModulePanel
 {
 public:
-    explicit StaticPanel (juce::AudioProcessorValueTreeState& apvts);
+    StaticPanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    void refresh (const VisualModel::Changes& changes) override;
+    StaticTraceView& getTrace() noexcept { return trace; }
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -139,12 +156,16 @@ private:
     ParamCheckbox& sync;
     std::array<ParamChip*, 5> targets{};
     ParameterWatcher syncWatcher;
+    StaticTraceView trace;
 };
 
 class SpacePanel final : public ModulePanel
 {
 public:
     explicit SpacePanel (juce::AudioProcessorValueTreeState& apvts);
+
+    // Decay's value: "2.4 s", whole seconds from 10 s.
+    static juce::String decayText (double seconds);
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -154,6 +175,8 @@ private:
     ThunderKnob& decay;
     ThunderKnob& preDelay;
     ThunderKnob& damping;
+    params::SpaceMode currentMode = params::SpaceMode::Cloud;
+    ParameterWatcher modeWatcher; // Decay reads in seconds for the mode
 };
 
 // Row 2 (UI.md §11.6): the filter curve over the live spectrum, with the same
@@ -165,6 +188,9 @@ public:
 
     SpectrumView& getCurve() noexcept { return curve; }
     ThunderButton& getOpenSpectrumButton() noexcept { return openSpectrum; }
+
+    std::uint32_t wantedParts() const noexcept override;
+    void refresh (const VisualModel::Changes& changes) override;
 
     // Set by the editor: show the spectrum view in the visualiser.
     std::function<void()> onOpenSpectrum;
@@ -183,7 +209,9 @@ private:
 class WidthPanel final : public ModulePanel
 {
 public:
-    explicit WidthPanel (juce::AudioProcessorValueTreeState& apvts);
+    WidthPanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    void refresh (const VisualModel::Changes& changes) override;
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -193,6 +221,8 @@ private:
     ParamDropdown& autopanRate;
     juce::Label autopanRateCaption;
     ThunderKnob& autopanDepth;
+    CorrelationMeter correlation; // row 1 (UI.md §11.7 row 3; the body has no third row)
+    juce::Label correlationCaption;
 };
 
 // UI.md §11.8: the shape picker (a thumbnail of each curve), Rate, Depth and
@@ -200,7 +230,10 @@ private:
 class ShapePanel final : public ModulePanel
 {
 public:
-    explicit ShapePanel (juce::AudioProcessorValueTreeState& apvts);
+    ShapePanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    void refresh (const VisualModel::Changes& changes) override;
+    ShapeView& getDisplay() noexcept { return display; }
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -210,14 +243,21 @@ private:
     juce::Label rateCaption;
     ThunderKnob& depth;
     ThunderKnob& smooth;
+    ShapeView display;
+    ParameterWatcher typeWatcher, depthWatcher, smoothWatcher;
+    float shownPhase = -1.0f, shownGain = -1.0f;
+    const VisualModel& visualModel;
 };
 
-// UI.md §11.9: Mode (Envelope; Spectral comes later and isn't shown), Amount
-// and Release. The reduction meter comes with the module panel task (T-0.8-10).
+// UI.md §11.9: Mode (Envelope; Spectral comes later and isn't shown), Amount,
+// Release and the reduction meter.
 class DuckPanel final : public ModulePanel
 {
 public:
-    explicit DuckPanel (juce::AudioProcessorValueTreeState& apvts);
+    DuckPanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    void refresh (const VisualModel::Changes& changes) override;
+    ReductionMeter& getMeter() noexcept { return meter; }
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -225,6 +265,9 @@ private:
     SegmentedControl& mode;
     ThunderKnob& amount;
     ThunderKnob& release;
+    ReductionMeter meter;
+    juce::Label meterCaption;
+    juce::String shownReduction;
 };
 
 } // namespace thunder::ui

@@ -48,6 +48,8 @@ VisualModel::Changes VisualModel::update (double seconds)
         {
             const auto& frame = frameScratch[static_cast<std::size_t> (i)];
             meters.add (frame);
+            addActivity (frame, bridge.getFrameSeconds());
+            changes.modules = true;
             if (frame.isMoving())
             {
                 moved = true;
@@ -61,6 +63,10 @@ VisualModel::Changes VisualModel::update (double seconds)
         if (count < static_cast<int> (frameScratch.size()))
             break;
     }
+
+    if (changes.modules)
+        duckReductionDb = pendingDuckDb;
+    pendingDuckDb = 0.0f;
 
     const auto wasDimmed = secondsStopped > theme::visualiser::dimAfterSeconds;
     secondsStopped = moved ? 0.0 : secondsStopped + seconds;
@@ -89,6 +95,31 @@ VisualModel::Changes VisualModel::update (double seconds)
     }
 
     return changes;
+}
+
+void VisualModel::addActivity (const visual::WaveFrame& frame, double frameSeconds) noexcept
+{
+    activity = frame.activity;
+    pendingDuckDb = std::max (pendingDuckDb, frame.activity.duckReductionDb);
+
+    // One trace point per kTraceSeconds / kTracePoints of audio.
+    traceClock += frameSeconds;
+    constexpr auto step = kTraceSeconds / kTracePoints;
+    while (traceClock >= step)
+    {
+        traceClock -= step;
+        for (std::size_t t = 0; t < staticTrace.size(); ++t)
+            staticTrace[t][static_cast<std::size_t> (traceHead)] = activity.staticValues[t];
+        traceHead = (traceHead + 1) % kTracePoints;
+    }
+}
+
+float VisualModel::getStaticTrace (int target, int index) const noexcept
+{
+    if (target < 0 || target >= kStaticTargets || index < 0 || index >= kTracePoints)
+        return 0.0f;
+    return staticTrace[static_cast<std::size_t> (target)]
+                      [static_cast<std::size_t> ((traceHead + index) % kTracePoints)];
 }
 
 } // namespace thunder::ui

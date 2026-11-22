@@ -245,6 +245,21 @@ inline constexpr int shapeThumbHeight = 32;
 inline constexpr float shapeThumbStroke = 1.5f;
 inline constexpr int rateDropdownWidth = 120; // Shape's Rate
 
+// The module panels' live displays (§11.3, §11.4, §11.8, §11.9)
+inline constexpr int grainCloudWidth = 120;
+inline constexpr int grainCloudHeight = 60;
+inline constexpr int staticTraceWidth = 200;
+inline constexpr int staticTraceHeight = 40;
+inline constexpr int shapeDisplayWidth = 380;
+inline constexpr int shapeDisplayHeight = 60;
+inline constexpr int reductionMeterHeight = 28;
+inline constexpr float reductionBarHeight = 8.0f;
+inline constexpr int reductionValueWidth = 64;
+inline constexpr int correlationMiniHeight = 10;
+inline constexpr float displayStroke = 1.5f;
+inline constexpr float displayDotMin = 1.5f;
+inline constexpr float displayDotMax = 4.0f;
+
 // Capture bar (§9.10)
 inline constexpr int captureTitleWidth = 64;
 inline constexpr int barsDropdownWidth = 96;

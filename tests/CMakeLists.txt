@@ -30,6 +30,7 @@ target_sources(ThunderTests PRIVATE
     unit/IntervalFollowerTests.cpp
     unit/ModuleSlotTests.cpp
     unit/ModuleExtrasTests.cpp
+    unit/ModuleDisplayTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
     unit/PresetTests.cpp

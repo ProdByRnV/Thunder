@@ -26,6 +26,7 @@ struct TransportState
     double ppqPosition = 0.0;     // quarter notes since the song start, at the block start
     double ppqLastBarStart = 0.0; // quarter-note position of the bar containing ppqPosition
     std::int64_t samplePosition = 0;
+    bool samplePositionMissing = false; // the host gave a song position but no time in samples
 
     // [RT] Reads the host's position. A null play head, or one that reports
     // nothing, gives the fallback state.

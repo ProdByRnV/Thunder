@@ -159,6 +159,7 @@ void ShapeModule::process (juce::dsp::AudioBlock<float>& block, const ProcessCon
             firstChunk = false;
         }
         gain += gainCoeff * (target - gain);
+        lastPhase = static_cast<float> (phase);
 
         for (int ch = 0; ch < channels; ++ch)
             block.getChannelPointer (static_cast<std::size_t> (ch))[i] *= gain;

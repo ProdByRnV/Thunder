@@ -7,6 +7,7 @@
 
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
+#include "plugin/ui/regions/ModulePanels.h"
 #include "support/TestHost.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -151,6 +152,26 @@ TEST_CASE ("Visualiser frame cost and the audio thread's share", "[.][uimeasure]
     measureView ("Spectrum", e.getVisualiser().getSpectrum());
     e.selectModule (5);
     measureView ("Spectrum + Tone curve", e.getTonePanel().getCurve());
+
+    // The module panels' live displays (each with the meters, as above), with
+    // the visualiser back on the waveform.
+    e.getVisualiser().getViewToggle().choose (0);
+    for (const auto& [id, value] : {std::pair<const char*, float>{"staticOn", 1.0f},
+                                    {"staticAmount", 80.0f},
+                                    {"shapeOn", 1.0f},
+                                    {"duckOn", 1.0f}})
+    {
+        auto* p = apvts.getParameter (id);
+        p->setValueNotifyingHost (p->convertTo0to1 (value));
+    }
+    e.selectModule (2);
+    measureView ("Grain cloud", dynamic_cast<ui::GrainsPanel&> (e.getModulePanel (2)).getCloud());
+    e.selectModule (3);
+    measureView ("Static trace", dynamic_cast<ui::StaticPanel&> (e.getModulePanel (3)).getTrace());
+    e.selectModule (7);
+    measureView ("Shape display", dynamic_cast<ui::ShapePanel&> (e.getModulePanel (7)).getDisplay());
+    e.selectModule (8);
+    measureView ("Duck meter", dynamic_cast<ui::DuckPanel&> (e.getModulePanel (8)).getMeter());
 
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());

@@ -67,7 +67,7 @@ struct Chunk
         const float* dry[] = {dryL.data(), dryR.data()};
         const float* out[] = {outL.data(), outR.data()};
         tap.tapLayer (layer, dry, size);
-        tap.tapOutput (out, size, t, limiterGainDb);
+        tap.tapOutput (out, size, t, limiterGainDb, {});
     }
 
     int size;

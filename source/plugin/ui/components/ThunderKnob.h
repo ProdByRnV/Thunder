@@ -5,6 +5,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <functional>
 #include <memory>
 
 namespace thunder::ui
@@ -53,6 +54,11 @@ public:
     void copyValue() const;
     bool pasteValue();
     void showMenu();
+
+    // [MSG] Shows the value as `format` writes it instead of the host's text
+    // (Space's Decay in seconds for its mode). Typing still takes the host's units.
+    void setValueFormatter (std::function<juce::String (double)> format);
+    void refreshValueText() { updateValueText(); }
 
     // The knob position (0–1) after dragging `pixels` upwards from `proportion`;
     // `fine` (Shift) moves ten times less. Clamped to the range.
@@ -108,6 +114,7 @@ private:
     juce::Label label;
     Value value;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
+    std::function<juce::String (double)> formatter;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderKnob)
 };

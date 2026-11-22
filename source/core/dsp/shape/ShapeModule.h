@@ -54,6 +54,9 @@ public:
     // For tests: the gain applied to the last sample processed.
     float getLastGain() const noexcept { return gain; }
 
+    // Where the last sample processed was in the cycle (0 … 1), for the display.
+    float getLastPhase() const noexcept { return lastPhase; }
+
 private:
     double integralAt (int shape, double x) const noexcept;
 
@@ -69,6 +72,7 @@ private:
 
     float gain = 1.0f;      // after the one-pole
     float gainCoeff = 0.0f; // one-pole coefficient per sample
+    float lastPhase = 0.0f;
 };
 
 } // namespace thunder::dsp

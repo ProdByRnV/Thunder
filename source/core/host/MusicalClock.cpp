@@ -42,7 +42,10 @@ MusicalClock::Chunk MusicalClock::next (const TransportState& transport, int num
     {
         chunk.ppq = transport.ppqPosition;
         chunk.barStart = transport.ppqLastBarStart;
-        chunk.seconds = static_cast<double> (transport.samplePosition) / sampleRate;
+        // Song time from the host's sample count, or from the song position at the
+        // current tempo when the host doesn't report one.
+        chunk.seconds = transport.samplePositionMissing ? transport.ppqPosition * 60.0 / transport.bpm
+                                                        : static_cast<double> (transport.samplePosition) / sampleRate;
 
         const auto tolerance = kJumpToleranceSeconds * transport.bpm / 60.0;
         chunk.jumped = !started || !wasPlaying || std::abs (chunk.ppq - expectedPpq) > tolerance;
