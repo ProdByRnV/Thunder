@@ -30,6 +30,11 @@ int octaveShift (params::PitchOctave octave) noexcept
 }
 } // namespace
 
+PitchModule::PitchModule()
+    : followsQuality (true)
+{
+}
+
 PitchModule::PitchModule (PitchEngineConfig engineConfig)
     : config (engineConfig)
 {
@@ -37,6 +42,9 @@ PitchModule::PitchModule (PitchEngineConfig engineConfig)
 
 void PitchModule::prepare (const PrepareSpec& spec)
 {
+    if (followsQuality)
+        config = pitchConfigFor (spec.quality);
+
     numChannels = std::clamp (spec.numChannels, 1, kMaxChannels);
 
     const auto blockSamples = static_cast<int> (std::lround (spec.sampleRate * config.blockSeconds));

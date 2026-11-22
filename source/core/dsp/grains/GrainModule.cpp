@@ -1,6 +1,9 @@
 #include "GrainModule.h"
 
+#include "core/music/Scale.h"
+
 #include <algorithm>
+#include <bit>
 #include <cmath>
 
 namespace thunder::dsp
@@ -51,8 +54,49 @@ void GrainModule::prepare (const PrepareSpec& spec)
     correlationCoefficient = onePoleCoefficient (kCorrelationSeconds, sampleRate);
     gainCoefficient = onePoleCoefficient (kGainSeconds, sampleRate);
     amount.prepare (sampleRate, util::kDefaultRampSeconds);
+    clock.prepare (sampleRate);
+
+    const auto eco = spec.quality == params::Quality::Eco;
+    grainLimit = eco ? kMaxGrains / 2 : kMaxGrains;
+    cubicReads = !eco;
 
     reset();
+}
+
+std::uint32_t GrainModule::scaleLockIntervals (std::uint16_t scaleMask) noexcept
+{
+    const auto mask = static_cast<unsigned> (scaleMask) & 0xfffu;
+    const auto notes = std::popcount (mask);
+
+    std::uint32_t allowed = 0;
+    for (int k = -12; k <= 12; ++k)
+    {
+        // The scale moved up by k semitones, as pitch classes.
+        const auto shift = static_cast<unsigned> (((k % 12) + 12) % 12);
+        const auto moved = ((mask << shift) | (mask >> (12u - shift))) & 0xfffu;
+        const auto kept = std::popcount (moved & mask);
+        if (notes == 0 || kept >= notes - 1)
+            allowed |= 1u << static_cast<unsigned> (k + 12);
+    }
+    return allowed;
+}
+
+double GrainModule::syncDivisionQuarters (double density, double bpm) noexcept
+{
+    // Rate of a division d (quarters): bpm / 60 / d grains a second.
+    auto best = 4.0;
+    auto bestDistance = 1.0e9;
+    for (auto d = 4.0; d >= 1.0 / 32.0; d *= 0.5)
+    {
+        const auto rate = bpm / 60.0 / d;
+        const auto distance = std::abs (std::log (rate / std::max (density, 1.0e-6)));
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            best = d;
+        }
+    }
+    return best;
 }
 
 void GrainModule::reset() noexcept
@@ -71,6 +115,9 @@ void GrainModule::reset() noexcept
 
     // The same random sequence after every reset, so a render is reproducible.
     rng.seed (util::Rng::kDefaultSeed);
+    clock.reset();
+    syncStarted = false;
+    lastSyncStep = 0;
     firstChunk = true;
 }
 
@@ -107,13 +154,19 @@ int GrainModule::getActiveGrains() const noexcept
 void GrainModule::process (juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept
 {
     const auto& p = context.params;
-    process (block, Settings{p.get (ParamId::grainSize) / 1000.0, p.get (ParamId::grainDensity),
-                             p.get (ParamId::grainAmount) / 100.0f, p.get (ParamId::grainPosSpread) / 100.0f,
-                             p.get (ParamId::grainPitchSpread), p.get (ParamId::grainPanSpread) / 100.0f,
-                             p.get (ParamId::grainReverse) / 100.0f});
+    Settings settings{p.get (ParamId::grainSize) / 1000.0,   p.get (ParamId::grainDensity),
+                      p.get (ParamId::grainAmount) / 100.0f, p.get (ParamId::grainPosSpread) / 100.0f,
+                      p.get (ParamId::grainPitchSpread),     p.get (ParamId::grainPanSpread) / 100.0f,
+                      p.get (ParamId::grainReverse) / 100.0f};
+    if (p.isOn (ParamId::grainScaleLock))
+        settings.scaleLockMask = music::scaleMask (p.getChoice<params::Scale> (ParamId::keyScale));
+    settings.sync = p.isOn (ParamId::grainSync);
+    settings.freeze = p.isOn (ParamId::grainFreeze);
+    process (block, settings, &context.transport);
 }
 
-void GrainModule::process (juce::dsp::AudioBlock<float>& block, const Settings& settings) noexcept
+void GrainModule::process (juce::dsp::AudioBlock<float>& block, const Settings& settings,
+                           const TransportState* transport) noexcept
 {
     const auto total = static_cast<int> (block.getNumSamples());
     if (total == 0)
@@ -139,53 +192,112 @@ void GrainModule::process (juce::dsp::AudioBlock<float>& block, const Settings& 
         for (int ch = 0; ch < numChannels; ++ch)
             channels[ch] = block.getChannelPointer (static_cast<std::size_t> (ch)) + offset;
 
-        processChunk (channels, std::min (maxChunk, total - offset), settings);
+        const auto n = std::min (maxChunk, total - offset);
+
+        // The song position of this piece, for Tempo Sync (the clock keeps
+        // counting whether or not Sync is on, so switching it on lands in phase).
+        MusicalClock::Chunk position;
+        const MusicalClock::Chunk* where = nullptr;
+        if (transport != nullptr)
+        {
+            position = clock.next (offset == 0 ? *transport : transport->advancedBy (offset, sampleRate), n);
+            where = &position;
+        }
+
+        processChunk (channels, n, settings, where);
     }
 }
 
-void GrainModule::processChunk (float* const* channels, int numSamples, const Settings& settings) noexcept
+void GrainModule::processChunk (float* const* channels, int numSamples, const Settings& settings,
+                                const MusicalClock::Chunk* position) noexcept
 {
     // The whole chunk goes into the buffer first: a grain starting at sample i
     // reads only indices before (chunk start + i), all of which are now written.
+    // Frozen, the buffer keeps what it has and "now" stays where it stopped.
     const auto chunkStart = buffer.getWriteCount();
-    buffer.write (channels, numChannels, numSamples);
+    if (!settings.freeze)
+        buffer.write (channels, numChannels, numSamples);
 
     const auto length =
         std::clamp (static_cast<int> (std::lround (settings.sizeSeconds * sampleRate)), 1, maxGrainSamples);
-    const auto density = std::max (0.0, settings.density);
-    const auto overlap = density * static_cast<double> (length) / sampleRate;
     const auto maxOffset = positionSpreadSeconds (settings.positionSpread) * sampleRate;
+    const auto allowed = settings.scaleLockMask != 0 ? scaleLockIntervals (settings.scaleLockMask) : 0u;
+    const auto nowAt = [&] (int i) { return settings.freeze ? chunkStart : chunkStart + i; };
 
-    // Schedule: one grain each time the accumulator passes 1.
-    const auto increment = density / sampleRate;
-    for (int i = 0; i < numSamples; ++i)
+    auto density = std::max (0.0, settings.density);
+
+    if (settings.sync && position != nullptr)
     {
-        schedulerPhase += increment;
-        while (schedulerPhase >= 1.0)
+        // One grain each time the song crosses a line of the note grid.
+        const auto bpm = 60.0 * sampleRate / position->samplesPerQuarter;
+        const auto division = syncDivisionQuarters (density, bpm);
+        density = bpm / 60.0 / division;
+        if (position->jumped)
+            syncStarted = false;
+
+        for (int i = 0; i < numSamples; ++i)
         {
-            schedulerPhase -= 1.0;
-            startGrain (i, chunkStart + i, length, maxOffset, settings);
+            const auto ppq = position->ppq + i / position->samplesPerQuarter;
+            const auto step = static_cast<long long> (std::floor (ppq / division + 1.0e-9));
+            if (syncStarted && step != lastSyncStep)
+                startGrain (i, nowAt (i), length, maxOffset, settings, allowed);
+            lastSyncStep = step;
+            syncStarted = true;
+        }
+    }
+    else
+    {
+        syncStarted = false;
+
+        // One grain each time the accumulator passes 1.
+        const auto increment = density / sampleRate;
+        for (int i = 0; i < numSamples; ++i)
+        {
+            schedulerPhase += increment;
+            while (schedulerPhase >= 1.0)
+            {
+                schedulerPhase -= 1.0;
+                startGrain (i, nowAt (i), length, maxOffset, settings, allowed);
+            }
         }
     }
 
+    const auto overlap = density * static_cast<double> (length) / sampleRate;
     render (numSamples);
     normalise (numSamples, overlap);
     blend (channels, numSamples);
 }
 
 void GrainModule::startGrain (int offset, std::int64_t now, int length, double maxOffsetSamples,
-                              const Settings& settings) noexcept
+                              const Settings& settings, std::uint32_t allowedIntervals) noexcept
 {
+    const auto active = std::count_if (grains.begin(), grains.end(), [] (const Grain& g) { return g.active; });
     const auto slot = std::find_if (grains.begin(), grains.end(), [] (const Grain& g) { return !g.active; });
-    if (slot == grains.end())
+    if (slot == grains.end() || active >= grainLimit)
     {
         ++grainsSkipped;
         return;
     }
 
     const auto pitchSpread = std::clamp (static_cast<double> (settings.pitchSpread), 0.0, kMaxPitchSpreadSemitones);
-    const auto rate =
-        pitchSpread > 0.0 ? std::exp2 (pitchSpread * static_cast<double> (rng.nextBipolar()) / 12.0) : 1.0;
+    // Drawn only with a spread, so the random sequence (and the sound) without
+    // one is what it always was.
+    auto semitones = pitchSpread > 0.0 ? pitchSpread * static_cast<double> (rng.nextBipolar()) : 0.0;
+    if (allowedIntervals != 0)
+    {
+        // Scale Lock: the same draw picks one of the safe intervals within the spread.
+        int choices[25] = {};
+        int count = 0;
+        for (int k = -12; k <= 12; ++k)
+            if ((allowedIntervals >> static_cast<unsigned> (k + 12)) & 1u)
+                if (std::abs (k) <= pitchSpread + 1.0e-6)
+                    choices[count++] = k;
+
+        const auto u = pitchSpread > 0.0 ? 0.5 * (semitones / pitchSpread + 1.0) : 0.5;
+        const auto index = std::clamp (static_cast<int> (u * count), 0, std::max (count - 1, 0));
+        semitones = count > 0 ? static_cast<double> (choices[index]) : 0.0;
+    }
+    const auto rate = std::exp2 (semitones / 12.0);
     const auto interpolate = !juce::exactlyEqual (rate, 1.0);
 
     // Where the grain's reads may lie (absolute buffer indices), for its whole life:
@@ -213,6 +325,7 @@ void GrainModule::startGrain (int offset, std::int64_t now, int length, double m
 
     slot->active = true;
     slot->interpolate = interpolate;
+    slot->cubic = cubicReads;
     slot->startOffset = offset;
     slot->length = length;
     slot->elapsed = 0;
@@ -272,8 +385,16 @@ void GrainModule::render (int numSamples) noexcept
 
             for (int ch = 0; ch < numChannels; ++ch)
             {
-                const auto sample = grain.interpolate ? buffer.readCubic (ch, grain.base + whole, fraction)
-                                                      : buffer.read (ch, grain.base + whole);
+                auto sample = 0.0f;
+                if (!grain.interpolate)
+                    sample = buffer.read (ch, grain.base + whole);
+                else if (grain.cubic)
+                    sample = buffer.readCubic (ch, grain.base + whole, fraction);
+                else
+                {
+                    const auto a = buffer.read (ch, grain.base + whole);
+                    sample = a + fraction * (buffer.read (ch, grain.base + whole + 1) - a);
+                }
                 const auto contribution = grain.gains[static_cast<std::size_t> (ch)] * w * sample;
                 out[ch][i] += contribution;
 

@@ -115,6 +115,32 @@ double SpaceModule::decaySeconds (float decayPercent) noexcept
     return kMinDecaySeconds * std::pow (kMaxDecaySeconds / kMinDecaySeconds, t);
 }
 
+double SpaceModule::decaySeconds (params::SpaceMode mode, float decayPercent) noexcept
+{
+    const auto t = std::clamp (static_cast<double> (decayPercent) / 100.0, 0.0, 1.0);
+    const auto range = [t] (double shortest, double longest) { return shortest * std::pow (longest / shortest, t); };
+
+    switch (mode)
+    {
+        case params::SpaceMode::Cloud:
+            return decaySeconds (decayPercent);
+        case params::SpaceMode::Plate:
+            return range (0.5, 8.0);
+        case params::SpaceMode::Room:
+            return range (0.2, 3.0);
+        case params::SpaceMode::Shimmer:
+            return range (1.0, 20.0);
+    }
+    return decaySeconds (decayPercent);
+}
+
+bool SpaceModule::isEngineRunning (params::SpaceMode mode) const noexcept
+{
+    const auto e = params::enumIndex (mode);
+    const auto& input = engineInput[e];
+    return input.target() > 0.0f || input.current() > 0.0f || engineQuiet[e] < quietThreshold;
+}
+
 double SpaceModule::dampingCutoffHz (float dampingPercent) noexcept
 {
     const auto t = std::clamp (static_cast<double> (dampingPercent) / 100.0, 0.0, 1.0);
@@ -144,8 +170,15 @@ void SpaceModule::prepare (const PrepareSpec& spec)
         preparedSampleRate = sampleRate;
     }
 
-    for (auto& channel : wet)
-        channel.assign (static_cast<std::size_t> (spec.maxBlockSize), 0.0f);
+    for (auto* buffers : {&wet, &engineIn, &engineOut})
+        for (auto& channel : *buffers)
+            channel.assign (static_cast<std::size_t> (spec.maxBlockSize), 0.0f);
+
+    fdn[0].prepare (spec.sampleRate, FdnReverb::Character::plate);
+    fdn[1].prepare (spec.sampleRate, FdnReverb::Character::room);
+    fdn[2].prepare (spec.sampleRate, FdnReverb::Character::shimmer);
+    for (auto& input : engineInput)
+        input.prepare (spec.sampleRate, kModeFadeSeconds);
 
     decay.prepare (spec.sampleRate, kSettingsRampSeconds);
     preDelayMs.prepare (spec.sampleRate, kSettingsRampSeconds);
@@ -184,7 +217,13 @@ void SpaceModule::reset() noexcept
             channel.fill (0.0f);
     blockPosition = 0;
 
+    // Thunder's own reverbs clear in well under a millisecond.
+    for (auto& f : fdn)
+        f.reset();
+    engineQuiet.fill (quietThreshold);
+
     firstChunk = true;
+    firstEngineChunk = true;
 }
 
 double SpaceModule::getTailSeconds() const noexcept
@@ -221,6 +260,115 @@ void SpaceModule::applyReverbSettings (bool force) noexcept
     }
 }
 
+// Cloud: fills `wet` with CloudSeed's output for its (faded) input.
+void SpaceModule::processCloud (const float* left, const float* right, int numSamples) noexcept
+{
+    constexpr auto cloud = static_cast<std::size_t> (0);
+    auto& input = engineInput[cloud];
+
+    if (!isEngineRunning (params::SpaceMode::Cloud))
+    {
+        // Resting: nothing to compute, but the settings keep gliding.
+        input.skip (numSamples);
+        decay.skip (numSamples);
+        preDelayMs.skip (numSamples);
+        damping.skip (numSamples);
+        for (auto& channel : wet)
+            juce::FloatVectorOperations::clear (channel.data(), numSamples);
+        return;
+    }
+
+    // Fully on, the input goes in as it is (bit for bit what it always did).
+    const auto scaled = input.isSmoothing() || input.current() < 1.0f;
+    float* in[2] = {engineIn[0].data(), engineIn[1].data()};
+    for (int i = 0; i < numSamples; ++i)
+    {
+        const auto g = scaled ? input.next() : 1.0f;
+        in[0][i] = scaled ? left[i] * g : left[i];
+        in[1][i] = scaled ? right[i] * g : right[i];
+    }
+
+    // CloudSeed always gets whole blocks of kReverbBlock samples: its delay
+    // lines feed back one block late, so other block sizes would change the
+    // sound (and an offline bounce would differ from playback). The wet signal
+    // comes out exactly kReverbBlock samples later, which the pre-delay
+    // compensates for.
+    float loudest = 0.0f;
+    for (int done = 0; done < numSamples;)
+    {
+        const auto n = std::min (kReverbBlock - blockPosition, numSamples - done);
+        const auto from = static_cast<std::size_t> (done);
+        const auto at = static_cast<std::size_t> (blockPosition);
+
+        std::copy_n (in[0] + done, n, reverbIn[0].data() + at);
+        std::copy_n (in[1] + done, n, reverbIn[1].data() + at);
+        std::copy_n (reverbOut[0].data() + at, n, wet[0].data() + from);
+        std::copy_n (reverbOut[1].data() + at, n, wet[1].data() + from);
+
+        blockPosition += n;
+        done += n;
+
+        if (blockPosition == kReverbBlock)
+        {
+            decay.skip (kReverbBlock);
+            preDelayMs.skip (kReverbBlock);
+            damping.skip (kReverbBlock);
+            applyReverbSettings (false);
+
+            reverb->Process (reverbIn[0].data(), reverbIn[1].data(), reverbOut[0].data(), reverbOut[1].data(),
+                             kReverbBlock);
+            blockPosition = 0;
+        }
+    }
+
+    for (const auto& channel : wet)
+        for (int i = 0; i < numSamples; ++i)
+            loudest = std::max (loudest, std::abs (channel[static_cast<std::size_t> (i)]));
+    engineQuiet[cloud] = loudest < kQuietLevel ? std::min (engineQuiet[cloud] + numSamples, quietThreshold) : 0;
+}
+
+// Plate, Room, Shimmer: each running engine adds its output to `wet`.
+void SpaceModule::processPlates (const float* left, const float* right, int numSamples) noexcept
+{
+    constexpr std::array<params::SpaceMode, kModes - 1> modes{params::SpaceMode::Plate, params::SpaceMode::Room,
+                                                              params::SpaceMode::Shimmer};
+
+    for (std::size_t k = 0; k < modes.size(); ++k)
+    {
+        const auto e = params::enumIndex (modes[k]);
+        auto& input = engineInput[e];
+        if (!isEngineRunning (modes[k]))
+        {
+            input.skip (numSamples);
+            continue;
+        }
+
+        auto& reverbEngine = fdn[k];
+        reverbEngine.setDecaySeconds (decaySeconds (modes[k], decay.current()));
+        reverbEngine.setDampingHz (dampingCutoffHz (damping.current()));
+        reverbEngine.setPreDelaySeconds (preDelayMs.current() / 1000.0);
+
+        float* in[2] = {engineIn[0].data(), engineIn[1].data()};
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const auto g = input.next();
+            in[0][i] = left[i] * g;
+            in[1][i] = right[i] * g;
+        }
+
+        reverbEngine.process (in[0], in[1], engineOut[0].data(), engineOut[1].data(), numSamples);
+
+        float loudest = 0.0f;
+        for (std::size_t ch = 0; ch < 2; ++ch)
+        {
+            juce::FloatVectorOperations::add (wet[ch].data(), engineOut[ch].data(), numSamples);
+            for (int i = 0; i < numSamples; ++i)
+                loudest = std::max (loudest, std::abs (engineOut[ch][static_cast<std::size_t> (i)]));
+        }
+        engineQuiet[e] = loudest < kQuietLevel ? std::min (engineQuiet[e] + numSamples, quietThreshold) : 0;
+    }
+}
+
 void SpaceModule::process (juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept
 {
     const auto numSamples = static_cast<int> (block.getNumSamples());
@@ -253,37 +401,20 @@ void SpaceModule::process (juce::dsp::AudioBlock<float>& block, const ProcessCon
     auto* left = block.getChannelPointer (0);
     auto* right = block.getChannelPointer (1);
 
-    // CloudSeed always gets whole blocks of kReverbBlock samples: its delay
-    // lines feed back one block late, so other block sizes would change the
-    // sound (and an offline bounce would differ from playback). The wet signal
-    // comes out exactly kReverbBlock samples later, which the pre-delay
-    // compensates for.
-    for (int done = 0; done < numSamples;)
+    // The selected mode's engine gets the input; the others fade theirs out.
+    const auto mode = params::enumIndex (p.getChoice<params::SpaceMode> (ParamId::spaceMode));
+    for (std::size_t e = 0; e < static_cast<std::size_t> (kModes); ++e)
     {
-        const auto n = std::min (kReverbBlock - blockPosition, numSamples - done);
-        const auto from = static_cast<std::size_t> (done);
-        const auto at = static_cast<std::size_t> (blockPosition);
-
-        std::copy_n (left + done, n, reverbIn[0].data() + at);
-        std::copy_n (right + done, n, reverbIn[1].data() + at);
-        std::copy_n (reverbOut[0].data() + at, n, wet[0].data() + from);
-        std::copy_n (reverbOut[1].data() + at, n, wet[1].data() + from);
-
-        blockPosition += n;
-        done += n;
-
-        if (blockPosition == kReverbBlock)
-        {
-            decay.skip (kReverbBlock);
-            preDelayMs.skip (kReverbBlock);
-            damping.skip (kReverbBlock);
-            applyReverbSettings (false);
-
-            reverb->Process (reverbIn[0].data(), reverbIn[1].data(), reverbOut[0].data(), reverbOut[1].data(),
-                             kReverbBlock);
-            blockPosition = 0;
-        }
+        const auto target = e == mode ? 1.0f : 0.0f;
+        if (firstEngineChunk)
+            engineInput[e].snapTo (target);
+        else
+            engineInput[e].setTarget (target);
     }
+    firstEngineChunk = false;
+
+    processCloud (left, right, numSamples);
+    processPlates (left, right, numSamples);
 
     // Equal-power wet/dry: the reverb is uncorrelated with the dry signal, so
     // this keeps the overall level steady as Mix moves. On the way, the

@@ -141,6 +141,13 @@ void ModulePanel::resized()
     header.removeFromRight (space::s2);
     resetButton.setBounds (
         header.removeFromRight (size::iconButton).withSizeKeepingCentre (size::iconButton, size::iconButton));
+    header.removeFromRight (space::s4);
+
+    // What is left after the title, for a panel's header controls.
+    const auto titleFont =
+        fonts::ui (type::title, fonts::Weight::semiBold).withExtraKerningFactor (type::titleTracking);
+    header.removeFromLeft (juce::GlyphArrangement::getStringWidthInt (titleFont, title.toUpperCase()) + space::s6);
+    layoutHeader (header);
 
     body.setBounds (area.reduced (space::s4, 0).withTrimmedBottom (space::s3));
     layoutBody (body.getLocalBounds());
@@ -227,7 +234,23 @@ GrainsPanel::GrainsPanel (juce::AudioProcessorValueTreeState& state)
     , pitchSpread (addKnob (ParamId::grainPitchSpread, "Pitch spread"))
     , panSpread (addKnob (ParamId::grainPanSpread, "Pan spread"))
     , reverse (addKnob (ParamId::grainReverse, "Reverse"))
+    , scaleLock (state, ParamId::grainScaleLock, "Scale lock")
+    , tempoSync (state, ParamId::grainSync, "Tempo sync")
+    , freeze (state, ParamId::grainFreeze, "Freeze", colour::accentPrimary)
 {
+    for (juce::Component* c : {static_cast<juce::Component*> (&scaleLock), static_cast<juce::Component*> (&tempoSync),
+                               static_cast<juce::Component*> (&freeze)})
+        addAndMakeVisible (*c);
+}
+
+void GrainsPanel::layoutHeader (juce::Rectangle<int> area)
+{
+    const auto checkbox = size::checkboxRowWidth * 2 / 3;
+    scaleLock.setBounds (area.removeFromLeft (checkbox).withSizeKeepingCentre (checkbox, size::controlHeight));
+    tempoSync.setBounds (area.removeFromLeft (checkbox).withSizeKeepingCentre (checkbox, size::controlHeight));
+    area.removeFromLeft (space::s2);
+    freeze.setBounds (
+        area.removeFromLeft (size::chipWidth).withSizeKeepingCentre (size::chipWidth, size::controlHeight));
 }
 
 void GrainsPanel::layoutBody (juce::Rectangle<int> area)
@@ -301,7 +324,7 @@ void StaticPanel::layoutBody (juce::Rectangle<int> area)
 
 SpacePanel::SpacePanel (juce::AudioProcessorValueTreeState& state)
     : ModulePanel (state, "Space", ParamId::spaceOn)
-    , mode (addSegmented (ParamId::spaceMode, {static_cast<int> (params::enumIndex (params::SpaceMode::Cloud))}))
+    , mode (addSegmented (ParamId::spaceMode))
     , mix (addKnob (ParamId::spaceMix, "Mix"))
     , decay (addKnob (ParamId::spaceDecay, "Decay"))
     , preDelay (addKnob (ParamId::spacePreDelay, "Pre-delay"))
@@ -368,13 +391,56 @@ void TonePanel::layoutBody (juce::Rectangle<int> area)
 WidthPanel::WidthPanel (juce::AudioProcessorValueTreeState& state)
     : ModulePanel (state, "Width", ParamId::widthOn)
     , width (addKnob (ParamId::widthAmount, "Width", ThunderKnob::Size::large))
+    , autopan (addCheckbox (ParamId::autopanOn, "Autopan"))
+    , autopanRate (addDropdown (ParamId::autopanRate))
+    , autopanDepth (addKnob (ParamId::autopanDepth, "Depth"))
 {
+    autopanRateCaption.setText ("RATE", juce::dontSendNotification);
+    autopanRateCaption.setFont (fonts::ui (type::label, fonts::Weight::medium));
+    autopanRateCaption.setColour (juce::Label::textColourId, colour::textSecondary);
+    autopanRateCaption.setJustificationType (juce::Justification::centred);
+    autopanRateCaption.setInterceptsMouseClicks (false, false);
+    autopanRateCaption.setAccessible (false); // the dropdown carries the name
+    body.addAndMakeVisible (autopanRateCaption);
 }
 
 void WidthPanel::layoutBody (juce::Rectangle<int> area)
 {
-    width.setBounds (
-        knobIn (cell (area.removeFromTop (knobHeight (ThunderKnob::Size::large)), 0), ThunderKnob::Size::large));
+    const auto large = ThunderKnob::Size::large;
+    const auto medium = ThunderKnob::Size::medium;
+    width.setBounds (knobIn (cell (area.removeFromTop (knobHeight (large)), 0), large));
+
+    // Row 2 (UI.md §11.7): Autopan, its rate and depth.
+    area.removeFromTop (space::s2);
+    auto row = area.removeFromTop (knobHeight (medium));
+    autopan.setBounds (cell (row, 0).withSizeKeepingCentre (size::checkboxRowWidth / 2, size::controlHeight));
+    auto rateCell = cell (row, 1);
+    autopanRateCaption.setBounds (rateCell.removeFromTop (size::labelHeight));
+    autopanRate.setBounds (rateCell.withSizeKeepingCentre (size::rateDropdownWidth, size::controlHeight));
+    autopanDepth.setBounds (knobIn (cell (row, 2), medium));
+}
+
+// ---- Duck (§11.9)
+// ------------------------------------------------------------------------------------------------------
+
+DuckPanel::DuckPanel (juce::AudioProcessorValueTreeState& state)
+    : ModulePanel (state, "Duck", ParamId::duckOn)
+    , mode (addSegmented (ParamId::duckMode, {static_cast<int> (params::enumIndex (params::DuckMode::Envelope))}))
+    , amount (addKnob (ParamId::duckAmount, "Amount"))
+    , release (addKnob (ParamId::duckRelease, "Release"))
+{
+}
+
+void DuckPanel::layoutBody (juce::Rectangle<int> area)
+{
+    mode.setBounds (
+        area.removeFromTop (size::controlHeight).withWidth (mode.getNumSegments() * size::segmentedSegment));
+    area.removeFromTop (space::s3);
+
+    const auto medium = ThunderKnob::Size::medium;
+    auto row = area.removeFromTop (knobHeight (medium));
+    amount.setBounds (knobIn (cell (row, 0), medium));
+    release.setBounds (knobIn (cell (row, 1), medium));
 }
 
 // ---- Shape (§11.8)

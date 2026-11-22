@@ -19,7 +19,6 @@ target_sources(ThunderTests PRIVATE
     support/Realtime.h
     support/TestSignals.h
     support/TestHost.h
-    support/PendingControls.h
     audio/LatencyAlignmentTests.cpp
     unit/CaptureTests.cpp
     unit/DesignSystemTests.cpp
@@ -30,6 +29,7 @@ target_sources(ThunderTests PRIVATE
     unit/GrainModuleTests.cpp
     unit/IntervalFollowerTests.cpp
     unit/ModuleSlotTests.cpp
+    unit/ModuleExtrasTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
     unit/PresetTests.cpp
@@ -54,7 +54,8 @@ target_sources(ThunderTests PRIVATE
     measure/GrainMeasure.cpp
     measure/PitchConfigMeasure.cpp
     measure/PitchModesMeasure.cpp
-    measure/PitchTrackerMeasure.cpp)
+    measure/PitchTrackerMeasure.cpp
+    measure/SpaceMeasure.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 

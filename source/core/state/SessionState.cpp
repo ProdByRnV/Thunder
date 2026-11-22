@@ -35,6 +35,8 @@ juce::ValueTree SessionState::toValueTree() const
         tree.setProperty (ids::uiScale, uiScale, nullptr);
     if (uiView != VisualiserView::notSet)
         tree.setProperty (ids::uiView, uiView == VisualiserView::spectrum ? "spectrum" : "wave", nullptr);
+    tree.setProperty (ids::quality, juce::String (std::string (params::kQualityNames[params::enumIndex (quality)])),
+                      nullptr);
     return tree;
 }
 
@@ -65,6 +67,12 @@ SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
         s.uiView = VisualiserView::wave;
     else if (view == "spectrum")
         s.uiView = VisualiserView::spectrum;
+
+    // Stored by name; missing (older sessions) or unknown means Standard.
+    const auto qualityName = tree.getProperty (ids::quality).toString();
+    for (std::size_t i = 0; i < params::kQualityNames.size(); ++i)
+        if (qualityName == juce::String (std::string (params::kQualityNames[i])))
+            s.quality = static_cast<params::Quality> (i);
 
     return s;
 }

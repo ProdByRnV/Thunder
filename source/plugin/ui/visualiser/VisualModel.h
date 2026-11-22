@@ -4,6 +4,7 @@
 #include "SpectrumAnalyser.h"
 #include "WaveformHistory.h"
 
+#include "core/params/Enums.h"
 #include "plugin/bridge/UiBridge.h"
 
 #include <vector>
@@ -23,6 +24,12 @@ public:
     // kGrains); 0 when the editor is hidden. Parts not wanted cost the audio
     // thread nothing.
     void setWanted (std::uint32_t parts);
+
+    // [MSG] The spectrum's FFT is smaller at Eco and larger at High (FR-CORE-013).
+    void setQuality (params::Quality quality) noexcept
+    {
+        spectrumDetail = quality == params::Quality::Eco ? -1 : (quality == params::Quality::High ? 1 : 0);
+    }
     std::uint32_t getWanted() const noexcept { return wanted; }
 
     struct Changes
@@ -57,6 +64,7 @@ private:
     WaveformHistory history;
     MeterModel meters;
     SpectrumAnalyser spectrum;
+    int spectrumDetail = 0;
     visual::GrainSnapshot grains;
     std::vector<visual::WaveFrame> frameScratch;
     std::vector<visual::SpectrumSample> spectrumScratch;

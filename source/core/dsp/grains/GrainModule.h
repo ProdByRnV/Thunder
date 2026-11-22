@@ -4,6 +4,7 @@
 #include "GrainWindow.h"
 
 #include "core/engine/Module.h"
+#include "core/host/MusicalClock.h"
 #include "core/util/Rng.h"
 #include "core/util/Smoother.h"
 
@@ -82,6 +83,22 @@ namespace thunder::dsp
 //   per channel for each sounding grain, plus two sums for the level; nothing
 //   allocates, locks or waits (`[RT]`).
 //
+// - v1.0 extras (FR-GRAIN-004…006, PRD DEC-051):
+//   - Scale Lock: each grain's transposition is one of the intervals that keep
+//     the key's notes in key (scaleLockIntervals), chosen at random within ±
+//     Pitch Spread. The source note isn't known, so these are the intervals
+//     safe for any note of the scale: unison, fourths, fifths and octaves for
+//     the 7-note scales, every semitone for Chromatic. Below a fourth of spread
+//     the grains stay at their pitch.
+//   - Tempo Sync: grains start exactly on a note grid of the song (the power-of-
+//     two note value nearest to Density at the tempo), from the song position,
+//     so they fall on the same places in every loop.
+//   - Freeze: the buffer stops taking input, so the grains keep reading the
+//     last 4 s and the texture holds for as long as Freeze is on. Amount still
+//     blends in the live input.
+// - Quality (FR-CORE-013): at Eco at most 32 grains sound at once and pitched
+//   grains read with linear interpolation; Standard and High use 64 and cubic.
+//
 // On/off (grainOn) is handled by the engine's ModuleSlot.
 class GrainModule final : public Module
 {
@@ -117,12 +134,28 @@ public:
         float pitchSpread = 0.0f;        // semitones, each grain within ± this
         float panSpread = 0.0f;          // 0 … 1
         float reverseProbability = 0.0f; // 0 … 1
+
+        // v1.0 (PRD DEC-051):
+        std::uint16_t scaleLockMask = 0; // the scale (pitch classes) Scale Lock keeps to; 0 = off
+        bool sync = false;               // grains start on a note grid (needs a transport)
+        bool freeze = false;             // the buffer stops taking input
     };
+
+    // Scale Lock: the transpositions (semitones, −12 … +12) that keep a scale's
+    // notes in it: those that move at most one note of the scale out of it
+    // (every semitone for Chromatic; for 7-note scales unison, fourths, fifths
+    // and octaves). Bit k + 12 is set when k is allowed.
+    static std::uint32_t scaleLockIntervals (std::uint16_t scaleMask) noexcept;
+
+    // Tempo Sync: the note value (in quarter notes, a power of two from a
+    // whole note to 1/128) whose rate at `bpm` is closest to `density`.
+    static double syncDivisionQuarters (double density, double bpm) noexcept;
 
     struct Grain
     {
         bool active = false;
         bool interpolate = false;                             // pitched: reads between samples
+        bool cubic = true;                                    // cubic reads (linear at Eco quality)
         int startOffset = 0;                                  // sample in the current chunk where it starts
         int length = 0;                                       // output samples
         int elapsed = 0;                                      // output samples played
@@ -140,8 +173,14 @@ public:
     // Reads the grain parameters.
     void process (juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept override;
 
-    // [RT] Writes the block into the buffer and blends the grain cloud into it.
-    void process (juce::dsp::AudioBlock<float>& block, const Settings& settings) noexcept;
+    // [RT] Writes the block into the buffer (unless frozen) and blends the
+    // grain cloud into it. Tempo Sync needs `transport` (the position of this
+    // block's audio); without it grains follow Density freely.
+    void process (juce::dsp::AudioBlock<float>& block, const Settings& settings,
+                  const TransportState* transport = nullptr) noexcept;
+
+    // How many grains may sound at once at the prepared Quality (32 at Eco).
+    int getGrainLimit() const noexcept { return grainLimit; }
 
     // Grains play past input: no latency.
     int getLatencySamples() const noexcept override { return 0; }
@@ -171,9 +210,10 @@ public:
     static float gainForOverlap (double overlap, double correlation = 1.0) noexcept;
 
 private:
-    void processChunk (float* const* channels, int numSamples, const Settings& settings) noexcept;
-    void startGrain (int offset, std::int64_t now, int length, double maxOffsetSamples,
-                     const Settings& settings) noexcept;
+    void processChunk (float* const* channels, int numSamples, const Settings& settings,
+                       const MusicalClock::Chunk* position) noexcept;
+    void startGrain (int offset, std::int64_t now, int length, double maxOffsetSamples, const Settings& settings,
+                     std::uint32_t allowedIntervals) noexcept;
     void render (int numSamples) noexcept;
     void normalise (int numSamples, double overlap) noexcept;
     void blend (float* const* channels, int numSamples) noexcept;
@@ -204,6 +244,12 @@ private:
     bool firstChunk = true;
 
     double schedulerPhase = 0.0;
+    MusicalClock clock;
+    long long lastSyncStep = 0; // the note-grid step of the last synced grain
+    bool syncStarted = false;   // lastSyncStep is valid
+    int grainLimit = kMaxGrains;
+    bool cubicReads = true;
+
     std::uint64_t grainsStarted = 0;
     std::uint64_t grainsSkipped = 0;
     std::uint64_t grainsReversed = 0;

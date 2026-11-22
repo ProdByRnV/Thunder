@@ -14,17 +14,39 @@ namespace thunder
 
 struct PrepareSpec
 {
+    PrepareSpec (double rate = 44100.0, int maxBlock = 256, int channels = 2,
+                 params::Quality q = params::Quality::Standard) noexcept
+        : sampleRate (rate)
+        , maxBlockSize (maxBlock)
+        , numChannels (channels)
+        , quality (q)
+    {
+    }
+
     double sampleRate = 44100.0;
     int maxBlockSize = 256; // the engine's chunk size, never the host's block size
     int numChannels = 2;
+    params::Quality quality = params::Quality::Standard; // PRD FR-CORE-013
 };
 
 // What a module gets with every chunk. Modules read only their own parameters
 // from the snapshot and smooth them themselves.
 struct ProcessContext
 {
+    ProcessContext (const TransportState& t, const params::ParamSnapshot& p, const float* const* key = nullptr) noexcept
+        : transport (t)
+        , params (p)
+        , dryKey (key)
+    {
+    }
+
     const TransportState& transport;
     const params::ParamSnapshot& params;
+
+    // The dry signal, delayed by the whole chain's latency: it lines up with the
+    // chain's output, where Duck sits and keys from it. Null where there is none
+    // (a module tested on its own).
+    const float* const* dryKey = nullptr;
 };
 
 class Module

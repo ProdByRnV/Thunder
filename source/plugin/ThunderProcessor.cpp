@@ -31,7 +31,8 @@ void ThunderProcessor::prepareToPlay (double sampleRate, int)
 {
     // The engine processes in fixed-size chunks, so the host's block size
     // (which some hosts exceed or vary anyway) doesn't size anything.
-    engine.prepare (sampleRate);
+    preparedSampleRate = sampleRate;
+    engine.prepare (sampleRate, getSessionState().quality);
     setLatencySamples (engine.getLatencySamples());
 }
 
@@ -165,8 +166,35 @@ state::SessionState ThunderProcessor::getSessionState() const
 
 void ThunderProcessor::setSessionState (const state::SessionState& newState)
 {
-    const juce::ScopedLock lock (sessionLock);
-    session = newState;
+    params::Quality previous;
+    {
+        const juce::ScopedLock lock (sessionLock);
+        previous = session.quality;
+        session = newState;
+    }
+
+    if (newState.quality != previous)
+        applyQuality (newState.quality);
+}
+
+void ThunderProcessor::setQuality (params::Quality quality)
+{
+    auto s = getSessionState();
+    s.quality = quality;
+    setSessionState (s);
+}
+
+void ThunderProcessor::applyQuality (params::Quality quality)
+{
+    // Before the host prepares, prepareToPlay picks the session's Quality up.
+    if (preparedSampleRate <= 0.0)
+        return;
+
+    // Re-preparing allocates and resets: never while processBlock runs.
+    suspendProcessing (true);
+    engine.prepare (preparedSampleRate, quality);
+    setLatencySamples (engine.getLatencySamples()); // tells the host when it changed
+    suspendProcessing (false);
 }
 
 juce::File ThunderProcessor::getCapturesFolder() const

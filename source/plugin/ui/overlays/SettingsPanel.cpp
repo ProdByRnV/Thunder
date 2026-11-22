@@ -22,6 +22,7 @@ enum Row
 {
     scaleRow,
     viewRow,
+    qualityRow,
     tooltipsRow,
     formatRow,
     folderRow,
@@ -62,6 +63,8 @@ void SettingsPanel::PillToggle::paintButton (juce::Graphics& g, bool highlighted
 SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
     : processor (p)
     , viewControl ("Default visualiser view", {"Wave", "Spectrum"}, [this] (int i) { setSpectrumByDefault (i == 1); })
+    , qualityControl ("Quality", {"Eco", "Standard", "High"},
+                      [this] (int i) { setQuality (static_cast<params::Quality> (i)); })
     , formatControl ("Capture format", {"24-bit", "32-bit float"}, [this] (int i) { setCaptureFormat (i == 1); })
 {
     setTitle ("Settings");
@@ -87,6 +90,11 @@ SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
     addLabel ("Visualiser");
     viewControl.setTooltip ("The view new projects open with: the waveform or the spectrum");
     addAndMakeVisible (viewControl);
+
+    addLabel ("Quality");
+    qualityControl.setTooltip ("This project's sound quality: Eco uses the least CPU; High has the steadiest pitch on "
+                               "low notes but adds 40 ms of latency");
+    addAndMakeVisible (qualityControl);
 
     addLabel ("Show tooltips");
     tooltipsToggle.setTooltip ("Show what a control does when the pointer rests on it");
@@ -136,6 +144,7 @@ void SettingsPanel::refresh()
     const auto settings = state::UserSettings::load (processor.getSettingsFile());
     tooltipsToggle.setToggleState (settings.showTooltips, juce::dontSendNotification);
     viewControl.setSelectedOption (settings.spectrumByDefault ? 1 : 0);
+    qualityControl.setSelectedOption (static_cast<int> (params::enumIndex (processor.getQuality())));
     formatControl.setSelectedOption (settings.captureFormat == capture::CaptureFormat::Float32 ? 1 : 0);
     preserveToggle.setToggleState (processor.getPresetManager().getPreserveSession(), juce::dontSendNotification);
 
@@ -197,6 +206,9 @@ void SettingsPanel::resized()
                 break;
             case viewRow:
                 viewControl.setBounds (control (row, 2 * size::segmentedSegment, size::controlHeight));
+                break;
+            case qualityRow:
+                qualityControl.setBounds (control (row, 3 * size::segmentedSegment, size::controlHeight));
                 break;
             case tooltipsRow:
                 tooltipsToggle.setBounds (control (row, size::toggleWidth + space::s3, size::controlHeight));
@@ -260,6 +272,14 @@ void SettingsPanel::setSpectrumByDefault (bool spectrum)
     auto settings = state::UserSettings::load (processor.getSettingsFile());
     settings.spectrumByDefault = spectrum;
     settings.save (processor.getSettingsFile());
+    refresh();
+}
+
+void SettingsPanel::setQuality (params::Quality quality)
+{
+    processor.setQuality (quality);
+    if (onQualityChanged)
+        onQualityChanged();
     refresh();
 }
 

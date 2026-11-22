@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/engine/Module.h"
+#include "core/host/MusicalClock.h"
 #include "core/util/Smoother.h"
 
 namespace thunder::dsp
@@ -13,7 +14,14 @@ namespace thunder::dsp
 // the layer sounds the same at every width (FR-WIDTH-003). Width glides over
 // 20 ms.
 //
-// TODO(PRD): Autopan (FR-WIDTH-002) arrives in v1.0 (T-0.8-07).
+// Autopan (FR-WIDTH-002; PRD DEC-051), after the width: the layer moves from
+// side to side on a sine, one cycle per Autopan Rate (the synced list, PRD
+// §9.13), as far as Autopan Depth says (100% = fully left and right), panned
+// with equal power and unity in the centre. The phase is the song position
+// divided by the cycle length (bars counted from the song start), so the sweep
+// is continuous, repeats in a loop and matches a bounce. While the host is
+// stopped it keeps moving at the tempo (MusicalClock). Switching it on or off
+// fades its depth in or out over 30 ms.
 class WidthModule final : public Module
 {
 public:
@@ -21,9 +29,17 @@ public:
     void reset() noexcept override;
     void process (juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept override;
 
+    // The pan (−1 … +1) at the last sample, for tests.
+    float getLastPan() const noexcept { return lastPan; }
+
 private:
-    util::LinearSmoother width; // 0 … 2
+    void autopan (float* left, float* right, int numSamples, const ProcessContext& context) noexcept;
+
+    util::LinearSmoother width;    // 0 … 2
+    util::LinearSmoother panDepth; // 0 … 1, 0 while Autopan is off
+    MusicalClock clock;
     bool firstChunk = true;
+    float lastPan = 0.0f;
 };
 
 } // namespace thunder::dsp

@@ -36,7 +36,7 @@ VisualModel::Changes VisualModel::update (double seconds)
 
     history.prepare (bridge.getFrameSeconds());
     meters.prepare (bridge.getFrameSeconds());
-    spectrum.prepare (bridge.getSampleRate());
+    spectrum.prepare (bridge.getSampleRate(), spectrumDetail);
 
     // Frames: every one feeds the meters; those whose song position moves feed
     // the waveform, unless the display is frozen.

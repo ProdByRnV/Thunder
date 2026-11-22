@@ -154,7 +154,8 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
                                      {"Space", ParamId::spaceOn},
                                      {"Tone", ParamId::toneOn},
                                      {"Width", ParamId::widthOn},
-                                     {"Shape", ParamId::shapeOn}})
+                                     {"Shape", ParamId::shapeOn},
+                                     {"Duck", ParamId::duckOn}})
     , output (p.getValueTreeState(), visuals.getMeters())
     , captureWidget (p)
 {
@@ -173,6 +174,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     modules.push_back (std::move (tone));
     modules.push_back (std::make_unique<ui::WidthPanel> (apvts));
     modules.push_back (std::make_unique<ui::ShapePanel> (apvts));
+    modules.push_back (std::make_unique<ui::DuckPanel> (apvts));
 
     // Children in reading order, which is also the keyboard order (UI.md §14).
     content.addAndMakeVisible (topBar);
@@ -259,8 +261,9 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
         openGL.attachTo (*this);
     }
 
-    // The visualiser's frames (UI-FX-004: 60 fps).
-    startTimerHz (motion::frameHz);
+    // The visualiser's frames (UI-FX-004: 60 fps; 30 at Eco).
+    applyQuality();
+    startTimerHz (frameRate());
 
     constructed = true;
 }
@@ -365,6 +368,25 @@ void ThunderEditor::openSaveForm (bool saveAs)
     saveForm->getNameField().grabKeyboardFocus();
 }
 
+int ThunderEditor::frameRate() const noexcept
+{
+    // Eco draws half as often (UI.md §12.6).
+    return thunderProcessor.getQuality() == params::Quality::Eco ? motion::frameHz / 2 : motion::frameHz;
+}
+
+void ThunderEditor::applyQuality()
+{
+    const auto& p = thunderProcessor;
+    const auto sampleRate = p.getSampleRate() > 0.0 ? p.getSampleRate() : 48000.0;
+    status.setText ("LAT " + juce::String (juce::roundToInt (1000.0 * p.getLatencySamples() / sampleRate)) + " ms  " +
+                        juce::String::fromUTF8 ("\xc2\xb7") + "  v" + THUNDER_VERSION_STRING,
+                    juce::dontSendNotification);
+
+    visuals.setQuality (p.getQuality());
+    if (isTimerRunning() && getTimerInterval() < 1000 / 4)
+        startTimerHz (frameRate());
+}
+
 void ThunderEditor::openSettings()
 {
     if (settingsPanel != nullptr)
@@ -373,6 +395,7 @@ void ThunderEditor::openSettings()
     settingsPanel = std::make_unique<ui::SettingsPanel> (thunderProcessor, scale);
     settingsPanel->onScaleChosen = [this] (float s) { setScale (s); };
     settingsPanel->onShowTooltips = [this] (bool show) { showTooltips (show); };
+    settingsPanel->onQualityChanged = [this] { applyQuality(); };
     settingsPanel->onClose = [this] { closeLater (*this, settingsPanel); };
     content.addAndMakeVisible (*settingsPanel);
     settingsPanel->setBounds (content.getLocalBounds());
@@ -412,7 +435,7 @@ void ThunderEditor::timerCallback()
     constexpr int kHiddenCheckHz = 4;
     const auto showing = isShowing();
     if (showing != (getTimerInterval() < 1000 / kHiddenCheckHz))
-        startTimerHz (showing ? motion::frameHz : kHiddenCheckHz);
+        startTimerHz (showing ? frameRate() : kHiddenCheckHz);
 
     updateVisuals (showing, seconds);
 }

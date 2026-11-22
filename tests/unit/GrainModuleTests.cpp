@@ -4,6 +4,7 @@
 #include "support/TestSignals.h"
 
 #include "core/dsp/grains/GrainModule.h"
+#include "core/music/Scale.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -309,7 +310,13 @@ TEST_CASE ("The grain module reads all its parameters", "[unit][grains]")
         snapshot.set (ParamId::grainPitchSpread, 3.0f);
         snapshot.set (ParamId::grainPanSpread, 60.0f);
         snapshot.set (ParamId::grainReverse, 20.0f);
-        compare (snapshot, {0.12, 30.0, 0.7f, 0.1f, 3.0f, 0.6f, 0.2f});
+        GrainModule::Settings settings{0.12, 30.0, 0.7f, 0.1f, 3.0f, 0.6f, 0.2f};
+        settings.scaleLockMask = music::scaleMask (params::Scale::NaturalMinor); // Scale Lock is on by default
+        compare (snapshot, settings);
+
+        snapshot.set (ParamId::grainScaleLock, 0.0f);
+        settings.scaleLockMask = 0;
+        compare (snapshot, settings);
     }
 }
 

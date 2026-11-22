@@ -8,14 +8,14 @@ Each release's notes on GitHub are taken from its section below.
 - Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, and as an AU on macOS.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
 - **Thunder's own dark interface**:
-  - The module chain shows Pitch, Time, Grains, Static, Space, Tone, Width and Shape in processing order. Click a module to see its controls, or its dot to switch it on or off.
+  - The module chain shows Pitch, Time, Grains, Static, Space, Tone, Width, Shape and Duck in processing order. Click a module to see its controls, or its dot to switch it on or off.
   - Output Mode, Mix, Layer, In and Out, Auto Gain and the limiter are always in view.
   - Drag a knob up or down; hold Shift for fine adjustments. The mouse wheel nudges it, and a double-click resets it.
   - Click a knob's value to type an exact one, or right-click the knob to reset, enter, copy or paste its value.
   - ↺ next to a module's switch resets all of that module's controls.
   - Hover over any control to see what it does, with its value and range.
   - Resize the window from its corner in 5% steps, from 75% to 200%, or pick a size in Settings. Each project remembers its size, and a window that wouldn't fit your screen opens smaller.
-  - **Settings** (the gear): window size, the visualiser view new projects open with, tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
+  - **Settings** (the gear): window size, the visualiser view new projects open with, the project's **Quality** (Eco uses the least CPU; High has the steadiest pitch on low notes and adds 40 ms of latency), tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
   - **About** (ⓘ or the logo) shows the version and a link for reporting an issue.
   - Every control gives screen readers its name, what it does and its value.
 - **Visualiser**, live while your song plays:
@@ -39,10 +39,11 @@ Each release's notes on GitHub are taken from its section below.
   - **Preserve Formants** keeps upward shifts from sounding "chipmunky".
   - **Pitch Mix** blends the shifted layer with the unshifted one.
 - **Grains**: short, smoothly faded slices of the last few seconds of the layer.
+  - **Scale Lock** keeps grain pitches to intervals that stay in your key (fourths, fifths and octaves); **Tempo Sync** starts grains in time with your song; **Freeze** holds the texture for as long as it is on.
   - Size, Density and Amount.
   - Position Spread (reaching up to 4 s back), Pitch Spread (up to ±12 semitones), Pan Spread and Reverse Probability.
   - The grain cloud keeps a steady level however dense or spread out it is.
-- **Space**: a lush "Cloud" reverb with Mix, Decay, Pre-delay and Damping.
+- **Space**: four reverbs: lush **Cloud**, bright **Plate**, small **Room** and **Shimmer**, which rises in octaves. Mix, Decay (each with its own range), Pre-delay and Damping. Switching lets the old reverb ring out.
 - **Tone**: a high-pass (on by default, at 200 Hz) and a low-pass on the layer, each 12 or 24 dB/oct.
 - **Time**: halftime in step with your song. Each bar plays its first half (1/2) or first quarter (1/4) across the whole bar, at the same pitch and with no added latency. **Smooth** softens the jump at each bar line.
 - **Static**: random movement that makes the layer feel alive. It can move how far back the grains reach, their pitch spread, the filters, the pan and the level; choose which with the target buttons.
@@ -50,7 +51,8 @@ Each release's notes on GitHub are taken from its section below.
   - **Rate** in Hz, or in note values with **Sync**; **Amount** sets how far it moves.
   - The movement follows your song's position, so a loop moves the same way every time and a bounce sounds like playback.
 - **Shape**: a rhythmic volume shape on the layer: Pump, Swell, Gate, Ramp Up, Ramp Down or Chop, from 2 bars down to 1/16 triplets (dotted and triplet values included). **Depth** sets how deep it cuts, **Smooth** softens its edges. It stays locked to your song's bars and beats through loops and jumps, and keeps time while the transport is stopped.
-- **Width**: stereo width from mono to 200%. Mono playback sounds the same at every width.
+- **Width**: stereo width from mono to 200%. Mono playback sounds the same at every width. **Autopan** moves the layer from side to side in time with your song, with its own rate and depth.
+- **Duck**: turns the layer down while your melody plays, so it stays behind it, and lets it back up with Release. Works in Layer Only too.
 - Every module has its own on/off switch, which fades in and out without clicks.
 - **Output**:
   - **Blend** (your melody plus the layer) or **Layer Only**. At the default Mix of 50% both play at full level.

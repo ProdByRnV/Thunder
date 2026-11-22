@@ -29,6 +29,8 @@ target_sources(ThunderCore INTERFACE
     core/capture/CaptureTypes.h
     core/capture/CaptureWriter.cpp
     core/capture/CaptureWriter.h
+    core/dsp/duck/DuckModule.cpp
+    core/dsp/duck/DuckModule.h
     core/dsp/gain/AutoGain.h
     core/dsp/gain/LoudnessMeter.h
     core/dsp/gain/SafetyLimiter.h
@@ -42,6 +44,8 @@ target_sources(ThunderCore INTERFACE
     core/dsp/pitch/PitchModule.h
     core/dsp/shape/ShapeModule.cpp
     core/dsp/shape/ShapeModule.h
+    core/dsp/space/FdnReverb.cpp
+    core/dsp/space/FdnReverb.h
     core/dsp/space/SpaceModule.cpp
     core/dsp/space/SpaceModule.h
     core/dsp/static/StaticModulator.cpp

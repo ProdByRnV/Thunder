@@ -136,6 +136,8 @@ private:
     };
 
     void timerCallback() override;
+    void applyQuality(); // the latency shown, the frame rate and the spectrum's detail
+    int frameRate() const noexcept;
     void showTooltips (bool show);
     void rememberScale();
     void rememberView (ui::VisualiserRegion::View view);

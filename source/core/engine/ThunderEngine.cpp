@@ -9,12 +9,13 @@ namespace thunder
 
 using params::ParamId;
 
-void ThunderEngine::prepare (double newSampleRate)
+void ThunderEngine::prepare (double newSampleRate, params::Quality newQuality)
 {
     jassert (newSampleRate > 0.0);
     sampleRate = newSampleRate;
+    quality = newQuality;
 
-    const PrepareSpec spec{sampleRate, kMaxChunkSize, kNumChannels};
+    const PrepareSpec spec{sampleRate, kMaxChunkSize, kNumChannels, quality};
     for (auto* module : chain())
         module->prepare (spec);
 
@@ -29,6 +30,7 @@ void ThunderEngine::prepare (double newSampleRate)
     dryDelay.prepare (kNumChannels, chainLatency);
     staticModulator.prepare (sampleRate);
     staticStage.prepare (sampleRate);
+    duck.prepare (spec);
 
     limiter.prepare (sampleRate);
     latencySamples = chainLatency + limiter.getLatencySamples();
@@ -68,6 +70,7 @@ void ThunderEngine::reset() noexcept
         dryDelay.reset();
         staticModulator.reset();
         staticStage.reset();
+        duck.reset();
         autoGain.reset();
         output.reset();
         limiter.reset();
@@ -190,6 +193,10 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     autoGain.process (channels, dryChannels, kNumChannels, numSamples, context.params.isOn (ParamId::autoGain));
     layerLevel.apply (channels, kNumChannels, numSamples);
     staticStage.process (channels, numSamples, staticFrame);
+
+    // Duck keys from the aligned dry signal, after Auto Gain (PRD DEC-051).
+    juce::dsp::AudioBlock<float> layerBlock (channels, kNumChannels, static_cast<std::size_t> (numSamples));
+    duck.process (layerBlock, ProcessContext{context.transport, context.params, dryChannels});
 
     // The visualiser sees the aligned dry signal and the layer before the mix.
     if (visual.isActive())

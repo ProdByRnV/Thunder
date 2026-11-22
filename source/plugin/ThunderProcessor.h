@@ -59,9 +59,16 @@ public:
 
     juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }
 
-    // [MSG] Non-automatable per-session settings (PRD §9.12).
+    // [MSG] Non-automatable per-session settings (PRD §9.12). A change of Quality
+    // re-prepares the engine (see setQuality).
     state::SessionState getSessionState() const;
     void setSessionState (const state::SessionState& newState);
+
+    // [MSG] Quality (PRD FR-CORE-013): saved with the session. Changing it while
+    // prepared re-prepares the engine with audio processing suspended (it may
+    // allocate, and High changes the latency, which the host is told about).
+    void setQuality (params::Quality quality);
+    params::Quality getQuality() const { return getSessionState().quality; }
 
     // True if the last state loaded was saved by a newer Thunder. The editor
     // shows a warning for it (from v0.5).
@@ -109,6 +116,10 @@ private:
         apvts,
         {[this] { return getSessionState(); }, [this] (const state::SessionState& s) { setSessionState (s); }},
         settingsFile};
+
+    void applyQuality (params::Quality quality);
+
+    double preparedSampleRate = 0.0; // 0 until prepareToPlay
 
     std::atomic<bool> loadedNewerState{false};
 

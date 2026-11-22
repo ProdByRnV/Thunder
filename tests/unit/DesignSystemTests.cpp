@@ -12,7 +12,6 @@
 #include "plugin/ui/theme/ThunderLookAndFeel.h"
 #include "plugin/ui/theme/ThunderPaint.h"
 #include "plugin/ui/theme/ThunderTheme.h"
-#include "support/PendingControls.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -352,7 +351,7 @@ TEST_CASE ("Every control says what it does", "[unit][ui]")
                CHECK (tip->getTooltip().contains (ui::help::describe (*id)));
                CHECK (c.getDescription() == ui::help::describe (*id));
            });
-    CHECK (controls >= static_cast<int> (params::kParamDefs.size() - test::kControlsArrivingLater.size()));
+    CHECK (controls >= static_cast<int> (params::kParamDefs.size()));
 
     // Numbers also show their value and range.
     auto* decay = findKnob (*f.editor, ParamId::spaceDecay);

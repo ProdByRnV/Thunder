@@ -35,6 +35,28 @@ struct PitchEngineConfig
 // twice the default's).
 inline constexpr PitchEngineConfig kStandardPitchConfig{0.08, 0.01, false};
 
+// Eco and High (FR-CORE-013; PRD DEC-051), measured the same way: Eco keeps the
+// 80 ms block with a 16 ms hop (5× overlap): the same latency for 40% less CPU,
+// pitch within ~25 cents below 150 Hz. High uses the library's 120 ms block with
+// a 15 ms hop: 120 ms of latency, the steadiest low notes and the least energy
+// at wrong pitches.
+inline constexpr PitchEngineConfig kEcoPitchConfig{0.08, 0.016, false};
+inline constexpr PitchEngineConfig kHighPitchConfig{0.12, 0.015, false};
+
+constexpr PitchEngineConfig pitchConfigFor (params::Quality quality) noexcept
+{
+    switch (quality)
+    {
+        case params::Quality::Eco:
+            return kEcoPitchConfig;
+        case params::Quality::Standard:
+            return kStandardPitchConfig;
+        case params::Quality::High:
+            return kHighPitchConfig;
+    }
+    return kStandardPitchConfig;
+}
+
 // Shifts the pitch of the layer (PRD §7.2) with Signalsmith Stretch.
 //
 // Modes (`pitchMode`):
@@ -60,7 +82,11 @@ inline constexpr PitchEngineConfig kStandardPitchConfig{0.08, 0.01, false};
 class PitchModule final : public Module
 {
 public:
-    explicit PitchModule (PitchEngineConfig engineConfig = kStandardPitchConfig);
+    // The configuration follows the Quality it is prepared with.
+    PitchModule();
+
+    // Always this configuration, whatever the Quality (for measurements).
+    explicit PitchModule (PitchEngineConfig engineConfig);
 
     void prepare (const PrepareSpec& spec) override;
     void reset() noexcept override;
@@ -97,6 +123,7 @@ private:
     void mixWithUnshifted (juce::dsp::AudioBlock<float>& block, int numSamples) noexcept;
 
     PitchEngineConfig config;
+    bool followsQuality = false;
 
     // Seeded so the engine never asks the OS for entropy. (Its randomness is only
     // used when time-stretching, which Thunder doesn't do; pitch output is

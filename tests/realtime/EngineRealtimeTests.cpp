@@ -357,6 +357,52 @@ TEST_CASE ("Time, Static and Shape do not allocate or block, playing, looping an
     CHECK (report.deallocations == 0);
 }
 
+TEST_CASE ("Duck, Autopan, the grain extras and every reverb mode do not allocate or block", "[realtime][engine]")
+{
+    for (const auto quality : {params::Quality::Eco, params::Quality::High})
+    {
+        ThunderEngine engine;
+        engine.prepare (48000.0, quality);
+
+        const auto input = test::sine (220.0, 48000.0, 1.0);
+        std::vector<float> left (256), right (256);
+        float* channels[] = {left.data(), right.data()};
+        auto snapshot = params::ParamSnapshot::defaults();
+        snapshot.set (ParamId::grainPitchSpread, 12.0f);
+        TransportState transport;
+        transport.isPlaying = true;
+        transport.hasHostInfo = true;
+
+        const auto report = test::runInRealtimeSection (
+            [&]
+            {
+                for (std::size_t chunk = 0; chunk < 800; ++chunk)
+                {
+                    const auto start = (chunk * 256) % (input.size() - 256);
+                    std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, left.begin());
+                    std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), 256, right.begin());
+
+                    snapshot.set (ParamId::spaceMode, static_cast<float> ((chunk / 50) % 4));
+                    snapshot.set (ParamId::spaceDecay, static_cast<float> (chunk % 101));
+                    for (const auto id : {ParamId::duckOn, ParamId::autopanOn, ParamId::grainScaleLock,
+                                          ParamId::grainSync, ParamId::grainFreeze})
+                        snapshot.set (id, (chunk / (30 + 7 * static_cast<std::size_t> (id))) % 2 == 0 ? 1.0f : 0.0f);
+                    snapshot.set (ParamId::duckRelease, 10.0f + static_cast<float> (chunk % 900));
+                    snapshot.set (ParamId::autopanRate, static_cast<float> (chunk % 15));
+                    snapshot.set (ParamId::grainDensity, 1.0f + static_cast<float> (chunk % 100));
+                    if (chunk == 400)
+                        engine.reset();
+
+                    engine.process (channels, 256, transport, snapshot);
+                    transport = transport.advancedBy (256, 48000.0);
+                }
+            });
+
+        CHECK (report.allocations == 0);
+        CHECK (report.deallocations == 0);
+    }
+}
+
 TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
 {
     // Arming, recording a Layer and a Full Mix capture, finishing, failing and

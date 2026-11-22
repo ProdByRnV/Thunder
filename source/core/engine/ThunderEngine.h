@@ -4,6 +4,7 @@
 #include "OutputStage.h"
 
 #include "core/capture/CaptureController.h"
+#include "core/dsp/duck/DuckModule.h"
 #include "core/dsp/gain/AutoGain.h"
 #include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
@@ -35,12 +36,14 @@ namespace thunder
 // Per chunk:
 //   input gain, sanitise
 //     ├─ dry path: delayed by the chain's latency ──────────────────────────────────────────────────┐
-//     └─ layer:    Pitch → Time → Grains → Space → Tone → Width → Shape → Auto Gain → Layer Level ─┤
-//                  → Static's pan and level ──────────────────────────────────────────────────────┴─ Output Mode / Mix
+//     └─ layer:    Pitch → Time → Grains → Space → Tone → Width → Shape → Auto Gain → Layer Level ───┤
+//                  → Static's pan and level → Duck ─────────────────────────────────────────────────┴─ Output Mode /
+//                  Mix
 //                                                       → Output Gain → sanitise → safety limiter (−0.3 dBFS)
 //
 // The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → Tone → Width →
-// Shape → Duck; Duck arrives with v1.0's remaining modules). Every module sits
+// Shape), with Duck after Auto Gain so the slow loudness correction doesn't
+// undo the ducking (PRD DEC-051). Every module sits
 // in a ModuleSlot with its own click-free on/off switch (PRD FR-CORE-009); a
 // switched-off module costs nothing and the latency never changes.
 //
@@ -73,7 +76,9 @@ public:
 
     // [NRT] May allocate. Must be called before process(), and again whenever
     // the sample rate changes.
-    void prepare (double sampleRate);
+    void prepare (double sampleRate, params::Quality quality = params::Quality::Standard);
+
+    params::Quality getQuality() const noexcept { return quality; }
 
     // [RT] Clears all internal state (host reset or transport jump; PRD
     // FR-CORE-012). Smoothed values jump to their current targets.
@@ -139,6 +144,7 @@ private:
     void sanitise (float* const* channels, int numSamples) noexcept;
 
     double sampleRate = 44100.0;
+    params::Quality quality = params::Quality::Standard;
     bool prepared = false;
     bool firstBlock = true;            // the first block after prepare/reset snaps instead of ramping
     std::int64_t samplesProcessed = 0; // since prepare/reset: Static's control grid counts from here
@@ -166,6 +172,7 @@ private:
 
     dsp::StaticModulator staticModulator;
     dsp::StaticStage staticStage;
+    dsp::DuckModule duck;            // after Auto Gain; switches itself (duckOn)
     params::ParamSnapshot effective; // the host's values with Static's movement
 
     util::LatencyDelay dryDelay;

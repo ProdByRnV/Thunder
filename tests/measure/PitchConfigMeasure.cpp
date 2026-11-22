@@ -104,6 +104,7 @@ TEST_CASE ("Measure pitch engine configurations", "[.][measure]")
         {"100/25 ms", {0.10, 0.025, false}},        {"80/20 ms", {0.08, 0.02, false}},
         {"60/15 ms", {0.06, 0.015, false}},         {"100/12.5 ms", {0.10, 0.0125, false}},
         {"80/10 ms", {0.08, 0.01, false}},          {"80/13.3 ms", {0.08, 0.08 / 6.0, false}},
+        {"80/16 ms", {0.08, 0.016, false}},         {"120/15 ms", {0.12, 0.015, false}},
     };
 
     for (const auto& candidate : candidates)

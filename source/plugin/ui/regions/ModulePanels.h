@@ -39,6 +39,10 @@ public:
 protected:
     virtual void layoutBody (juce::Rectangle<int> area) = 0;
 
+    // The header between the title and the reset button, for controls that
+    // belong in it (Grains' extras). Nothing by default.
+    virtual void layoutHeader (juce::Rectangle<int> area) { juce::ignoreUnused (area); }
+
     ThunderKnob& addKnob (params::ParamId id, const juce::String& label,
                           ThunderKnob::Size size = ThunderKnob::Size::medium);
     SegmentedControl& addSegmented (params::ParamId id, std::vector<int> options = {}, juce::StringArray labels = {});
@@ -102,6 +106,7 @@ public:
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
+    void layoutHeader (juce::Rectangle<int> area) override;
 
     ThunderKnob& amount;
     ThunderKnob& grainSize;
@@ -110,6 +115,11 @@ private:
     ThunderKnob& pitchSpread;
     ThunderKnob& panSpread;
     ThunderKnob& reverse;
+
+    // In the header (UI.md §11.3 row 3, PRD DEC-048): not dimmed with the body.
+    ParamCheckbox scaleLock;
+    ParamCheckbox tempoSync;
+    ParamChip freeze;
 };
 
 // UI.md §11.4, in Static's violet: Character, Amount, Rate (free, or a note
@@ -179,6 +189,10 @@ private:
     void layoutBody (juce::Rectangle<int> area) override;
 
     ThunderKnob& width;
+    ParamCheckbox& autopan;
+    ParamDropdown& autopanRate;
+    juce::Label autopanRateCaption;
+    ThunderKnob& autopanDepth;
 };
 
 // UI.md §11.8: the shape picker (a thumbnail of each curve), Rate, Depth and
@@ -196,6 +210,21 @@ private:
     juce::Label rateCaption;
     ThunderKnob& depth;
     ThunderKnob& smooth;
+};
+
+// UI.md §11.9: Mode (Envelope; Spectral comes later and isn't shown), Amount
+// and Release. The reduction meter comes with the module panel task (T-0.8-10).
+class DuckPanel final : public ModulePanel
+{
+public:
+    explicit DuckPanel (juce::AudioProcessorValueTreeState& apvts);
+
+private:
+    void layoutBody (juce::Rectangle<int> area) override;
+
+    SegmentedControl& mode;
+    ThunderKnob& amount;
+    ThunderKnob& release;
 };
 
 } // namespace thunder::ui

@@ -79,7 +79,7 @@ juce::String describe (ParamId id)
         case ParamId::grainReverse:
             return "The chance that a grain plays backwards.";
         case ParamId::grainScaleLock:
-            return "Keeps each grain's pitch on a note of your scale.";
+            return "Keeps grain pitches to intervals that stay in your key: fourths, fifths and octaves.";
         case ParamId::grainSync:
             return "Starts grains in time with your song.";
         case ParamId::grainFreeze:

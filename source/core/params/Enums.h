@@ -255,4 +255,16 @@ enum class DuckMode
 inline constexpr std::array<std::string_view, 2> kDuckModeNames{"Envelope", "Spectral"};
 static_assert (kDuckModeNames.size() == enumIndex (DuckMode::Spectral) + 1);
 
+// Quality (PRD §9.1, FR-CORE-013): not a host parameter but a setting saved
+// with the session (`quality`), because it can change the latency. Stored by
+// name.
+enum class Quality
+{
+    Eco,
+    Standard,
+    High
+};
+inline constexpr std::array<std::string_view, 3> kQualityNames{"Eco", "Standard", "High"};
+static_assert (kQualityNames.size() == enumIndex (Quality::High) + 1);
+
 } // namespace thunder::params

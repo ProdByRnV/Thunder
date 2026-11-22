@@ -28,7 +28,9 @@ public:
     static constexpr float kFloorDb = -120.0f;
 
     // [MSG] A different sample rate starts afresh.
-    void prepare (double sampleRate);
+    // `detail` moves the FFT size a power of two up or down from the usual (Quality:
+    // Eco −1, High +1).
+    void prepare (double sampleRate, int detail = 0);
 
     // [MSG] New samples from the audio thread.
     void push (const visual::SpectrumSample* samples, int count);
@@ -54,6 +56,7 @@ private:
     void bandPowers (std::array<float, kPoints>& out);
 
     double sampleRate = 0.0;
+    int detail = 0;
     int fftSize = 4096;
     std::unique_ptr<juce::dsp::FFT> fft;
     std::vector<float> window;

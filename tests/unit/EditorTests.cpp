@@ -6,7 +6,6 @@
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
 #include "plugin/ui/theme/ThunderTheme.h"
-#include "support/PendingControls.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -104,7 +103,7 @@ TEST_CASE ("The editor opens at the base size and scales as one", "[unit][ui]")
 TEST_CASE ("One module shows at a time, chosen on the chain", "[unit][ui]")
 {
     Fixture f;
-    REQUIRE (f.editor->getNumModules() == 8);
+    REQUIRE (f.editor->getNumModules() == 9);
     CHECK (f.editor->getModulePanel (0).isVisible());
 
     f.editor->getChain().clickNode (4);
@@ -114,7 +113,7 @@ TEST_CASE ("One module shows at a time, chosen on the chain", "[unit][ui]")
         CHECK (f.editor->getModulePanel (i).isVisible() == (i == 4));
 
     // In processing order (PRD DEC-005).
-    const char* order[] = {"Pitch", "Time", "Grains", "Static", "Space", "Tone", "Width", "Shape"};
+    const char* order[] = {"Pitch", "Time", "Grains", "Static", "Space", "Tone", "Width", "Shape", "Duck"};
     for (int i = 0; i < f.editor->getNumModules(); ++i)
         CHECK (f.editor->getModulePanel (i).getTitleText() == order[i]);
 }
@@ -190,20 +189,21 @@ TEST_CASE ("The Pitch panel shows the controls of the chosen mode", "[unit][ui]"
     CHECK_FALSE (interval->isVisible());
 }
 
-TEST_CASE ("The Space panel offers the Cloud mode", "[unit][ui]")
+TEST_CASE ("The Space panel offers all four reverb modes", "[unit][ui]")
 {
     Fixture f;
     auto* mode = find<ui::SegmentedControl> (*f.editor, "Space Mode");
     REQUIRE (mode != nullptr);
-    CHECK (mode->getNumSegments() == 1);
+    CHECK (mode->getNumSegments() == 4);
     CHECK (mode->getSelectedOption() == 0);
+    mode->choose (3);
+    CHECK_THAT (f.value (ParamId::spaceMode), WithinAbs (3.0, 1e-6)); // Shimmer
 }
 
 TEST_CASE ("Every host parameter has a control", "[unit][ui]")
 {
     // Each control carries its parameter's ID; every parameter must have one
-    // somewhere in the editor (including panels not currently shown), except
-    // those whose module hasn't arrived yet, which have none.
+    // somewhere in the editor (including panels not currently shown).
     Fixture f;
 
     std::function<bool (juce::Component&, const juce::String&)> has =
@@ -221,7 +221,7 @@ TEST_CASE ("Every host parameter has a control", "[unit][ui]")
     {
         const auto id = juce::String::fromUTF8 (def.id.data(), static_cast<int> (def.id.size()));
         INFO (id);
-        CHECK (has (*f.editor, id) != test::controlArrivesLater (def.param));
+        CHECK (has (*f.editor, id));
     }
 }
 

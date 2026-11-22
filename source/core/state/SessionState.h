@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/params/Enums.h"
+
 #include <juce_data_structures/juce_data_structures.h>
 
 namespace thunder::state
@@ -32,6 +34,7 @@ struct SessionState
     CaptureSource captureSource = CaptureSource::Layer;
     float uiScale = 0.0f; // the editor size this session last used (UI.md §10.3); 0 = not set
     VisualiserView uiView = VisualiserView::notSet;
+    params::Quality quality = params::Quality::Standard; // PRD FR-CORE-013; changes the latency
 
     juce::ValueTree toValueTree() const;
 
@@ -44,7 +47,7 @@ struct SessionState
         return presetName == other.presetName && presetModified == other.presetModified &&
                presetKey == other.presetKey && captureBars == other.captureBars &&
                captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale) &&
-               uiView == other.uiView;
+               uiView == other.uiView && quality == other.quality;
     }
 };
 

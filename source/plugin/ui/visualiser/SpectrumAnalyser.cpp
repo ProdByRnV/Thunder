@@ -29,15 +29,17 @@ float SpectrumAnalyser::frequencyOf (int point) noexcept
     return visualiser::minHz * std::pow (visualiser::maxHz / visualiser::minHz, t);
 }
 
-void SpectrumAnalyser::prepare (double newSampleRate)
+void SpectrumAnalyser::prepare (double newSampleRate, int newDetail)
 {
-    if (newSampleRate <= 0.0 || juce::exactlyEqual (newSampleRate, sampleRate))
+    if (newSampleRate <= 0.0 || (juce::exactlyEqual (newSampleRate, sampleRate) && newDetail == detail))
         return;
 
     sampleRate = newSampleRate;
+    detail = newDetail;
 
-    // About 85 ms whatever the rate, so the low end resolves the same.
-    const auto order = sampleRate <= 50000.0 ? 12 : (sampleRate <= 100000.0 ? 13 : 14);
+    // About 85 ms whatever the rate, so the low end resolves the same (half or
+    // twice that with `detail`).
+    const auto order = (sampleRate <= 50000.0 ? 12 : (sampleRate <= 100000.0 ? 13 : 14)) + std::clamp (detail, -1, 1);
     fftSize = 1 << order;
     fft = std::make_unique<juce::dsp::FFT> (order);
 

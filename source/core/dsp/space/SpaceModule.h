@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FdnReverb.h"
+
 #include "core/engine/Module.h"
 #include "core/util/Smoother.h"
 
@@ -18,17 +20,24 @@ namespace thunder::dsp
 
 // Reverb on the layer (PRD §7.6).
 //
-// Cloud mode is CloudSeedCore (Ghost Note Audio) with Thunder's own "Cloud"
-// settings: large, lush and modulated. Thunder's four controls map onto it:
+// Four modes (FR-SPACE-001), each its own engine:
+// - Cloud: CloudSeedCore (Ghost Note Audio) with Thunder's own settings:
+//   large, lush and modulated.
+// - Plate, Room and Shimmer: Thunder's FdnReverb (PRD DEC-051, AQ-03): bright
+//   and dense; small and short; large with octave-up shimmer.
+// Switching mode fades the old engine's input out and the new one's in over
+// 30 ms; the old engine's tail rings out on its own, so nothing is cut off.
+// An engine whose input is off and whose output has gone quiet rests (no CPU).
+//
+// Thunder's four controls map onto every mode:
 //   Mix       → wet/dry inside the module, equal-power
-//   Decay     → reverb time, 0.4 s … 20 s on a logarithmic curve
-//   Pre-delay → 0 … 250 ms before the reverb starts (never less than one
-//               256-sample processing block, about 5 ms)
+//   Decay     → reverb time on a logarithmic curve, each mode its own range
+//               (FR-SPACE-002): Cloud 0.4–20 s, Plate 0.5–8 s, Room 0.2–3 s,
+//               Shimmer 1–20 s
+//   Pre-delay → 0 … 250 ms before the reverb starts (Cloud: never less than
+//               one 256-sample processing block, about 5 ms)
 //   Damping   → how fast high frequencies die away: the cutoff of the low-pass
 //               inside the reverb's feedback, 18 kHz (0%) down to 1 kHz (100%)
-//
-// TODO(PRD): Plate, Room and Shimmer modes (v1.0, ARCHITECTURE AQ-03); until
-// then every mode uses Cloud.
 class SpaceModule final : public Module
 {
 public:
@@ -53,15 +62,31 @@ public:
     // −120 dBFS: below this the reverb's input and output count as silence.
     static constexpr float kQuietLevel = 1.0e-6f;
 
-    // The parameter mappings, exposed for tests.
+    // The parameter mappings, exposed for tests. decaySeconds (%) is Cloud's.
     static double decaySeconds (float decayPercent) noexcept;
+    static double decaySeconds (params::SpaceMode mode, float decayPercent) noexcept;
     static double dampingCutoffHz (float dampingPercent) noexcept;
+
+    // Whether a mode's engine is running (selected, fading, or ringing out).
+    bool isEngineRunning (params::SpaceMode mode) const noexcept;
+
+    static constexpr int kModes = 4;
+    static constexpr double kModeFadeSeconds = 0.030;
 
     // CloudSeed always processes blocks of exactly this many samples (see process()).
     static constexpr int kReverbBlock = 256;
 
 private:
     void applyReverbSettings (bool force) noexcept;
+    void processCloud (const float* left, const float* right, int numSamples) noexcept;
+    void processPlates (const float* left, const float* right, int numSamples) noexcept;
+
+    // Plate, Room and Shimmer, in SpaceMode order after Cloud.
+    std::array<FdnReverb, kModes - 1> fdn;
+    std::array<util::LinearSmoother, kModes> engineInput; // 0 … 1 per mode
+    std::array<std::int64_t, kModes> engineQuiet{};       // samples its output has been quiet
+    std::array<std::vector<float>, 2> engineIn, engineOut;
+    bool firstEngineChunk = true;
 
     std::unique_ptr<Cloudseed::ReverbController> reverb;
     int preparedSampleRate = 0;
