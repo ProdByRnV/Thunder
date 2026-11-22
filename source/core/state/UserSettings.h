@@ -21,6 +21,10 @@ struct UserSettings
     juce::String presetAuthor;         // remembered after the first save (UI.md §9.16)
     float uiScale = 0.0f;              // the editor size last chosen (UI.md §10.3); 0 = not set
     bool showTooltips = true;          // UI.md §10.3
+    bool spectrumByDefault = false;    // the visualiser view for projects that haven't chosen one (UI.md §10.3)
+    int visualiserBars = 2;            // the waveform's time window: 1, 2 or 4 bars (UI.md §10.1)
+    bool showDry = true;               // the dry signal in the waveform and the spectrum
+    bool showGrains = true;            // the live grain view (UI.md §9.19)
 
     // `<user documents>/Thunder/Captures`.
     static juce::File defaultCapturesFolder();
@@ -41,7 +45,9 @@ struct UserSettings
     {
         return capturesFolder == other.capturesFolder && captureFormat == other.captureFormat &&
                preservePresetSession == other.preservePresetSession && presetAuthor == other.presetAuthor &&
-               juce::exactlyEqual (uiScale, other.uiScale) && showTooltips == other.showTooltips;
+               juce::exactlyEqual (uiScale, other.uiScale) && showTooltips == other.showTooltips &&
+               spectrumByDefault == other.spectrumByDefault && visualiserBars == other.visualiserBars &&
+               showDry == other.showDry && showGrains == other.showGrains;
     }
 };
 

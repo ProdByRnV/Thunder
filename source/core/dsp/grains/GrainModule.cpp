@@ -220,6 +220,7 @@ void GrainModule::startGrain (int offset, std::int64_t now, int length, double m
     slot->step = reverse ? -rate : rate;
     slot->firstPosition = reverse ? static_cast<double> (length - 1) * rate : 0.0;
     slot->windowStep = static_cast<float> (GrainWindow::kSegments) / static_cast<float> (length);
+    slot->pan = pan;
 
     if (numChannels < 2 || juce::exactlyEqual (pan, 0.0f))
     {

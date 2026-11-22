@@ -17,7 +17,17 @@ juce::String percent (float scale)
     return juce::String (juce::roundToInt (scale * 100.0f)) + "%";
 }
 
-constexpr int kRows = 5;
+// The rows, top to bottom.
+enum Row
+{
+    scaleRow,
+    viewRow,
+    tooltipsRow,
+    formatRow,
+    folderRow,
+    preserveRow,
+    kRows
+};
 
 // The last parts of a long path ("…/Thunder/Captures"); the tooltip has all of it.
 juce::String shortPath (const juce::File& folder)
@@ -51,6 +61,7 @@ void SettingsPanel::PillToggle::paintButton (juce::Graphics& g, bool highlighted
 
 SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
     : processor (p)
+    , viewControl ("Default visualiser view", {"Wave", "Spectrum"}, [this] (int i) { setSpectrumByDefault (i == 1); })
     , formatControl ("Capture format", {"24-bit", "32-bit float"}, [this] (int i) { setCaptureFormat (i == 1); })
 {
     setTitle ("Settings");
@@ -72,6 +83,10 @@ SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
         if (juce::approximatelyEqual (size::scalePresets[i], currentScale))
             scaleBox.setSelectedItemIndex (i, juce::dontSendNotification);
     addAndMakeVisible (scaleBox);
+
+    addLabel ("Visualiser");
+    viewControl.setTooltip ("The view new projects open with: the waveform or the spectrum");
+    addAndMakeVisible (viewControl);
 
     addLabel ("Show tooltips");
     tooltipsToggle.setTooltip ("Show what a control does when the pointer rests on it");
@@ -120,6 +135,7 @@ void SettingsPanel::refresh()
 {
     const auto settings = state::UserSettings::load (processor.getSettingsFile());
     tooltipsToggle.setToggleState (settings.showTooltips, juce::dontSendNotification);
+    viewControl.setSelectedOption (settings.spectrumByDefault ? 1 : 0);
     formatControl.setSelectedOption (settings.captureFormat == capture::CaptureFormat::Float32 ? 1 : 0);
     preserveToggle.setToggleState (processor.getPresetManager().getPreserveSession(), juce::dontSendNotification);
 
@@ -171,21 +187,24 @@ void SettingsPanel::resized()
     for (int i = 0; i < labels.size(); ++i)
     {
         auto row = nextRow();
-        if (i == 3)
+        if (i == folderRow)
             labels[i]->setBounds (row.removeFromLeft (size::settingsLabelWidth / 2));
 
         switch (i)
         {
-            case 0:
+            case scaleRow:
                 scaleBox.setBounds (control (row, size::barsDropdownWidth, size::controlHeight));
                 break;
-            case 1:
+            case viewRow:
+                viewControl.setBounds (control (row, 2 * size::segmentedSegment, size::controlHeight));
+                break;
+            case tooltipsRow:
                 tooltipsToggle.setBounds (control (row, size::toggleWidth + space::s3, size::controlHeight));
                 break;
-            case 2:
+            case formatRow:
                 formatControl.setBounds (control (row, 2 * size::segmentedSegment, size::controlHeight));
                 break;
-            case 3:
+            case folderRow:
             {
                 changeFolderButton.setBounds (control (row, size::dialogButtonWidth, size::controlHeight));
                 if (defaultFolderButton.isVisible())
@@ -198,7 +217,7 @@ void SettingsPanel::resized()
                 break;
         }
 
-        if (i != 3)
+        if (i != folderRow)
             labels[i]->setBounds (row);
     }
 }
@@ -234,6 +253,14 @@ void SettingsPanel::setShowTooltips (bool show)
     tooltipsToggle.setToggleState (show, juce::dontSendNotification);
     if (onShowTooltips)
         onShowTooltips (show);
+}
+
+void SettingsPanel::setSpectrumByDefault (bool spectrum)
+{
+    auto settings = state::UserSettings::load (processor.getSettingsFile());
+    settings.spectrumByDefault = spectrum;
+    settings.save (processor.getSettingsFile());
+    refresh();
 }
 
 void SettingsPanel::setCaptureFormat (bool float32)

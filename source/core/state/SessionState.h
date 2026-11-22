@@ -11,6 +11,14 @@ enum class CaptureSource
     FullMix
 };
 
+// The visualiser's view in this session (UI.md §8.2); not set = the global default.
+enum class VisualiserView
+{
+    notSet,
+    wave,
+    spectrum
+};
+
 // Per-session settings that are saved with the host session but are not host
 // parameters (PRD §9.12). Fields are added here as their features arrive.
 //
@@ -23,6 +31,7 @@ struct SessionState
     int captureBars = 4;    // 1, 2, 4, 8 or 16
     CaptureSource captureSource = CaptureSource::Layer;
     float uiScale = 0.0f; // the editor size this session last used (UI.md §10.3); 0 = not set
+    VisualiserView uiView = VisualiserView::notSet;
 
     juce::ValueTree toValueTree() const;
 
@@ -34,7 +43,8 @@ struct SessionState
     {
         return presetName == other.presetName && presetModified == other.presetModified &&
                presetKey == other.presetKey && captureBars == other.captureBars &&
-               captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale);
+               captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale) &&
+               uiView == other.uiView;
     }
 };
 

@@ -236,13 +236,22 @@ void SpacePanel::layoutBody (juce::Rectangle<int> area)
 // ---- Tone (§11.6)
 // ------------------------------------------------------------------------------------------------------
 
-TonePanel::TonePanel (juce::AudioProcessorValueTreeState& state)
+TonePanel::TonePanel (juce::AudioProcessorValueTreeState& state, const VisualModel& visuals)
     : ModulePanel (state, "Tone", ParamId::toneOn)
     , highPass (addKnob (ParamId::hpFreq, "High-pass"))
     , highPassSlope (addSegmented (ParamId::hpSlope, {}, {"12", "24"}))
     , lowPass (addKnob (ParamId::lpFreq, "Low-pass"))
     , lowPassSlope (addSegmented (ParamId::lpSlope, {}, {"12", "24"}))
+    , curve (visuals, state, true)
 {
+    body.addAndMakeVisible (curve);
+    body.addAndMakeVisible (openSpectrum);
+    openSpectrum.setTooltip ("Show the spectrum and the filter curve in the visualiser.");
+    openSpectrum.onClick = [this]
+    {
+        if (onOpenSpectrum)
+            onOpenSpectrum();
+    };
 }
 
 void TonePanel::layoutBody (juce::Rectangle<int> area)
@@ -255,6 +264,13 @@ void TonePanel::layoutBody (juce::Rectangle<int> area)
     highPassSlope.setBounds (slope (cell (row, 1)));
     lowPass.setBounds (knobIn (cell (row, 2), ThunderKnob::Size::medium));
     lowPassSlope.setBounds (slope (cell (row, 3)));
+
+    area.removeFromTop (space::s2);
+    auto row2 = area.removeFromTop (size::toneCurveHeight);
+    curve.setBounds (row2.removeFromLeft (size::toneCurveWidth));
+    row2.removeFromLeft (space::s4);
+    openSpectrum.setBounds (row2.removeFromLeft (size::dialogButtonWidth * 2)
+                                .withSizeKeepingCentre (size::dialogButtonWidth * 2, size::controlHeight));
 }
 
 // ---- Width (§11.7)

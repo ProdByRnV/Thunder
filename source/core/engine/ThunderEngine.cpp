@@ -35,6 +35,7 @@ void ThunderEngine::prepare (double newSampleRate)
     layerTapLimiter.prepare (sampleRate);
     layerTapActive = false;
     capture.prepare (sampleRate, latencySamples);
+    visual.prepare (sampleRate, kMaxChunkSize, chainLatency);
 
     inputGain.prepare (sampleRate);
     layerLevel.prepare (sampleRate);
@@ -109,6 +110,7 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
     if (capture.wantsLayer() && !layerTapActive)
         layerTapLimiter.reset();
     layerTapActive = capture.wantsLayer();
+    visual.beginBlock();
 
     for (int offset = 0; offset < numSamples;)
     {
@@ -148,6 +150,10 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     autoGain.process (channels, dryChannels, kNumChannels, numSamples, context.params.isOn (ParamId::autoGain));
     layerLevel.apply (channels, kNumChannels, numSamples);
 
+    // The visualiser sees the aligned dry signal and the layer before the mix.
+    if (visual.isActive())
+        visual.tapLayer (channels, dryChannels, numSamples);
+
     float* tapChannels[kNumChannels] = {layerTap[0].data(), layerTap[1].data()};
     if (layerTapActive)
         for (int ch = 0; ch < kNumChannels; ++ch)
@@ -175,6 +181,13 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
     }
 
     capture.process (channels, layerTapActive ? tapChannels : nullptr, numSamples, context.transport, context.params);
+
+    // ... and the final output, for the meters, and where the grains read.
+    if (visual.isActive())
+    {
+        visual.tapOutput (channels, numSamples, context.transport, limiter.getGainReductionDb());
+        visual.tapGrains (grains.get(), grains.isActive(), numSamples);
+    }
 }
 
 void ThunderEngine::runModule (Module& module, juce::dsp::AudioBlock<float>& block,

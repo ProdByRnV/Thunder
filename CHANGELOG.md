@@ -15,9 +15,16 @@ Each release's notes on GitHub are taken from its section below.
   - ↺ next to a module's switch resets all of that module's controls.
   - Hover over any control to see what it does, with its value and range.
   - Resize the window from its corner in 5% steps, from 75% to 200%, or pick a size in Settings. Each project remembers its size, and a window that wouldn't fit your screen opens smaller.
-  - **Settings** (the gear): window size, tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
+  - **Settings** (the gear): window size, the visualiser view new projects open with, tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
   - **About** (ⓘ or the logo) shows the version and a link for reporting an issue.
   - Every control gives screen readers its name, what it does and its value.
+- **Visualiser**, live while your song plays:
+  - **Wave**: your melody (dim) and the layer (glowing) scroll by in time with your song, with its bar numbers and beat lines. Right-click to show 1, 2 or 4 bars, freeze the display, or hide the dry signal.
+  - **Grains** appear as sparks over the waveform: further left reads further back, higher is pitched up, violet is panned out. Right-click → Show grains to hide them.
+  - **Spectrum**: the layer and your melody from 20 Hz to 20 kHz, with the Tone filter curve on top. Drag its handles to set the high-pass and low-pass. The Tone module has a small version of the curve, and Open in Spectrum.
+  - Switch with WAVE | SPECTRUM in the corner. Each project remembers its view; Settings chooses the one new projects open with.
+  - When playback stops the picture holds, then dims.
+- **Meters** in the Output panel: the level of each channel with peak hold and clip lights (click to clear), the short-term loudness in LUFS, a correlation line that turns amber when parts of the sound would cancel in mono, and a ⚠ while the safety limiter is working.
 - **Presets**:
   - 12 built-in presets, plus Init, which resets every control.
   - ◄ and ► step through the presets; click the name for the full list. A `*` shows when you've changed the sound.

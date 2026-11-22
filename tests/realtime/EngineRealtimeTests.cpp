@@ -398,3 +398,50 @@ TEST_CASE ("Switching presets while playing does not allocate or block on the au
     CHECK (total.allocations == 0);
     CHECK (total.deallocations == 0);
 }
+
+TEST_CASE ("Feeding the visualiser does not allocate or block", "[realtime][visual]")
+{
+    // An editor showing everything: frames, spectrum samples and grain
+    // snapshots, read on this thread between blocks as the editor's timer would.
+    ThunderProcessor processor;
+    processor.prepareToPlay (48000.0, 512);
+    auto& bridge = processor.getUiBridge();
+    bridge.setWanted (UiBridge::kFrames | UiBridge::kSpectrum | UiBridge::kGrains);
+
+    juce::AudioBuffer<float> normal (2, 512), large (2, 4096);
+    for (auto* b : {&normal, &large})
+        for (int ch = 0; ch < 2; ++ch)
+            for (int i = 0; i < b->getNumSamples(); ++i)
+                b->setSample (ch, i, 0.2f * std::sin (0.05f * static_cast<float> (i)));
+
+    juce::MidiBuffer midi;
+    test::RealtimeReport total;
+    std::vector<visual::WaveFrame> frames (2048);
+    std::vector<visual::SpectrumSample> samples (8192);
+    visual::GrainSnapshot grains;
+
+    for (int round = 0; round < 20; ++round)
+    {
+        accumulate (total, test::runInRealtimeSection (
+                               [&]
+                               {
+                                   for (int b = 0; b < 8; ++b)
+                                       processor.processBlock (normal, midi);
+                                   processor.processBlock (large, midi);
+                               }));
+
+        while (bridge.readFrames (frames.data(), 2048) > 0)
+        {
+        }
+        while (bridge.readSpectrum (samples.data(), 8192) > 0)
+        {
+        }
+        while (bridge.readGrains (grains))
+        {
+        }
+    }
+
+    CHECK (total.allocations == 0);
+    CHECK (total.deallocations == 0);
+    bridge.setWanted (0);
+}

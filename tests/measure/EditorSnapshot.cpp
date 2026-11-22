@@ -3,6 +3,7 @@
 
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
+#include "support/TestHost.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -56,5 +57,51 @@ TEST_CASE ("Editor snapshot", "[.][editorshot]")
     e.openSaveForm (true);
     save (e, "saveform", 1.0f);
 
+    processor.editorBeingDeleted (editor.get());
+}
+
+TEST_CASE ("Editor snapshot with the visualiser playing", "[.][editorshot]")
+{
+    constexpr double rate = 48000.0;
+    ThunderProcessor processor;
+    processor.setSettingsFile (
+        juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Thunder-editorshot-settings.xml"));
+    processor.prepareToPlay (rate, 512);
+    test::TestPlayHead head;
+    head.bpm = 110.0;
+    processor.setPlayHead (&head);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+    e.selectModule (1);
+
+    // Grains spread in pitch and pan, so the sparks spread out.
+    auto& apvts = processor.getValueTreeState();
+    for (const auto& [id, value] : {std::pair<const char*, float>{"grainPitchSpread", 7.0f},
+                                    {"grainPanSpread", 80.0f},
+                                    {"grainDensity", 40.0f},
+                                    {"grainPosSpread", 60.0f}})
+    {
+        auto* p = apvts.getParameter (id);
+        p->setValueNotifyingHost (p->convertTo0to1 (value));
+    }
+
+    // As the frame timer would: a frame after every block (~10.7 ms here).
+    const auto frame = [&e] { e.updateVisuals (true, 512.0 / rate); };
+    e.updateVisuals (true, 0.0);
+    test::playMelody (processor, head, 7.0, rate, 512, frame);
+    save (e, "visualiser-wave", 1.0f);
+    save (e, "visualiser-wave-200", 2.0f);
+
+    e.showSpectrum();
+    e.updateVisuals (true, 0.0);
+    test::playMelody (processor, head, 1.0, rate, 512, frame);
+    save (e, "visualiser-spectrum", 1.0f);
+
+    e.selectModule (3);
+    test::playMelody (processor, head, 0.5, rate, 512, frame);
+    save (e, "visualiser-tone", 1.0f);
+
+    processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
 }

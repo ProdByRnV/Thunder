@@ -128,6 +128,17 @@ inline Icon close()
     return icon;
 }
 
+// Warning (⚠): a filled triangle with the "!" cut out, so it reads at 10 px.
+inline juce::Path warning()
+{
+    juce::Path p;
+    p.addTriangle (0.5f, 0.06f, 0.97f, 0.92f, 0.03f, 0.92f);
+    p.addRoundedRectangle (0.44f, 0.34f, 0.12f, 0.32f, 0.05f);
+    p.addEllipse (0.44f, 0.71f, 0.12f, 0.12f);
+    p.setUsingNonZeroWinding (false);
+    return p;
+}
+
 inline Icon fromPath (const juce::Path& filled)
 {
     Icon icon;

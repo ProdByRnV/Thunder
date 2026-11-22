@@ -1,0 +1,168 @@
+#include "VisualiserRegion.h"
+
+#include "plugin/ui/theme/ThunderTheme.h"
+
+namespace thunder::ui
+{
+
+using namespace theme;
+
+// Shows the view toggle at full strength while the pointer is over it.
+class VisualiserRegion::HoverFade final : public juce::MouseListener
+{
+public:
+    explicit HoverFade (juce::Component& c)
+        : target (c)
+    {
+        target.addMouseListener (this, true);
+        update();
+    }
+
+    ~HoverFade() override { target.removeMouseListener (this); }
+
+    void mouseEnter (const juce::MouseEvent&) override { update(); }
+    void mouseExit (const juce::MouseEvent&) override { update(); }
+
+    void update() { target.setAlpha (target.isMouseOver (true) ? 1.0f : opacity::viewToggle); }
+
+private:
+    juce::Component& target;
+};
+
+VisualiserRegion::VisualiserRegion (VisualModel& m, juce::AudioProcessorValueTreeState& apvts)
+    : model (m)
+    , waveform (m)
+    , spectrum (m, apvts)
+    , toggle ("Visualiser view", {"Wave", "Spectrum"},
+              [this] (int index) { chooseView (index == 0 ? View::wave : View::spectrum); })
+{
+    setTitle ("Visualiser");
+    setDescription ("The dry signal and the layer as they play. Right-click for the time window and display options.");
+
+    addAndMakeVisible (waveform);
+    addChildComponent (spectrum);
+    addAndMakeVisible (toggle);
+    hoverFade = std::make_unique<HoverFade> (toggle);
+    setView (View::wave);
+}
+
+VisualiserRegion::~VisualiserRegion() = default;
+
+void VisualiserRegion::resized()
+{
+    // Inside the well's border.
+    const auto inner = getLocalBounds().reduced (static_cast<int> (border::width));
+    waveform.setBounds (inner);
+    spectrum.setBounds (inner);
+    toggle.setBounds (
+        inner.reduced (space::s2).removeFromBottom (size::viewToggleHeight).removeFromRight (size::viewToggleWidth));
+}
+
+void VisualiserRegion::mouseDown (const juce::MouseEvent& e)
+{
+    if (!e.mods.isPopupMenu())
+        return;
+
+    buildMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition(),
+                               [safe = juce::Component::SafePointer<VisualiserRegion> (this)] (int result)
+                               {
+                                   if (safe != nullptr && result != 0)
+                                       safe->chooseMenuItem (result);
+                               });
+}
+
+void VisualiserRegion::setView (View newView)
+{
+    view = newView;
+    waveform.setVisible (view == View::wave);
+    spectrum.setVisible (view == View::spectrum);
+    toggle.setSelectedOption (view == View::wave ? 0 : 1);
+}
+
+void VisualiserRegion::chooseView (View newView)
+{
+    if (newView == view)
+        return;
+
+    setView (newView);
+    if (onViewChosen)
+        onViewChosen (view);
+}
+
+void VisualiserRegion::setOptions (const Options& newOptions)
+{
+    options = newOptions;
+    waveform.setBars (options.bars);
+    waveform.setShowDry (options.showDry);
+    waveform.setShowGrains (options.showGrains);
+    spectrum.setShowDry (options.showDry);
+}
+
+std::uint32_t VisualiserRegion::wantedParts() const noexcept
+{
+    // The meters always need frames.
+    auto parts = UiBridge::kFrames;
+    if (view == View::spectrum)
+        parts |= UiBridge::kSpectrum;
+    else if (options.showGrains)
+        parts |= UiBridge::kGrains;
+    return parts;
+}
+
+void VisualiserRegion::refresh (const VisualModel::Changes& changes, double seconds)
+{
+    if (view == View::wave)
+    {
+        const auto grains = waveform.takeGrains (seconds);
+        if (changes.waveform || grains)
+            waveform.repaint();
+    }
+    else if (changes.spectrum)
+    {
+        spectrum.repaint();
+    }
+}
+
+juce::PopupMenu VisualiserRegion::buildMenu() const
+{
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("Time window");
+    for (const auto bars : {1, 2, 4})
+        menu.addItem (kMenuBars + bars, bars == 1 ? juce::String ("1 bar") : juce::String (bars) + " bars", true,
+                      options.bars == bars);
+    menu.addSeparator();
+    menu.addItem (kMenuFreeze, "Freeze display", true, model.isFrozen());
+    menu.addItem (kMenuShowDry, "Show dry", true, options.showDry);
+    menu.addItem (kMenuShowGrains, "Show grains", view == View::wave, options.showGrains);
+    return menu;
+}
+
+void VisualiserRegion::chooseMenuItem (int itemId)
+{
+    auto next = options;
+    switch (itemId)
+    {
+        case kMenuBars + 1:
+        case kMenuBars + 2:
+        case kMenuBars + 4:
+            next.bars = itemId - kMenuBars;
+            break;
+        case kMenuFreeze:
+            model.setFrozen (!model.isFrozen());
+            return;
+        case kMenuShowDry:
+            next.showDry = !next.showDry;
+            break;
+        case kMenuShowGrains:
+            next.showGrains = !next.showGrains;
+            break;
+        default:
+            return;
+    }
+
+    setOptions (next);
+    if (onOptionsChanged)
+        onOptionsChanged (options);
+}
+
+} // namespace thunder::ui

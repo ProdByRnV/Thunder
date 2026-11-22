@@ -4,7 +4,9 @@
 #include "plugin/ui/components/Buttons.h"
 #include "plugin/ui/components/Controls.h"
 #include "plugin/ui/components/ThunderKnob.h"
+#include "plugin/ui/visualiser/SpectrumView.h"
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -109,10 +111,18 @@ private:
     ThunderKnob& damping;
 };
 
+// Row 2 (UI.md §11.6): the filter curve over the live spectrum, with the same
+// draggable handles as the spectrum view, and "Open in Spectrum".
 class TonePanel final : public ModulePanel
 {
 public:
-    explicit TonePanel (juce::AudioProcessorValueTreeState& apvts);
+    TonePanel (juce::AudioProcessorValueTreeState& apvts, const VisualModel& visuals);
+
+    SpectrumView& getCurve() noexcept { return curve; }
+    ThunderButton& getOpenSpectrumButton() noexcept { return openSpectrum; }
+
+    // Set by the editor: show the spectrum view in the visualiser.
+    std::function<void()> onOpenSpectrum;
 
 private:
     void layoutBody (juce::Rectangle<int> area) override;
@@ -121,6 +131,8 @@ private:
     SegmentedControl& highPassSlope;
     ThunderKnob& lowPass;
     SegmentedControl& lowPassSlope;
+    SpectrumView curve;
+    ThunderButton openSpectrum{juce::String ("Open in Spectrum"), ThunderButton::Variant::ghost};
 };
 
 class WidthPanel final : public ModulePanel

@@ -14,6 +14,10 @@ constexpr const char* kPreservePresetSessionKey = "preservePresetSession";
 constexpr const char* kPresetAuthorKey = "presetAuthor";
 constexpr const char* kUiScaleKey = "uiScale";
 constexpr const char* kShowTooltipsKey = "showTooltips";
+constexpr const char* kVisualiserViewKey = "visualiserView";
+constexpr const char* kVisualiserBarsKey = "visualiserBars";
+constexpr const char* kShowDryKey = "visualiserShowDry";
+constexpr const char* kShowGrainsKey = "visualiserShowGrains";
 
 constexpr const char* kFormat24 = "int24";
 constexpr const char* kFormat32f = "float32";
@@ -79,6 +83,11 @@ UserSettings UserSettings::load (const juce::File& file)
         settings.uiScale = scale;
 
     settings.showTooltips = properties.getBoolValue (kShowTooltipsKey, true);
+    settings.spectrumByDefault = properties.getValue (kVisualiserViewKey) == "spectrum";
+    if (const auto bars = properties.getIntValue (kVisualiserBarsKey, 2); bars == 1 || bars == 2 || bars == 4)
+        settings.visualiserBars = bars;
+    settings.showDry = properties.getBoolValue (kShowDryKey, true);
+    settings.showGrains = properties.getBoolValue (kShowGrainsKey, true);
 
     return settings;
 }
@@ -97,6 +106,10 @@ bool UserSettings::save (const juce::File& file) const
     if (uiScale > 0.0f)
         properties.setValue (kUiScaleKey, static_cast<double> (uiScale));
     properties.setValue (kShowTooltipsKey, showTooltips);
+    properties.setValue (kVisualiserViewKey, spectrumByDefault ? "spectrum" : "wave");
+    properties.setValue (kVisualiserBarsKey, visualiserBars);
+    properties.setValue (kShowDryKey, showDry);
+    properties.setValue (kShowGrainsKey, showGrains);
     return properties.save();
 }
 

@@ -33,6 +33,8 @@ juce::ValueTree SessionState::toValueTree() const
     tree.setProperty (ids::captureSource, toName (captureSource), nullptr);
     if (uiScale > 0.0f)
         tree.setProperty (ids::uiScale, uiScale, nullptr);
+    if (uiView != VisualiserView::notSet)
+        tree.setProperty (ids::uiView, uiView == VisualiserView::spectrum ? "spectrum" : "wave", nullptr);
     return tree;
 }
 
@@ -58,6 +60,11 @@ SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
 
     if (tree.getProperty (ids::captureSource).toString() == toName (CaptureSource::FullMix))
         s.captureSource = CaptureSource::FullMix;
+
+    if (const auto view = tree.getProperty (ids::uiView).toString(); view == "wave")
+        s.uiView = VisualiserView::wave;
+    else if (view == "spectrum")
+        s.uiView = VisualiserView::spectrum;
 
     return s;
 }

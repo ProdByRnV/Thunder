@@ -3,10 +3,10 @@
 #include "ThunderProcessor.h"
 #include "core/state/UserSettings.h"
 #include "ui/theme/ThunderFonts.h"
-#include "ui/theme/ThunderIcons.h"
 #include "ui/theme/ThunderPaint.h"
 #include "ui/theme/ThunderTheme.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace thunder
@@ -81,13 +81,6 @@ void ThunderEditor::Content::paintStatic (juce::Graphics& g)
     g.setColour (colour::borderSubtle);
     g.drawRoundedRectangle (well.reduced (border::width * 0.5f), radius::md, border::width);
 
-    // Thunder's bolt until the visualiser arrives (ROADMAP T-0.6-04/05).
-    const auto glyph =
-        juce::Rectangle<float> (static_cast<float> (size::placeholderBolt), static_cast<float> (size::placeholderBolt))
-            .withCentre (well.getCentre());
-    g.setColour (colour::accentPrimary.withAlpha (opacity::placeholder));
-    g.fillPath (ui::icons::fitted (ui::icons::bolt(), glyph));
-
     g.setColour (colour::borderSubtle);
     g.drawHorizontalLine (region.getBottom(), 0.0f, static_cast<float> (getWidth()));
 
@@ -104,8 +97,8 @@ void ThunderEditor::Content::resized()
     auto area = getLocalBounds();
     owner.topBar.setBounds (area.removeFromTop (size::topBarHeight));
 
-    const auto visualiser = area.removeFromTop (size::visualiserHeight);
-    const auto well = visualiserWell (visualiser);
+    const auto well = visualiserWell (area.removeFromTop (size::visualiserHeight));
+    owner.visualiser.setBounds (well);
     owner.toast.setBounds (
         well.reduced (space::s3).removeFromTop (size::toastHeight).removeFromRight (size::toastWidth));
 
@@ -150,14 +143,16 @@ void ThunderEditor::ScaleConstrainer::checkBounds (juce::Rectangle<int>& bounds,
 ThunderEditor::ThunderEditor (ThunderProcessor& p)
     : AudioProcessorEditor (p)
     , thunderProcessor (p)
+    , visuals (p.getUiBridge())
     , content (*this)
     , topBar (p.getValueTreeState(), p.getPresetManager())
+    , visualiser (visuals, p.getValueTreeState())
     , chain (p.getValueTreeState(), {{"Pitch", ParamId::pitchOn},
                                      {"Grains", ParamId::grainOn},
                                      {"Space", ParamId::spaceOn},
                                      {"Tone", ParamId::toneOn},
                                      {"Width", ParamId::widthOn}})
-    , output (p.getValueTreeState())
+    , output (p.getValueTreeState(), visuals.getMeters())
     , captureWidget (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -167,11 +162,14 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     modules.push_back (std::make_unique<ui::PitchPanel> (apvts));
     modules.push_back (std::make_unique<ui::GrainsPanel> (apvts));
     modules.push_back (std::make_unique<ui::SpacePanel> (apvts));
-    modules.push_back (std::make_unique<ui::TonePanel> (apvts));
+    auto tone = std::make_unique<ui::TonePanel> (apvts, visuals);
+    tonePanel = tone.get();
+    modules.push_back (std::move (tone));
     modules.push_back (std::make_unique<ui::WidthPanel> (apvts));
 
     // Children in reading order, which is also the keyboard order (UI.md §14).
     content.addAndMakeVisible (topBar);
+    content.addAndMakeVisible (visualiser);
     content.addAndMakeVisible (chain);
     for (auto& m : modules)
         content.addChildComponent (*m);
@@ -186,6 +184,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     topBar.getPresetBar().onError = [this] (const juce::String& text) { showMessage (text, true); };
     topBar.onSettings = [this] { openSettings(); };
     topBar.onAbout = [this] { openAbout(); };
+    tonePanel->onOpenSpectrum = [this] { showSpectrum(); };
 
     // Status (UI.md §8.6): the latency the host compensates for, and the version.
     const auto sampleRate = p.getSampleRate() > 0.0 ? p.getSampleRate() : 48000.0;
@@ -202,6 +201,29 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
 
     const auto settings = state::UserSettings::load (p.getSettingsFile());
     showTooltips (settings.showTooltips);
+
+    // The visualiser: the menu's choices are global, the view is the project's
+    // (or the default from Settings).
+    ui::VisualiserRegion::Options options;
+    options.bars = settings.visualiserBars;
+    options.showDry = settings.showDry;
+    options.showGrains = settings.showGrains;
+    visualiser.setOptions (options);
+    {
+        const auto view = p.getSessionState().uiView;
+        const auto spectrum = view == state::VisualiserView::spectrum ||
+                              (view == state::VisualiserView::notSet && settings.spectrumByDefault);
+        visualiser.setView (spectrum ? ui::VisualiserRegion::View::spectrum : ui::VisualiserRegion::View::wave);
+    }
+    visualiser.onViewChosen = [this] (ui::VisualiserRegion::View view) { rememberView (view); };
+    visualiser.onOptionsChanged = [this] (const ui::VisualiserRegion::Options& chosen)
+    {
+        auto s = state::UserSettings::load (thunderProcessor.getSettingsFile());
+        s.visualiserBars = chosen.bars;
+        s.showDry = chosen.showDry;
+        s.showGrains = chosen.showGrains;
+        s.save (thunderProcessor.getSettingsFile());
+    };
 
     // Fixed aspect ratio, 75–200%, 5% steps (UI.md §7.1).
     scaleConstrainer.setSizeLimits (
@@ -230,11 +252,16 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
         openGL.attachTo (*this);
     }
 
+    // The visualiser's frames (UI-FX-004: 60 fps).
+    startTimerHz (motion::frameHz);
+
     constructed = true;
 }
 
 ThunderEditor::~ThunderEditor()
 {
+    stopTimer();
+    visuals.setWanted (0); // the audio thread stops the visual work
     openGL.detach();
     setLookAndFeel (nullptr);
 }
@@ -360,6 +387,62 @@ void ThunderEditor::openAbout()
 void ThunderEditor::showMessage (const juce::String& text, bool isError)
 {
     toast.show (text, isError);
+}
+
+// ---- Visualiser
+// ------------------------------------------------------------------------------------------------------
+
+void ThunderEditor::timerCallback()
+{
+    const auto now = juce::Time::getMillisecondCounterHiRes();
+    // A long stall (a blocked message thread) shouldn't make meters jump.
+    constexpr double kMaxStep = 0.25;
+    const auto seconds = lastFrameMs > 0.0 ? std::min (kMaxStep, (now - lastFrameMs) / 1000.0) : 0.0;
+    lastFrameMs = now;
+
+    // Hidden (minimised, another tab, closed host window): check a few times a
+    // second instead of 60.
+    constexpr int kHiddenCheckHz = 4;
+    const auto showing = isShowing();
+    if (showing != (getTimerInterval() < 1000 / kHiddenCheckHz))
+        startTimerHz (showing ? motion::frameHz : kHiddenCheckHz);
+
+    updateVisuals (showing, seconds);
+}
+
+void ThunderEditor::updateVisuals (bool showing, double seconds)
+{
+    auto parts = 0u;
+    if (showing)
+    {
+        parts = visualiser.wantedParts();
+        if (tonePanel->isVisible())
+            parts |= UiBridge::kSpectrum; // the Tone module's mini curve
+    }
+    visuals.setWanted (parts);
+    if (parts == 0)
+        return;
+
+    const auto changes = visuals.update (seconds);
+    visualiser.refresh (changes, seconds);
+    if (changes.meters)
+        output.refreshMeters();
+    if (changes.spectrum && tonePanel->isVisible())
+        tonePanel->getCurve().repaint();
+}
+
+void ThunderEditor::rememberView (ui::VisualiserRegion::View view)
+{
+    auto session = thunderProcessor.getSessionState();
+    session.uiView =
+        view == ui::VisualiserRegion::View::spectrum ? state::VisualiserView::spectrum : state::VisualiserView::wave;
+    thunderProcessor.setSessionState (session);
+}
+
+void ThunderEditor::showSpectrum()
+{
+    visualiser.setView (ui::VisualiserRegion::View::spectrum);
+    rememberView (ui::VisualiserRegion::View::spectrum);
 }
 
 } // namespace thunder

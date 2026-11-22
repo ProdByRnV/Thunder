@@ -22,5 +22,6 @@ inline const juce::Identifier presetKey{"presetKey"};
 inline const juce::Identifier captureBars{"captureBars"};
 inline const juce::Identifier captureSource{"captureSource"};
 inline const juce::Identifier uiScale{"uiScale"};
+inline const juce::Identifier uiView{"uiView"};
 
 } // namespace thunder::state::ids

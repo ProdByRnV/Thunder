@@ -8,8 +8,10 @@
 #include "ui/regions/ModulePanels.h"
 #include "ui/regions/OutputPanel.h"
 #include "ui/regions/TopBar.h"
+#include "ui/regions/VisualiserRegion.h"
 #include "ui/theme/ThunderLookAndFeel.h"
 #include "ui/theme/ThunderPaint.h"
+#include "ui/visualiser/VisualModel.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_opengl/juce_opengl.h>
@@ -26,7 +28,7 @@ class ThunderProcessor;
 // Thunder's editor (UI.md §7–§10; PRD UI-GEN-001/002, UI-FX-004):
 //
 //   top bar      logo · presets · key · settings · about
-//   visualiser   (the well; the visualiser itself arrives next)
+//   visualiser   waveform or spectrum, live (UI.md §8.2)
 //   chain        IN · Pitch · Grains · Space · Tone · Width · OUT
 //   module       the selected module's controls      │ output
 //   bottom bar   capture                              status
@@ -41,7 +43,9 @@ class ThunderProcessor;
 // on Linux, JUCE's normal renderer draws the same thing (DEC-048). The editor
 // only talks to the processor through parameters, the preset manager, the
 // session state and the capture API.
-class ThunderEditor final : public juce::AudioProcessorEditor
+class ThunderEditor final
+    : public juce::AudioProcessorEditor
+    , private juce::Timer
 {
 public:
     explicit ThunderEditor (ThunderProcessor& processor);
@@ -58,6 +62,9 @@ public:
     ui::ChainRail& getChain() noexcept { return chain; }
     ui::TopBar& getTopBar() noexcept { return topBar; }
     ui::OutputPanel& getOutputPanel() noexcept { return output; }
+    ui::VisualiserRegion& getVisualiser() noexcept { return visualiser; }
+    ui::VisualModel& getVisualModel() noexcept { return visuals; }
+    ui::TonePanel& getTonePanel() noexcept { return *tonePanel; }
     ui::CaptureWidget& getCaptureWidget() noexcept { return captureWidget; }
     ui::SaveForm* getSaveForm() noexcept { return saveForm.get(); }
     ui::SettingsPanel* getSettingsPanel() noexcept { return settingsPanel.get(); }
@@ -69,6 +76,15 @@ public:
     void openSettings();
     void openAbout();
     void showMessage (const juce::String& text, bool isError);
+
+    // [MSG] Shows the spectrum view (and remembers it for the project).
+    void showSpectrum();
+
+    // [MSG] One frame of the visualiser and meters (PRD UI-VIS-006): reads what
+    // the audio thread sent and repaints what changed. While the window isn't
+    // showing, nothing is read and the audio thread skips the visual work. The
+    // frame timer calls it 60 times a second; tests call it directly.
+    void updateVisuals (bool showing, double seconds);
 
     // [MSG] The window at `scale` (snapped to 5%, 75–200%), remembered for the
     // project and for new ones.
@@ -119,16 +135,20 @@ private:
                           bool stretchingBottom, bool stretchingRight) override;
     };
 
+    void timerCallback() override;
     void showTooltips (bool show);
     void rememberScale();
+    void rememberView (ui::VisualiserRegion::View view);
 
     ThunderProcessor& thunderProcessor;
     ui::ThunderLookAndFeel lookAndFeel;
     juce::OpenGLContext openGL;
     ScaleConstrainer scaleConstrainer;
+    ui::VisualModel visuals; // before the regions that read it
 
     Content content;
     ui::TopBar topBar;
+    ui::VisualiserRegion visualiser;
     ui::ChainRail chain;
     std::vector<std::unique_ptr<ui::ModulePanel>> modules;
     ui::OutputPanel output;
@@ -139,6 +159,8 @@ private:
     std::unique_ptr<ui::SettingsPanel> settingsPanel;
     std::unique_ptr<ui::AboutPanel> aboutPanel;
     std::unique_ptr<juce::TooltipWindow> tooltips;
+    ui::TonePanel* tonePanel = nullptr;
+    double lastFrameMs = 0.0;
     float scale = 1.0f;
     bool constructed = false;
 

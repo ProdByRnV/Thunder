@@ -81,7 +81,10 @@ target_sources(ThunderCore INTERFACE
     core/util/Math.h
     core/util/Rng.h
     core/util/Smoother.h
-    core/util/SpscFifo.h)
+    core/util/SpscFifo.h
+    core/visual/VisualFrames.h
+    core/visual/VisualTap.cpp
+    core/visual/VisualTap.h)
 
 target_link_libraries(ThunderCore INTERFACE
     juce::juce_core
@@ -109,6 +112,7 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ThunderEditor.h
     plugin/ThunderProcessor.cpp
     plugin/ThunderProcessor.h
+    plugin/bridge/UiBridge.h
     plugin/params/ParameterLayout.cpp
     plugin/params/ParameterLayout.h
     plugin/presets/PresetManager.cpp
@@ -120,6 +124,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/components/Buttons.h
     plugin/ui/components/CaptureWidget.cpp
     plugin/ui/components/CaptureWidget.h
+    plugin/ui/components/Meters.cpp
+    plugin/ui/components/Meters.h
     plugin/ui/components/Controls.cpp
     plugin/ui/components/Controls.h
     plugin/ui/components/ThunderKnob.cpp
@@ -138,6 +144,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/regions/OutputPanel.h
     plugin/ui/regions/TopBar.cpp
     plugin/ui/regions/TopBar.h
+    plugin/ui/regions/VisualiserRegion.cpp
+    plugin/ui/regions/VisualiserRegion.h
     plugin/ui/theme/ThunderFonts.cpp
     plugin/ui/theme/ThunderFonts.h
     plugin/ui/theme/ThunderIcons.h
@@ -145,7 +153,20 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/theme/ThunderLookAndFeel.h
     plugin/ui/theme/ThunderPaint.cpp
     plugin/ui/theme/ThunderPaint.h
-    plugin/ui/theme/ThunderTheme.h)
+    plugin/ui/theme/ThunderTheme.h
+    plugin/ui/visualiser/FilterResponse.h
+    plugin/ui/visualiser/MeterModel.cpp
+    plugin/ui/visualiser/MeterModel.h
+    plugin/ui/visualiser/SpectrumAnalyser.cpp
+    plugin/ui/visualiser/SpectrumAnalyser.h
+    plugin/ui/visualiser/SpectrumView.cpp
+    plugin/ui/visualiser/SpectrumView.h
+    plugin/ui/visualiser/VisualModel.cpp
+    plugin/ui/visualiser/VisualModel.h
+    plugin/ui/visualiser/WaveformHistory.cpp
+    plugin/ui/visualiser/WaveformHistory.h
+    plugin/ui/visualiser/WaveformView.cpp
+    plugin/ui/visualiser/WaveformView.h)
 
 # The UI fonts (UI.md §4.1), built in when present in assets/fonts.
 set(THUNDER_FONT_FILES

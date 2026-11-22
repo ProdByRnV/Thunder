@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bridge/UiBridge.h"
 #include "core/capture/CaptureStatus.h"
 #include "core/capture/CaptureWriter.h"
 #include "core/engine/ThunderEngine.h"
@@ -88,6 +89,9 @@ public:
     // [MSG] Presets (PRD FR-PRESET-*).
     PresetManager& getPresetManager() noexcept { return presetManager; }
 
+    // [MSG] The visualiser's data (ARCHITECTURE §6.4).
+    UiBridge& getUiBridge() noexcept { return uiBridge; }
+
 private:
     juce::AudioProcessorValueTreeState apvts;
     params::ParamRefs parameterRefs{};
@@ -95,6 +99,7 @@ private:
 
     ThunderEngine engine;
     capture::CaptureWriter captureWriter{engine.getCapture()}; // after the engine: destroyed first
+    UiBridge uiBridge{engine.getVisualTap()};
     juce::File settingsFile;
 
     mutable juce::CriticalSection sessionLock; // never taken on the audio thread

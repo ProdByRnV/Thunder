@@ -18,6 +18,7 @@ target_sources(ThunderTests PRIVATE
     support/Realtime.cpp
     support/Realtime.h
     support/TestSignals.h
+    support/TestHost.h
     audio/LatencyAlignmentTests.cpp
     unit/CaptureTests.cpp
     unit/DesignSystemTests.cpp
@@ -39,6 +40,7 @@ target_sources(ThunderTests PRIVATE
     unit/TransportStateTests.cpp
     unit/ToneModuleTests.cpp
     unit/UtilTests.cpp
+    unit/VisualiserTests.cpp
     unit/WidthModuleTests.cpp
     realtime/DependencyRealtimeTests.cpp
     realtime/EngineRealtimeTests.cpp

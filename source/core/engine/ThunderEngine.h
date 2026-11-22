@@ -15,6 +15,7 @@
 #include "core/params/ParamSnapshot.h"
 #include "core/util/LatencyDelay.h"
 #include "core/util/Smoother.h"
+#include "core/visual/VisualTap.h"
 
 #include <array>
 #include <atomic>
@@ -46,6 +47,10 @@ namespace thunder
 // captures, or, while a Layer capture is armed or recording, the layer as
 // Output Mode "Layer Only" would play it (after Output Gain and its own safety
 // limiter), so both are on the output's timeline.
+//
+// The visualiser's tap (visual::VisualTap) reads the aligned dry signal and the
+// layer before the mix, the output after the limiter and where the grains
+// read. It only reads, and only while an editor shows it.
 class ThunderEngine
 {
 public:
@@ -81,6 +86,9 @@ public:
     // writer drains the queue).
     capture::CaptureController& getCapture() noexcept { return capture; }
     const capture::CaptureController& getCapture() const noexcept { return capture; }
+
+    // The visualiser's feed (PRD UI-VIS-002): the editor reads it through UiBridge.
+    visual::VisualTap& getVisualTap() noexcept { return visual; }
 
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
@@ -133,6 +141,8 @@ private:
     std::array<std::vector<float>, kNumChannels> layerTap; // the layer for Layer captures
     dsp::SafetyLimiter layerTapLimiter;
     bool layerTapActive = false;
+
+    visual::VisualTap visual;
 
     std::atomic<std::uint64_t> nonFiniteReplaced{0};
     std::atomic<std::uint64_t> moduleResets{0};

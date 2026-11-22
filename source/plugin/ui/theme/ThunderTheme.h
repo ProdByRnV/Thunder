@@ -50,6 +50,15 @@ inline const juce::Colour stateRecording{0xffff5c7a};
 // The meters' empty track (§9.9).
 inline const juce::Colour meterTrack{0xff0e1220};
 
+// Visualiser (§3.6)
+inline const juce::Colour waveDry{0xff3a4560};
+inline const juce::Colour waveDryEdge{0xff55627f};
+inline const juce::Colour waveLayer{0xff4fc3ff};
+inline const juce::Colour waveLayerCore{0xffe8f6ff};
+inline const juce::Colour spectrumDry{0xff55627f};
+inline const juce::Colour spectrumLayer{0xff4fc3ff};
+inline const juce::Colour filterCurve{0xffe6eaf2};
+
 // Elevation (§6.1) and the window's texture (§6.4).
 inline const juce::Colour shadow{0xff000000};
 inline const juce::Colour highlight{0xffffffff}; // raised controls' inner top line, at opacity::topHighlight
@@ -203,13 +212,30 @@ inline constexpr int labelHeight = 16;
 inline constexpr int valueHeight = 18;
 inline constexpr int bolt = 18; // logo glyph height
 inline constexpr int wordmarkWidth = 140;
-inline constexpr int placeholderBolt = 64; // visualiser glyph while there is nothing to show
 inline constexpr float menuSelectedBar = 2.0f;
 
 // Output panel (§8.5 as laid out in the 4A mockup)
 inline constexpr int outputKnobColumn = 64;
 inline constexpr int meterBar = 8;
 inline constexpr int meterGap = 4;
+inline constexpr int correlationHeight = 4; // the correlation line under the meter (§8.5)
+inline constexpr int limiterIcon = 10;      // the ⚠ after LIMITER
+inline constexpr int loudnessWidth = 96;    // "−14.2 LUFS" in the Output header
+
+// Visualiser (§8.2, §9.19, §11.6)
+inline constexpr int viewToggleWidth = 136; // WAVE | SPECTRUM, bottom-right in the well
+inline constexpr int viewToggleHeight = 22;
+inline constexpr float waveStroke = 1.5f;
+inline constexpr float spectrumStroke = 1.5f;
+inline constexpr int filterHandle = 10;      // HP and LP handles
+inline constexpr int filterHandleHit = 24;   // their hit area (§14)
+inline constexpr int handleBubbleWidth = 72; // the value shown over a handle
+inline constexpr int handleBubbleHeight = 20;
+inline constexpr float grainSparkMin = 3.0f;
+inline constexpr float grainSparkMax = 6.0f;
+inline constexpr int toneCurveWidth = 380; // Tone's mini filter curve
+inline constexpr int toneCurveHeight = 80;
+inline constexpr int emptyBolt = 48;
 
 // Capture bar (§9.10)
 inline constexpr int captureTitleWidth = 64;
@@ -240,7 +266,7 @@ inline constexpr int aboutBolt = 30;
 namespace opacity
 {
 inline constexpr float disabledBody = 0.40f; // a switched-off module's controls (§8.4)
-inline constexpr float placeholder = 0.18f;  // the visualiser glyph
+inline constexpr float placeholder = 0.18f;  // the bolt in the empty visualiser
 inline constexpr float topHighlight = 0.04f; // raised controls' inner top highlight (§6.1)
 inline constexpr float viewToggle = 0.50f;   // controls inside the visualiser well until hovered (§8.2)
 } // namespace opacity
@@ -263,5 +289,49 @@ inline constexpr int tooltipDelayMs = 600;      // §9.14
 inline constexpr int successHighlightMs = 3000; // capture chip after a capture (§9.10)
 inline constexpr int toastMs = 4000;            // §9.15
 } // namespace timing
+
+// ---- Visualiser and meters (UI.md §8.2, §8.5, §9.9, §9.19) -------------------------------------------------------
+namespace visualiser
+{
+// Waveform (§8.2)
+inline constexpr int defaultBars = 2;          // time window; 1, 2 or 4 from the right-click menu
+inline constexpr double maxSeconds = 32.0;     // the longest window kept (4 bars at 30 BPM)
+inline constexpr float waveHeight = 0.45f;     // full scale reaches ±45% of the well's height
+inline constexpr float layerFill = 0.55f;      // the layer's fill opacity
+inline constexpr float layerCoreFrom = 0.90f;  // the top 10% of the layer's level turns hot
+inline constexpr float dimmed = 0.50f;         // stopped transport
+inline constexpr double dimAfterSeconds = 2.0; // … this long after it stopped
+inline constexpr float silence = 0.001f;       // −60 dBFS: below this the well shows "Play your melody…"
+
+// Spectrum (§8.2)
+inline constexpr float minHz = 20.0f;
+inline constexpr float maxHz = 20000.0f;
+inline constexpr float minDb = -72.0f;
+inline constexpr float maxDb = 0.0f;
+inline constexpr float gridHz[] = {50.0f, 100.0f, 200.0f, 500.0f, 1000.0f, 2000.0f, 5000.0f, 10000.0f};
+inline constexpr float gridDb[] = {-12.0f, -24.0f, -36.0f, -48.0f, -60.0f};
+inline constexpr float spectrumFill = 0.25f;
+inline constexpr double smoothingOctaves = 1.0 / 6.0;
+inline constexpr double releaseSeconds = 0.3;
+inline constexpr float curveTopDb = -12.0f; // the filter curve's flat part sits on this line
+
+// Meters (§9.9, §8.5)
+inline constexpr float meterMinDb = -60.0f;
+inline constexpr float meterHotDb = -3.0f; // the top 3 dB are drawn hot
+inline constexpr float meterReleaseDbPerSecond = 20.0f;
+inline constexpr double peakHoldSeconds = 1.5;
+inline constexpr double clipHoldSeconds = 2.0;
+inline constexpr double loudnessSeconds = 3.0; // short-term loudness (EBU R 128)
+inline constexpr float loudnessFloor = -70.0f; // LUFS; quieter reads "–"
+inline constexpr double correlationSeconds = 0.3;
+inline constexpr float limiterWarnDb = 1.0f; // ⚠ when the limiter takes more than this
+inline constexpr double limiterHoldSeconds = 0.5;
+
+// Live grain view (§9.19)
+inline constexpr double grainMaxSeconds = 4.0; // how far back a grain can sit
+inline constexpr float grainSemitones = 12.0f; // the top of the well
+inline constexpr float grainTrail = 0.25f;     // trail opacity
+inline constexpr int reducedMotionHz = 10;     // static dots update rate under Reduce Motion
+} // namespace visualiser
 
 } // namespace thunder::ui::theme

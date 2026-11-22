@@ -130,6 +130,7 @@ public:
         double firstPosition = 0.0;                           // samples after `base` of its first read
         double step = 1.0;                                    // read speed; negative when reversed
         float windowStep = 0.0f;                              // window table segments per sample
+        float pan = 0.0f;                                     // −1 … +1 (for the live grain view)
         std::array<float, GrainBuffer::kMaxChannels> gains{}; // its pan, per channel
     };
 
