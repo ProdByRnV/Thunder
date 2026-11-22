@@ -56,23 +56,40 @@ public:
         const auto isSelected = owner.selected == index;
         const auto bounds = getLocalBounds().toFloat().reduced (border::width);
 
+        // Pictures sit in rounded tiles; names in pills.
+        const auto pictured = static_cast<bool> (owner.optionPainter);
+        const auto corner = pictured ? radius::sm : bounds.getHeight() * 0.5f;
+
         if (isSelected || highlighted)
         {
-            g.setColour (isSelected ? (isEnabled() ? colour::accentPrimary : colour::textDisabled) : colour::bgHover);
-            g.fillRoundedRectangle (bounds, bounds.getHeight() * 0.5f);
+            g.setColour (isSelected ? (isEnabled() ? owner.accent : colour::textDisabled) : colour::bgHover);
+            g.fillRoundedRectangle (bounds, corner);
         }
 
         if (hasKeyboardFocus (false))
-            paint::drawFocusRing (g, bounds, bounds.getHeight() * 0.5f);
+            paint::drawFocusRing (g, bounds, corner);
 
-        g.setColour (isSelected ? colour::textOnAccent : (highlighted ? colour::textPrimary : colour::textSecondary));
+        const auto ink =
+            isSelected ? colour::textOnAccent : (highlighted ? colour::textPrimary : colour::textSecondary);
+        if (pictured)
+        {
+            owner.optionPainter (g, owner.optionIndices[static_cast<std::size_t> (index)],
+                                 bounds.reduced (static_cast<float> (space::s1)), ink);
+            return;
+        }
+
+        g.setColour (ink);
         g.setFont (fonts::ui (type::label, fonts::Weight::semiBold).withExtraKerningFactor (type::labelTracking));
         g.drawFittedText (getButtonText().toUpperCase(), getLocalBounds().reduced (space::s1, 0),
                           juce::Justification::centred, 1);
     }
 
-    // The control's tooltip, wherever the pointer is on it.
-    juce::String getTooltip() override { return owner.getTooltip(); }
+    // The control's tooltip, wherever the pointer is on it; a pictured segment
+    // names itself first.
+    juce::String getTooltip() override
+    {
+        return owner.optionPainter ? getButtonText() + " - " + owner.getTooltip() : owner.getTooltip();
+    }
 
 private:
     SegmentedControl& owner;
@@ -82,6 +99,7 @@ private:
 SegmentedControl::SegmentedControl (juce::AudioProcessorValueTreeState& apvts, params::ParamId id,
                                     std::vector<int> options, juce::StringArray labels)
     : optionIndices (std::move (options))
+    , accent (colour::accentPrimary)
 {
     const auto& def = params::paramDef (id);
     jassert (def.kind == params::Kind::Choice || def.kind == params::Kind::Bool);
@@ -129,6 +147,7 @@ SegmentedControl::SegmentedControl (juce::AudioProcessorValueTreeState& apvts, p
 SegmentedControl::SegmentedControl (const juce::String& titleText, juce::StringArray labels,
                                     std::function<void (int)> onChoose)
     : onChooseCallback (std::move (onChoose))
+    , accent (colour::accentPrimary)
 {
     const auto group = nextRadioGroup();
     for (int i = 0; i < labels.size(); ++i)
@@ -147,6 +166,18 @@ SegmentedControl::~SegmentedControl() = default;
 juce::Button& SegmentedControl::getSegment (int index)
 {
     return *segments[static_cast<std::size_t> (index)];
+}
+
+void SegmentedControl::setOptionPainter (OptionPainter painter)
+{
+    optionPainter = std::move (painter);
+    repaint();
+}
+
+void SegmentedControl::setAccent (juce::Colour colour)
+{
+    accent = colour;
+    repaint();
 }
 
 void SegmentedControl::setSelectedOption (int index)
@@ -269,6 +300,41 @@ ParamCheckbox::ParamCheckbox (juce::AudioProcessorValueTreeState& apvts, params:
 }
 
 ParamCheckbox::~ParamCheckbox() = default;
+
+// ---- ParamChip
+// ---------------------------------------------------------------------------------------------------------
+
+ParamChip::ParamChip (juce::AudioProcessorValueTreeState& apvts, params::ParamId id, const juce::String& label,
+                      juce::Colour accent)
+    : juce::ToggleButton (label.toUpperCase())
+    , accentColour (accent)
+{
+    describeControl (*this, id);
+    setTitle (label);
+    attachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, paramIdString (id), *this);
+}
+
+ParamChip::~ParamChip() = default;
+
+void ParamChip::paintButton (juce::Graphics& g, bool highlighted, bool)
+{
+    const auto on = getToggleState();
+    const auto bounds = getLocalBounds().toFloat().reduced (border::width);
+    const auto r = bounds.getHeight() * 0.5f;
+
+    g.setColour (on ? accentColour : (highlighted ? colour::bgHover : colour::bgRaised));
+    g.fillRoundedRectangle (bounds, r);
+    g.setColour (on ? accentColour : colour::borderStrong);
+    g.drawRoundedRectangle (bounds.reduced (border::width * 0.5f), r, border::width);
+
+    if (hasKeyboardFocus (false))
+        paint::drawFocusRing (g, bounds, r);
+
+    g.setColour (on ? colour::textOnAccent : (highlighted ? colour::textPrimary : colour::textSecondary));
+    g.setFont (fonts::ui (type::label, fonts::Weight::semiBold).withExtraKerningFactor (type::labelTracking));
+    g.drawFittedText (getButtonText(), getLocalBounds().reduced (space::s2, 0), juce::Justification::centred, 1);
+}
 
 // ---- ParamDropdown
 // -----------------------------------------------------------------------------------------------------

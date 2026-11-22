@@ -19,10 +19,16 @@ void ThunderEngine::prepare (double newSampleRate)
         module->prepare (spec);
 
     // The dry path matches the layer chain; the limiter after the mix delays both.
-    auto chainLatency = 0;
-    for (auto* module : chain())
-        chainLatency += module->getLatencySamples();
+    chainLatency = 0;
+    const auto modules = chain();
+    for (std::size_t i = 0; i < modules.size(); ++i)
+    {
+        upstreamLatency[i] = chainLatency;
+        chainLatency += modules[i]->getLatencySamples();
+    }
     dryDelay.prepare (kNumChannels, chainLatency);
+    staticModulator.prepare (sampleRate);
+    staticStage.prepare (sampleRate);
 
     limiter.prepare (sampleRate);
     latencySamples = chainLatency + limiter.getLatencySamples();
@@ -53,12 +59,15 @@ void ThunderEngine::reset() noexcept
 {
     transport = {};
     firstBlock = true;
+    samplesProcessed = 0;
 
     if (prepared)
     {
         for (auto* module : chain())
             module->reset();
         dryDelay.reset();
+        staticModulator.reset();
+        staticStage.reset();
         autoGain.reset();
         output.reset();
         limiter.reset();
@@ -112,14 +121,24 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
     layerTapActive = capture.wantsLayer();
     visual.beginBlock();
 
+    // While Static moves anything, chunks also end on its control grid, so its
+    // values change at the same samples whatever the host's block size.
+    const auto staticActive = staticModulator.isActive (snapshot);
+
     for (int offset = 0; offset < numSamples;)
     {
-        const auto chunk = std::min (kMaxChunkSize, numSamples - offset);
+        auto chunk = std::min (kMaxChunkSize, numSamples - offset);
+        if (staticActive)
+        {
+            const auto interval = dsp::StaticModulator::kControlInterval;
+            chunk = std::min (chunk, interval - static_cast<int> (samplesProcessed % interval));
+        }
         float* chunkChannels[kNumChannels] = {channels[0] + offset, channels[1] + offset};
 
         processChunk (chunkChannels, chunk, ProcessContext{transport, snapshot});
 
         offset += chunk;
+        samplesProcessed += chunk;
         if (offset < numSamples)
             transport = transport.advancedBy (chunk, sampleRate);
     }
@@ -139,16 +158,38 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
         juce::FloatVectorOperations::copy (dryChannels[ch], channels[ch], numSamples);
     dryDelay.process (dryChannels, kNumChannels, numSamples);
 
-    // Layer path, processed in place in the output buffer.
+    // Static moves its targets' values for this chunk. Everything it touches
+    // comes after the chain's latency (only Pitch has any), so it follows the
+    // position of the chain's output.
+    const auto& staticFrame =
+        staticModulator.next (context.transport.delayedBy (chainLatency, sampleRate), context.params, samplesProcessed);
+    effective = context.params;
+    if (!staticFrame.isZero())
+        dsp::StaticModulator::applyTo (staticFrame, effective);
+
+    // Layer path, processed in place in the output buffer. Each module gets the
+    // song position of the audio it processes.
     juce::dsp::AudioBlock<float> layer (channels, kNumChannels, static_cast<std::size_t> (numSamples));
-    for (auto* module : chain())
-        runModule (*module, layer, context);
+    const auto modules = chain();
+    auto moduleTransport = context.transport;
+    auto transportLatency = 0;
+    for (std::size_t i = 0; i < modules.size(); ++i)
+    {
+        if (upstreamLatency[i] != transportLatency)
+        {
+            transportLatency = upstreamLatency[i];
+            moduleTransport = context.transport.delayedBy (transportLatency, sampleRate);
+        }
+        runModule (*modules[i], layer, ProcessContext{moduleTransport, effective});
+    }
 
     // Gain staging (ARCHITECTURE §5.8 OutputStage): Auto Gain holds the layer
-    // below the dry signal, then Layer Level, then Output Mode and Mix combine
-    // the layer with the aligned dry signal, then Output Gain.
+    // below the dry signal, then Layer Level and Static's pan and level, then
+    // Output Mode and Mix combine the layer with the aligned dry signal, then
+    // Output Gain.
     autoGain.process (channels, dryChannels, kNumChannels, numSamples, context.params.isOn (ParamId::autoGain));
     layerLevel.apply (channels, kNumChannels, numSamples);
+    staticStage.process (channels, numSamples, staticFrame);
 
     // The visualiser sees the aligned dry signal and the layer before the mix.
     if (visual.isActive())

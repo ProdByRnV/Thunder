@@ -5,6 +5,7 @@
 #include "core/state/StateManager.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using namespace thunder::state;
 
@@ -111,6 +112,42 @@ TEST_CASE ("Every state version has a migration to the next", "[unit][state]")
 
     for (const auto m : migrations)
         CHECK (m != nullptr);
+}
+
+TEST_CASE ("Version 1 to 2: older sounds keep their reverb and free grain pitches", "[unit][state]")
+{
+    const auto parameterValue = [] (const juce::ValueTree& tree, const juce::String& id)
+    {
+        const auto p = tree.getChildWithName (ids::parameters).getChildWithProperty (ids::parameterId, id);
+        return p.isValid() ? static_cast<double> (p.getProperty (ids::parameterValue)) : -1.0;
+    };
+
+    for (const auto mode : {0.0, 1.0, 2.0, 3.0})
+    {
+        INFO ("spaceMode " << mode);
+        juce::ValueTree parameters{ids::parameters};
+        juce::ValueTree space{ids::parameter};
+        space.setProperty (ids::parameterId, "spaceMode", nullptr);
+        space.setProperty (ids::parameterValue, mode, nullptr);
+        parameters.appendChild (space, nullptr);
+
+        auto v1 = createState (parameters, {}, "0.6.0");
+        v1.setProperty (ids::stateVersion, 1, nullptr);
+
+        const auto loaded = loadState (v1);
+        REQUIRE (loaded.has_value());
+        CHECK (loaded->savedVersion == 1);
+
+        juce::ValueTree migrated{ids::root};
+        migrated.appendChild (loaded->parameters.createCopy(), nullptr);
+        CHECK_THAT (parameterValue (migrated, "spaceMode"),
+                    Catch::Matchers::WithinAbs (0.0, 1e-9)); // Plate, Room, Shimmer played Cloud
+        CHECK_THAT (parameterValue (migrated, "grainScaleLock"), Catch::Matchers::WithinAbs (0.0, 1e-9)); // added, off
+    }
+
+    // Without parameters there is nothing to change.
+    juce::ValueTree bare{ids::root};
+    CHECK (stateMigrations()[0](bare).isEquivalentTo (bare));
 }
 
 TEST_CASE ("Damaged session settings fall back to defaults", "[unit][state]")

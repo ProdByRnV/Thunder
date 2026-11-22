@@ -12,6 +12,7 @@
 #include "plugin/ui/theme/ThunderLookAndFeel.h"
 #include "plugin/ui/theme/ThunderPaint.h"
 #include "plugin/ui/theme/ThunderTheme.h"
+#include "support/PendingControls.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -268,7 +269,7 @@ TEST_CASE ("A module's reset puts its controls back and leaves it switched on", 
     f.param (ParamId::spaceMix).setValueNotifyingHost (1.0f); // another module: untouched
     GestureCounter gestures (f.param (ParamId::grainSize));
 
-    f.editor->getModulePanel (1).resetToDefaults();
+    f.editor->getModulePanel (2).resetToDefaults();
     CHECK_THAT (f.value (ParamId::grainSize), WithinAbs (80.0, 0.01));
     CHECK_THAT (f.value (ParamId::grainReverse), WithinAbs (0.0, 1e-3));
     CHECK_THAT (f.value (ParamId::grainOn), WithinAbs (1.0, 1e-6));
@@ -314,7 +315,7 @@ TEST_CASE ("Switching a module on flashes its switch; opening the editor doesn't
 {
     Fixture f;
     auto* toggle = dynamic_cast<ui::ThunderToggle*> (
-        f.editor->getModulePanel (1).findChildWithID (ui::paramIdString (ParamId::grainOn)));
+        f.editor->getModulePanel (2).findChildWithID (ui::paramIdString (ParamId::grainOn)));
     REQUIRE (toggle != nullptr);
     CHECK (juce::exactlyEqual (toggle->getFlashLevel(), 0.0f));
 
@@ -351,7 +352,7 @@ TEST_CASE ("Every control says what it does", "[unit][ui]")
                CHECK (tip->getTooltip().contains (ui::help::describe (*id)));
                CHECK (c.getDescription() == ui::help::describe (*id));
            });
-    CHECK (controls >= static_cast<int> (params::kParamDefs.size()));
+    CHECK (controls >= static_cast<int> (params::kParamDefs.size() - test::kControlsArrivingLater.size()));
 
     // Numbers also show their value and range.
     auto* decay = findKnob (*f.editor, ParamId::spaceDecay);

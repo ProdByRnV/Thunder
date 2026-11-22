@@ -41,6 +41,11 @@ struct TransportState
     // [RT] The state `numSamples` samples later, used to give each internal
     // chunk of a long host block its own position. Only moves while playing.
     TransportState advancedBy (int numSamples, double sampleRate) const noexcept;
+
+    // [RT] The state `numSamples` samples earlier. Audio that has been through
+    // modules with that much latency belongs to this position of the song.
+    // Only moves while playing.
+    TransportState delayedBy (int numSamples, double sampleRate) const noexcept;
 };
 
 } // namespace thunder

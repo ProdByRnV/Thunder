@@ -6,6 +6,7 @@
 #include "plugin/ui/components/ThunderKnob.h"
 #include "plugin/ui/visualiser/SpectrumView.h"
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -42,6 +43,8 @@ protected:
                           ThunderKnob::Size size = ThunderKnob::Size::medium);
     SegmentedControl& addSegmented (params::ParamId id, std::vector<int> options = {}, juce::StringArray labels = {});
     ParamCheckbox& addCheckbox (params::ParamId id, const juce::String& label);
+    ParamChip& addChip (params::ParamId id, const juce::String& label, juce::Colour accent);
+    ParamDropdown& addDropdown (params::ParamId id);
 
     // Cell `column` (0–3) of a row, the full row height.
     static juce::Rectangle<int> cell (juce::Rectangle<int> row, int column, int span = 1);
@@ -79,6 +82,19 @@ private:
     ParameterWatcher modeWatcher;
 };
 
+// UI.md §11.2. (Reverse, `timeReverse`, is optional and not part of v1.0.)
+class TimePanel final : public ModulePanel
+{
+public:
+    explicit TimePanel (juce::AudioProcessorValueTreeState& apvts);
+
+private:
+    void layoutBody (juce::Rectangle<int> area) override;
+
+    SegmentedControl& speed;
+    ThunderKnob& smooth;
+};
+
 class GrainsPanel final : public ModulePanel
 {
 public:
@@ -94,6 +110,25 @@ private:
     ThunderKnob& pitchSpread;
     ThunderKnob& panSpread;
     ThunderKnob& reverse;
+};
+
+// UI.md §11.4, in Static's violet: Character, Amount, Rate (free, or a note
+// value while Sync is on) and the target chips.
+class StaticPanel final : public ModulePanel
+{
+public:
+    explicit StaticPanel (juce::AudioProcessorValueTreeState& apvts);
+
+private:
+    void layoutBody (juce::Rectangle<int> area) override;
+
+    SegmentedControl& character;
+    ThunderKnob& amount;
+    ThunderKnob& rate;
+    ThunderKnob& rateSynced;
+    ParamCheckbox& sync;
+    std::array<ParamChip*, 5> targets{};
+    ParameterWatcher syncWatcher;
 };
 
 class SpacePanel final : public ModulePanel
@@ -144,6 +179,23 @@ private:
     void layoutBody (juce::Rectangle<int> area) override;
 
     ThunderKnob& width;
+};
+
+// UI.md §11.8: the shape picker (a thumbnail of each curve), Rate, Depth and
+// Smooth.
+class ShapePanel final : public ModulePanel
+{
+public:
+    explicit ShapePanel (juce::AudioProcessorValueTreeState& apvts);
+
+private:
+    void layoutBody (juce::Rectangle<int> area) override;
+
+    SegmentedControl& shape;
+    ParamDropdown& rate;
+    juce::Label rateCaption;
+    ThunderKnob& depth;
+    ThunderKnob& smooth;
 };
 
 } // namespace thunder::ui

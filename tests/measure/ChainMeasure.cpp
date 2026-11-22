@@ -9,7 +9,9 @@
 #include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
+#include "core/dsp/shape/ShapeModule.h"
 #include "core/dsp/space/SpaceModule.h"
+#include "core/dsp/time/TimeModule.h"
 #include "core/dsp/tone/ToneModule.h"
 #include "core/dsp/width/WidthModule.h"
 #include "core/engine/ThunderEngine.h"
@@ -72,6 +74,16 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         std::printf ("  %-40s %5.2f%%\n", "Width (150%)", percentOfCore (width, input, s));
     }
     {
+        dsp::TimeModule time;
+        time.prepare ({kRate, 256, 2});
+        std::printf ("  %-40s %5.2f%%\n", "Time (halftime 1/2)", percentOfCore (time, input, defaults));
+    }
+    {
+        dsp::ShapeModule shape;
+        shape.prepare ({kRate, 256, 2});
+        std::printf ("  %-40s %5.2f%%\n", "Shape (Pump 1/4)", percentOfCore (shape, input, defaults));
+    }
+    {
         dsp::AutoGain autoGain;
         dsp::SafetyLimiter limiter;
         autoGain.prepare (kRate);
@@ -94,6 +106,13 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         std::printf ("  %-40s %5.2f%%\n", "Auto Gain", (mid - start) / 10000.0 * 100.0);
         std::printf ("  %-40s %5.2f%%\n", "Safety limiter", (end - mid) / 10000.0 * 100.0);
     }
+    auto rhythm = defaults;
+    for (const auto id :
+         {ParamId::timeOn, ParamId::staticOn, ParamId::shapeOn, ParamId::staticTgtPitch, ParamId::staticTgtLevel})
+        rhythm.set (id, 1.0f);
+    rhythm.set (ParamId::staticRate, 8.0f);
+
+    for (const params::ParamSnapshot* settings : {&defaults, static_cast<const params::ParamSnapshot*> (&rhythm)})
     {
         ThunderEngine engine;
         engine.prepare (kRate);
@@ -104,7 +123,7 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
             {
                 const auto n = std::min<std::size_t> (256, left.size() - start);
                 float* channels[] = {left.data() + start, right.data() + start};
-                engine.process (channels, static_cast<int> (n), {}, defaults);
+                engine.process (channels, static_cast<int> (n), {}, *settings);
             }
         };
         run(); // warm up
@@ -113,7 +132,9 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         const auto start = juce::Time::getMillisecondCounterHiRes();
         run();
         const auto ms = juce::Time::getMillisecondCounterHiRes() - start;
-        std::printf ("  %-40s %5.2f%%\n", "Whole engine (defaults)", ms / 10000.0 * 100.0);
+        std::printf ("  %-40s %5.2f%%\n",
+                     settings == &defaults ? "Whole engine (defaults)" : "Whole engine + Time, Static (all), Shape",
+                     ms / 10000.0 * 100.0);
     }
 
     std::printf ("\nReset time on the audio thread (worst of 20):\n");
@@ -122,6 +143,8 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
     std::printf ("  %-40s %6.3f ms\n", "Space (CloudSeed)", resetMilliseconds<dsp::SpaceModule>());
     std::printf ("  %-40s %6.3f ms\n", "Tone", resetMilliseconds<dsp::ToneModule>());
     std::printf ("  %-40s %6.3f ms\n", "Width", resetMilliseconds<dsp::WidthModule>());
+    std::printf ("  %-40s %6.3f ms\n", "Time", resetMilliseconds<dsp::TimeModule>());
+    std::printf ("  %-40s %6.3f ms\n", "Shape", resetMilliseconds<dsp::ShapeModule>());
     {
         // The usual case for a host reset: the tail has died away while stopped.
         dsp::SpaceModule space;

@@ -109,6 +109,80 @@ TEST_CASE ("Saved state restores every parameter and session setting", "[unit][p
     CHECK (xml->getIntAttribute ("stateVersion") == state::kCurrentStateVersion);
 }
 
+TEST_CASE ("A project saved before v1.0 opens with its sound and settings", "[unit][plugin][state]")
+{
+    // tests/fixtures/state/state_v1.xml was saved by Thunder 0.6.0 (state
+    // version 1) with these settings changed, and Space set to Room, which
+    // played the Cloud reverb then (QA-STATE-001, PRD DEC-050).
+    const auto file = juce::File (THUNDER_TEST_FIXTURES).getChildFile ("state/state_v1.xml");
+    const auto xml = juce::parseXML (file);
+    REQUIRE (xml != nullptr);
+    REQUIRE (xml->getIntAttribute ("stateVersion") == 1);
+
+    juce::MemoryBlock saved;
+    juce::AudioProcessor::copyXmlToBinary (*xml, saved);
+
+    ThunderProcessor processor;
+    processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+
+    CHECK_THAT (valueOf (processor, ParamId::mix), WithinAbs (70.0, 1e-3));
+    CHECK_THAT (valueOf (processor, ParamId::keyRoot), WithinAbs (9.0, 1e-6));
+    CHECK_THAT (valueOf (processor, ParamId::pitchMode), WithinAbs (2.0, 1e-6));
+    CHECK_THAT (valueOf (processor, ParamId::pitchSemitones), WithinAbs (7.0, 1e-6));
+    CHECK_THAT (valueOf (processor, ParamId::grainPitchSpread), WithinAbs (5.0, 1e-4));
+    CHECK_THAT (valueOf (processor, ParamId::grainPosSpread), WithinAbs (60.0, 1e-3));
+    CHECK_THAT (valueOf (processor, ParamId::spaceDecay), WithinAbs (70.0, 1e-3));
+    CHECK_THAT (valueOf (processor, ParamId::hpFreq), WithinAbs (300.0, 0.01));
+    CHECK_THAT (valueOf (processor, ParamId::widthAmount), WithinAbs (150.0, 1e-3));
+
+    // Migrated: the reverb it played, and grain pitches as free as they were.
+    CHECK_THAT (valueOf (processor, ParamId::spaceMode), WithinAbs (0.0, 1e-6));
+    CHECK_THAT (valueOf (processor, ParamId::grainScaleLock), WithinAbs (0.0, 1e-6));
+
+    // Everything new is at its default, with the new modules off.
+    for (const auto& def : params::kParamDefs)
+        if (def.versionHint == params::kReleaseV1_0 && def.param != ParamId::grainScaleLock)
+        {
+            INFO (std::string (def.id));
+            CHECK_THAT (valueOf (processor, def.param), WithinAbs (def.def, 1e-3 * (def.max - def.min)));
+        }
+
+    const auto session = processor.getSessionState();
+    CHECK (session.presetName == "Night Static");
+    CHECK (session.presetKey == "factory:Night Static");
+    CHECK (session.captureBars == 8);
+    CHECK (juce::exactlyEqual (session.uiScale, 1.25f));
+    CHECK (session.uiView == state::VisualiserView::spectrum);
+    CHECK_FALSE (processor.lastLoadWasFromNewerVersion());
+
+    // Saved again, it is a version 2 state that keeps all of that.
+    juce::MemoryBlock resaved;
+    processor.getStateInformation (resaved);
+    const auto again = juce::AudioProcessor::getXmlFromBinary (resaved.getData(), static_cast<int> (resaved.getSize()));
+    REQUIRE (again != nullptr);
+    CHECK (again->getIntAttribute ("stateVersion") == 2);
+
+    ThunderProcessor reopened;
+    reopened.setStateInformation (resaved.getData(), static_cast<int> (resaved.getSize()));
+    CHECK_THAT (valueOf (reopened, ParamId::grainScaleLock), WithinAbs (0.0, 1e-6));
+    CHECK_THAT (valueOf (reopened, ParamId::mix), WithinAbs (70.0, 1e-3));
+}
+
+TEST_CASE ("A version 2 state keeps Plate and Scale Lock as saved", "[unit][plugin][state]")
+{
+    juce::MemoryBlock saved;
+    {
+        ThunderProcessor source;
+        setValue (source, ParamId::spaceMode, 1.0f); // Plate
+        source.getStateInformation (saved);
+    }
+
+    ThunderProcessor restored;
+    restored.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    CHECK_THAT (valueOf (restored, ParamId::spaceMode), WithinAbs (1.0, 1e-6));
+    CHECK_THAT (valueOf (restored, ParamId::grainScaleLock), WithinAbs (1.0, 1e-6));
+}
+
 TEST_CASE ("Unreadable state leaves the current settings alone", "[unit][plugin][state]")
 {
     ThunderProcessor processor;

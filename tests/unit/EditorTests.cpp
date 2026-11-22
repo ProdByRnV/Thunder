@@ -6,6 +6,7 @@
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
 #include "plugin/ui/theme/ThunderTheme.h"
+#include "support/PendingControls.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -103,29 +104,34 @@ TEST_CASE ("The editor opens at the base size and scales as one", "[unit][ui]")
 TEST_CASE ("One module shows at a time, chosen on the chain", "[unit][ui]")
 {
     Fixture f;
-    REQUIRE (f.editor->getNumModules() == 5);
+    REQUIRE (f.editor->getNumModules() == 8);
     CHECK (f.editor->getModulePanel (0).isVisible());
 
-    f.editor->getChain().clickNode (2);
-    CHECK (f.editor->getSelectedModule() == 2);
-    CHECK (f.editor->getModulePanel (2).getTitleText() == "Space");
+    f.editor->getChain().clickNode (4);
+    CHECK (f.editor->getSelectedModule() == 4);
+    CHECK (f.editor->getModulePanel (4).getTitleText() == "Space");
     for (int i = 0; i < f.editor->getNumModules(); ++i)
-        CHECK (f.editor->getModulePanel (i).isVisible() == (i == 2));
+        CHECK (f.editor->getModulePanel (i).isVisible() == (i == 4));
+
+    // In processing order (PRD DEC-005).
+    const char* order[] = {"Pitch", "Time", "Grains", "Static", "Space", "Tone", "Width", "Shape"};
+    for (int i = 0; i < f.editor->getNumModules(); ++i)
+        CHECK (f.editor->getModulePanel (i).getTitleText() == order[i]);
 }
 
 TEST_CASE ("A chain node's dot switches its module, and the panel dims", "[unit][ui]")
 {
     Fixture f;
     CHECK_THAT (f.value (ParamId::grainOn), WithinAbs (1.0, 1e-6));
-    CHECK_FALSE (f.editor->getModulePanel (1).isBodyDimmed());
+    CHECK_FALSE (f.editor->getModulePanel (2).isBodyDimmed());
 
-    f.editor->getChain().clickDot (1);
+    f.editor->getChain().clickDot (2);
     CHECK_THAT (f.value (ParamId::grainOn), WithinAbs (0.0, 1e-6));
-    CHECK (f.editor->getModulePanel (1).isBodyDimmed());
+    CHECK (f.editor->getModulePanel (2).isBodyDimmed());
 
     // And back, from the host side.
     f.set (ParamId::grainOn, 1.0f);
-    CHECK_FALSE (f.editor->getModulePanel (1).isBodyDimmed());
+    CHECK_FALSE (f.editor->getModulePanel (2).isBodyDimmed());
 }
 
 TEST_CASE ("Knobs drive their parameter and follow it back", "[unit][ui]")
@@ -196,7 +202,8 @@ TEST_CASE ("The Space panel offers the Cloud mode", "[unit][ui]")
 TEST_CASE ("Every host parameter has a control", "[unit][ui]")
 {
     // Each control carries its parameter's ID; every parameter must have one
-    // somewhere in the editor (including panels not currently shown).
+    // somewhere in the editor (including panels not currently shown), except
+    // those whose module hasn't arrived yet, which have none.
     Fixture f;
 
     std::function<bool (juce::Component&, const juce::String&)> has =
@@ -214,7 +221,7 @@ TEST_CASE ("Every host parameter has a control", "[unit][ui]")
     {
         const auto id = juce::String::fromUTF8 (def.id.data(), static_cast<int> (def.id.size()));
         INFO (id);
-        CHECK (has (*f.editor, id));
+        CHECK (has (*f.editor, id) != test::controlArrivesLater (def.param));
     }
 }
 
@@ -319,4 +326,67 @@ TEST_CASE ("The Output panel dims Mix in Layer Only", "[unit][ui]")
     CHECK (juce::exactlyEqual (outputMix->getAlpha(), 1.0f));
     outputMode->choose (1);
     CHECK (outputMix->getAlpha() < 1.0f);
+}
+
+TEST_CASE ("Static shows one Rate knob at a time and its target chips switch targets", "[unit][ui][static]")
+{
+    Fixture f;
+    f.editor->selectModule (3);
+    ui::ThunderKnob* free = nullptr;
+    ui::ThunderKnob* synced = nullptr;
+    std::function<void (juce::Component&)> look = [&] (juce::Component& c)
+    {
+        if (auto* k = dynamic_cast<ui::ThunderKnob*> (&c))
+        {
+            if (k->getParamId() == ParamId::staticRate)
+                free = k;
+            if (k->getParamId() == ParamId::staticRateSynced)
+                synced = k;
+        }
+        for (auto* child : c.getChildren())
+            look (*child);
+    };
+    look (*f.editor);
+    REQUIRE (free != nullptr);
+    REQUIRE (synced != nullptr);
+    CHECK (free->isVisible());
+    CHECK_FALSE (synced->isVisible());
+
+    f.set (ParamId::staticSync, 1.0f);
+    CHECK_FALSE (free->isVisible());
+    CHECK (synced->isVisible());
+    CHECK (synced->getValueText() == "1 bar");
+
+    auto* pitch = find<ui::ParamChip> (*f.editor, "Pitch");
+    REQUIRE (pitch != nullptr);
+    CHECK_FALSE (pitch->getToggleState());
+    pitch->setToggleState (true, juce::sendNotificationSync); // as a click does
+    CHECK_THAT (f.value (ParamId::staticTgtPitch), WithinAbs (1.0, 1e-6));
+}
+
+TEST_CASE ("Shape's picker shows each curve and chooses the shape", "[unit][ui][shape]")
+{
+    Fixture f;
+    f.editor->selectModule (7);
+    auto* picker = find<ui::SegmentedControl> (*f.editor, "Shape");
+    REQUIRE (picker != nullptr);
+    CHECK (picker->getNumSegments() == 6);
+    CHECK (picker->getSelectedOption() == 0); // Pump
+    CHECK (picker->getSegment (2).getTitle() == "Gate");
+    CHECK (picker->getSegment (2).getTooltip().startsWith ("Gate - "));
+
+    picker->choose (2);
+    CHECK_THAT (f.value (ParamId::shapeType), WithinAbs (2.0, 1e-6));
+
+    // Its picture is drawn, not its name.
+    juce::Image image (juce::Image::ARGB, 64, 40, true);
+    {
+        juce::Graphics g (image); // drawn when it closes (Direct2D images on Windows)
+        picker->getSegment (3).paintEntireComponent (g, false);
+    }
+    auto lit = 0;
+    for (int y = 0; y < image.getHeight(); ++y)
+        for (int x = 0; x < image.getWidth(); ++x)
+            lit += image.getPixelAt (x, y).getAlpha() > 0 ? 1 : 0;
+    CHECK (lit > 20);
 }

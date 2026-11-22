@@ -41,6 +41,9 @@ juce::String formatFloat (const ParamDef& def, float value)
             return juce::String (juce::roundToInt (value)) + "%";
 
         case Unit::Hertz:
+            // Modulation rates go well below 1 Hz; audio frequencies start at 20.
+            if (value < 19.95f)
+                return juce::String (value, value < 1.0f ? 2 : 1) + " Hz";
             if (juce::roundToInt (value) < 1000)
                 return juce::String (juce::roundToInt (value)) + " Hz";
             return juce::String (value / 1000.0f, value < 10000.0f ? 2 : 1) + " kHz";

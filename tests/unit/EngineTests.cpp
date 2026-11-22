@@ -241,10 +241,10 @@ TEST_CASE ("Grains sit in the chain after Pitch, with their own switch", "[unit]
     limiter.prepare (kSampleRate);
     CHECK (engine.getLatencySamples() ==
            pitch.getLatencySamples() + space.getLatencySamples() + limiter.getLatencySamples());
-    CHECK_THAT (
-        engine.getTailSeconds(),
-        WithinAbs (dsp::GrainModule::kBufferSeconds + 3.0 * dsp::GrainModule::kMaxGrainSeconds + space.getTailSeconds(),
-                   1e-9));
+    CHECK_THAT (engine.getTailSeconds(),
+                WithinAbs (dsp::TimeModule::kMaxSegmentSeconds + dsp::GrainModule::kBufferSeconds +
+                               3.0 * dsp::GrainModule::kMaxGrainSeconds + space.getTailSeconds(),
+                           1e-9));
 
     // With the reverb dry, Grains on (the default) changes the sound, and
     // switching them off gives a different result whose latency is the same.

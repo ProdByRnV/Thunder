@@ -105,7 +105,7 @@ TEST_CASE ("Visualiser frame cost and the audio thread's share", "[.][uimeasure]
 
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
     auto& e = dynamic_cast<ThunderEditor&> (*editor);
-    e.selectModule (1);
+    e.selectModule (2);
     const auto frame = [&e] { e.updateVisuals (true, 512.0 / rate); };
     e.updateVisuals (true, 0.0);
     test::playMelody (processor, head, 6.0, rate, 512, frame);
@@ -149,7 +149,7 @@ TEST_CASE ("Visualiser frame cost and the audio thread's share", "[.][uimeasure]
     e.updateVisuals (true, 0.0);
     test::playMelody (processor, head, 0.5, rate, 512, frame);
     measureView ("Spectrum", e.getVisualiser().getSpectrum());
-    e.selectModule (3);
+    e.selectModule (5);
     measureView ("Spectrum + Tone curve", e.getTonePanel().getCurve());
 
     processor.setPlayHead (nullptr);

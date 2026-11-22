@@ -8,7 +8,7 @@ Each release's notes on GitHub are taken from its section below.
 - Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, and as an AU on macOS.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
 - **Thunder's own dark interface**:
-  - The module chain shows Pitch, Grains, Space, Tone and Width in processing order. Click a module to see its controls, or its dot to switch it on or off.
+  - The module chain shows Pitch, Time, Grains, Static, Space, Tone, Width and Shape in processing order. Click a module to see its controls, or its dot to switch it on or off.
   - Output Mode, Mix, Layer, In and Out, Auto Gain and the limiter are always in view.
   - Drag a knob up or down; hold Shift for fine adjustments. The mouse wheel nudges it, and a double-click resets it.
   - Click a knob's value to type an exact one, or right-click the knob to reset, enter, copy or paste its value.
@@ -44,6 +44,12 @@ Each release's notes on GitHub are taken from its section below.
   - The grain cloud keeps a steady level however dense or spread out it is.
 - **Space**: a lush "Cloud" reverb with Mix, Decay, Pre-delay and Damping.
 - **Tone**: a high-pass (on by default, at 200 Hz) and a low-pass on the layer, each 12 or 24 dB/oct.
+- **Time**: halftime in step with your song. Each bar plays its first half (1/2) or first quarter (1/4) across the whole bar, at the same pitch and with no added latency. **Smooth** softens the jump at each bar line.
+- **Static**: random movement that makes the layer feel alive. It can move how far back the grains reach, their pitch spread, the filters, the pan and the level; choose which with the target buttons.
+  - **Smooth** glides, **Stepped** jumps from value to value, **Spark** fires sudden bursts that fade.
+  - **Rate** in Hz, or in note values with **Sync**; **Amount** sets how far it moves.
+  - The movement follows your song's position, so a loop moves the same way every time and a bounce sounds like playback.
+- **Shape**: a rhythmic volume shape on the layer: Pump, Swell, Gate, Ramp Up, Ramp Down or Chop, from 2 bars down to 1/16 triplets (dotted and triplet values included). **Depth** sets how deep it cuts, **Smooth** softens its edges. It stays locked to your song's bars and beats through loops and jumps, and keeps time while the transport is stopped.
 - **Width**: stereo width from mono to 200%. Mono playback sounds the same at every width.
 - Every module has its own on/off switch, which fades in and out without clicks.
 - **Output**:

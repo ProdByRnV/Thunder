@@ -19,6 +19,7 @@ target_sources(ThunderTests PRIVATE
     support/Realtime.h
     support/TestSignals.h
     support/TestHost.h
+    support/PendingControls.h
     audio/LatencyAlignmentTests.cpp
     unit/CaptureTests.cpp
     unit/DesignSystemTests.cpp
@@ -35,6 +36,7 @@ target_sources(ThunderTests PRIVATE
     unit/PitchModuleTests.cpp
     unit/PitchTrackerTests.cpp
     unit/ProcessorTests.cpp
+    unit/RhythmModuleTests.cpp
     unit/SpaceModuleTests.cpp
     unit/StateTests.cpp
     unit/TransportStateTests.cpp
@@ -55,6 +57,10 @@ target_sources(ThunderTests PRIVATE
     measure/PitchTrackerMeasure.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Saved states and presets from earlier versions (QA-STATE-001).
+target_compile_definitions(ThunderTests PRIVATE
+    THUNDER_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 target_link_libraries(ThunderTests PRIVATE
     ThunderPluginCode

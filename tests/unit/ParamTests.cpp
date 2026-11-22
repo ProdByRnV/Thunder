@@ -8,9 +8,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <string>
+#include <string_view>
 
 using namespace thunder::params;
 using Catch::Matchers::WithinAbs;
@@ -35,9 +38,19 @@ bool parsesTo (ParamId id, const juce::String& typed, float expected)
 }
 } // namespace
 
-TEST_CASE ("The parameter table holds every v0.5 parameter", "[unit][params]")
+TEST_CASE ("The parameter table holds every parameter, each with its release", "[unit][params]")
 {
-    CHECK (kNumParams == 39u);
+    // v0.5's 39 and v1.0's 29 (PRD §9.3–§9.11). `timeReverse` stays reserved
+    // and `quality`/`keyAutoDetect` aren't host parameters (DEC-050).
+    CHECK (kNumParams == 68u);
+
+    const std::array<std::string_view, 29> v1_0{
+        "timeOn",           "halftimeSpeed",   "halftimeSmooth",    "grainScaleLock", "grainSync",
+        "grainFreeze",      "staticOn",        "staticAmount",      "staticRate",     "staticSync",
+        "staticRateSynced", "staticCharacter", "staticTgtPosition", "staticTgtPitch", "staticTgtFilter",
+        "staticTgtPan",     "staticTgtLevel",  "autopanOn",         "autopanRate",    "autopanDepth",
+        "shapeOn",          "shapeType",       "shapeRate",         "shapeDepth",     "shapeSmooth",
+        "duckOn",           "duckAmount",      "duckRelease",       "duckMode"};
 
     for (const auto& def : kParamDefs)
     {
@@ -48,7 +61,8 @@ TEST_CASE ("The parameter table holds every v0.5 parameter", "[unit][params]")
             CHECK (std::isalnum (static_cast<unsigned char> (c)));
 
         CHECK (findParam (def.id) == def.param);
-        CHECK (def.versionHint == kReleaseV0_5);
+        const auto isV1_0 = std::find (v1_0.begin(), v1_0.end(), def.id) != v1_0.end();
+        CHECK (def.versionHint == (isV1_0 ? kReleaseV1_0 : kReleaseV0_5));
         CHECK (def.automatable);
 
         if (def.kind == Kind::Choice)
@@ -57,6 +71,9 @@ TEST_CASE ("The parameter table holds every v0.5 parameter", "[unit][params]")
             CHECK (def.choices.empty());
     }
 
+    for (const auto id : v1_0)
+        CHECK (findParam (id).has_value());
+    CHECK_FALSE (findParam ("timeReverse").has_value());
     CHECK_FALSE (findParam ("noSuchParameter").has_value());
 }
 
@@ -81,6 +98,50 @@ TEST_CASE ("Parameter defaults follow the PRD", "[unit][params]")
     CHECK_THAT (defaults.get (ParamId::lpFreq), WithinAbs (16000.0, 1e-6));
     CHECK (defaults.getChoice<FilterSlope> (ParamId::lpSlope) == FilterSlope::Db12);
     CHECK_THAT (defaults.get (ParamId::widthAmount), WithinAbs (100.0, 1e-6));
+
+    // v1.0's modules arrive switched off, so older sounds don't change.
+    for (const auto id : {ParamId::timeOn, ParamId::staticOn, ParamId::autopanOn, ParamId::shapeOn, ParamId::duckOn,
+                          ParamId::grainSync, ParamId::grainFreeze})
+        CHECK_FALSE (defaults.isOn (id));
+    CHECK (defaults.isOn (ParamId::grainScaleLock));
+    CHECK (defaults.getChoice<HalftimeSpeed> (ParamId::halftimeSpeed) == HalftimeSpeed::Half);
+    CHECK_THAT (defaults.get (ParamId::halftimeSmooth), WithinAbs (30.0, 1e-6));
+    CHECK_THAT (defaults.get (ParamId::staticAmount), WithinAbs (30.0, 1e-6));
+    CHECK_THAT (defaults.get (ParamId::staticRate), WithinAbs (0.5, 1e-6));
+    CHECK (defaults.getChoice<SyncedRate> (ParamId::staticRateSynced) == SyncedRate::Bar1);
+    CHECK (defaults.getChoice<StaticCharacter> (ParamId::staticCharacter) == StaticCharacter::Smooth);
+    CHECK (defaults.getChoice<SyncedRate> (ParamId::autopanRate) == SyncedRate::Quarter);
+    CHECK (defaults.getChoice<ShapeType> (ParamId::shapeType) == ShapeType::Pump);
+    CHECK (shapeRateToSynced (static_cast<std::size_t> (defaults.getInt (ParamId::shapeRate))) == SyncedRate::Quarter);
+    CHECK_THAT (defaults.get (ParamId::shapeDepth), WithinAbs (60.0, 1e-6));
+    CHECK_THAT (defaults.get (ParamId::shapeSmooth), WithinAbs (20.0, 1e-6));
+    CHECK_THAT (defaults.get (ParamId::duckAmount), WithinAbs (40.0, 1e-6));
+    CHECK_THAT (defaults.get (ParamId::duckRelease), WithinAbs (150.0, 1e-6));
+    CHECK (defaults.getChoice<DuckMode> (ParamId::duckMode) == DuckMode::Envelope);
+}
+
+TEST_CASE ("The synced rate list and its lengths", "[unit][params]")
+{
+    // The shared list's order is permanent (PRD §9.13); Shape uses it from 2 bars.
+    CHECK (text (ParamId::staticRateSynced, 0.0f) == "4 bars");
+    CHECK (text (ParamId::staticRateSynced, 14.0f) == "1/16T");
+    CHECK (text (ParamId::shapeRate, 0.0f) == "2 bars");
+    CHECK (text (ParamId::shapeRate, 13.0f) == "1/16T");
+    for (std::size_t i = 0; i < kShapeRateNames.size(); ++i)
+        CHECK (kShapeRateNames[i] == kSyncedRateNames[enumIndex (shapeRateToSynced (i))]);
+
+    CHECK_THAT (rateLength (SyncedRate::Bars2).bars, WithinAbs (2.0, 1e-12));
+    CHECK_THAT (rateLength (SyncedRate::Quarter).quarters, WithinAbs (1.0, 1e-12));
+    CHECK_THAT (rateLength (SyncedRate::QuarterDotted).quarters, WithinAbs (1.5, 1e-12));
+    CHECK_THAT (rateLength (SyncedRate::EighthTriplet).quarters, WithinAbs (1.0 / 3.0, 1e-12));
+    CHECK_THAT (rateLength (SyncedRate::SixteenthDotted).quarters, WithinAbs (0.375, 1e-12));
+
+    // Slow rates show their decimals; audio frequencies don't.
+    CHECK (text (ParamId::staticRate, 0.5f) == "0.50 Hz");
+    CHECK (text (ParamId::staticRate, 2.5f) == "2.5 Hz");
+    CHECK (text (ParamId::staticRate, 20.0f) == "20 Hz");
+    CHECK (text (ParamId::hpFreq, 20.0f) == "20 Hz");
+    CHECK (parsesTo (ParamId::staticRate, "0.25 Hz", 0.25f));
 }
 
 TEST_CASE ("The snapshot copies live values and keeps choices in range", "[unit][params]")

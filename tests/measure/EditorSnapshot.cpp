@@ -42,8 +42,8 @@ TEST_CASE ("Editor snapshot", "[.][editorshot]")
         save (e, "module" + juce::String (i), 1.0f);
     }
 
-    e.selectModule (1);
-    save (e, "module1-200", 2.0f);
+    e.selectModule (2);
+    save (e, "module2-200", 2.0f);
 
     e.selectModule (0);
     e.openSettings();
@@ -73,7 +73,7 @@ TEST_CASE ("Editor snapshot with the visualiser playing", "[.][editorshot]")
 
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
     auto& e = dynamic_cast<ThunderEditor&> (*editor);
-    e.selectModule (1);
+    e.selectModule (2);
 
     // Grains spread in pitch and pan, so the sparks spread out.
     auto& apvts = processor.getValueTreeState();
@@ -98,7 +98,7 @@ TEST_CASE ("Editor snapshot with the visualiser playing", "[.][editorshot]")
     test::playMelody (processor, head, 1.0, rate, 512, frame);
     save (e, "visualiser-spectrum", 1.0f);
 
-    e.selectModule (3);
+    e.selectModule (5);
     test::playMelody (processor, head, 0.5, rate, 512, frame);
     save (e, "visualiser-tone", 1.0f);
 

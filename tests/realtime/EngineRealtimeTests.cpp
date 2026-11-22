@@ -299,6 +299,64 @@ TEST_CASE ("Switching every module, Output Mode, Mix and the gains, and a reset,
     CHECK (report.deallocations == 0);
 }
 
+TEST_CASE ("Time, Static and Shape do not allocate or block, playing, looping and stopped", "[realtime][rhythm]")
+{
+    ThunderEngine engine;
+    engine.prepare (48000.0);
+
+    const auto input = test::sine (220.0, 48000.0, 1.0);
+    std::vector<float> left (512), right (512);
+    float* channels[] = {left.data(), right.data()};
+
+    auto snapshot = params::ParamSnapshot::defaults();
+    snapshot.set (ParamId::timeOn, 1.0f);
+    snapshot.set (ParamId::staticOn, 1.0f);
+    snapshot.set (ParamId::staticAmount, 100.0f);
+    snapshot.set (ParamId::staticTgtPitch, 1.0f);
+    snapshot.set (ParamId::staticTgtLevel, 1.0f);
+    snapshot.set (ParamId::shapeOn, 1.0f);
+
+    TransportState transport;
+    transport.isPlaying = true;
+    transport.hasHostInfo = true;
+
+    const auto report = test::runInRealtimeSection (
+        [&]
+        {
+            for (std::size_t block = 0; block < 600; ++block)
+            {
+                const auto n = 64 + static_cast<int> ((block * 97) % 449); // uneven blocks, split on Static's grid
+                const auto start = (block * 512) % (input.size() - 512);
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), n, left.begin());
+                std::copy_n (input.begin() + static_cast<std::ptrdiff_t> (start), n, right.begin());
+
+                // Every setting of each, switching on and off, a loop and a stop.
+                snapshot.set (ParamId::halftimeSpeed, static_cast<float> ((block / 37) % 2));
+                snapshot.set (ParamId::halftimeSmooth, static_cast<float> (block % 101));
+                snapshot.set (ParamId::staticCharacter, static_cast<float> ((block / 23) % 3));
+                snapshot.set (ParamId::staticSync, (block / 51) % 2 == 0 ? 1.0f : 0.0f);
+                snapshot.set (ParamId::staticRateSynced, static_cast<float> (block % 15));
+                snapshot.set (ParamId::staticRate, 0.05f + static_cast<float> (block % 20));
+                snapshot.set (ParamId::shapeType, static_cast<float> ((block / 19) % 6));
+                snapshot.set (ParamId::shapeRate, static_cast<float> (block % 14));
+                snapshot.set (ParamId::shapeSmooth, static_cast<float> (block % 101));
+                for (const auto id : {ParamId::timeOn, ParamId::staticOn, ParamId::shapeOn})
+                    snapshot.set (id, (block / (60 + 13 * static_cast<std::size_t> (id))) % 2 == 0 ? 1.0f : 0.0f);
+
+                transport.isPlaying = (block / 150) % 2 == 0;
+                if (block == 200)
+                    transport.ppqPosition = 0.0; // the loop jumps back
+                transport.ppqLastBarStart = std::floor (transport.ppqPosition / 4.0) * 4.0;
+
+                engine.process (channels, n, transport, snapshot);
+                transport = transport.advancedBy (n, 48000.0);
+            }
+        });
+
+    CHECK (report.allocations == 0);
+    CHECK (report.deallocations == 0);
+}
+
 TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
 {
     // Arming, recording a Layer and a Full Mix capture, finishing, failing and

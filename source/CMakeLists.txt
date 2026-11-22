@@ -40,8 +40,14 @@ target_sources(ThunderCore INTERFACE
     core/dsp/pitch/IntervalFollower.h
     core/dsp/pitch/PitchModule.cpp
     core/dsp/pitch/PitchModule.h
+    core/dsp/shape/ShapeModule.cpp
+    core/dsp/shape/ShapeModule.h
     core/dsp/space/SpaceModule.cpp
     core/dsp/space/SpaceModule.h
+    core/dsp/static/StaticModulator.cpp
+    core/dsp/static/StaticModulator.h
+    core/dsp/time/TimeModule.cpp
+    core/dsp/time/TimeModule.h
     core/dsp/tone/Svf.h
     core/dsp/tone/ToneModule.cpp
     core/dsp/tone/ToneModule.h
@@ -52,6 +58,8 @@ target_sources(ThunderCore INTERFACE
     core/engine/OutputStage.h
     core/engine/ThunderEngine.cpp
     core/engine/ThunderEngine.h
+    core/host/MusicalClock.cpp
+    core/host/MusicalClock.h
     core/host/TransportState.cpp
     core/host/TransportState.h
     core/music/IntervalMapper.cpp

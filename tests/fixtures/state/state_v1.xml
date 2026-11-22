@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderState stateVersion="1" pluginVersion="0.6.0">
+  <PARAMETERS>
+    <PARAM id="autoGain" value="1.0"/>
+    <PARAM id="grainAmount" value="50.0"/>
+    <PARAM id="grainDensity" value="20.00000190734863"/>
+    <PARAM id="grainOn" value="1.0"/>
+    <PARAM id="grainPanSpread" value="40.0"/>
+    <PARAM id="grainPitchSpread" value="5.0"/>
+    <PARAM id="grainPosSpread" value="60.00000381469727"/>
+    <PARAM id="grainReverse" value="0.0"/>
+    <PARAM id="grainSize" value="80.00000762939453"/>
+    <PARAM id="hpFreq" value="300.0000305175781"/>
+    <PARAM id="hpSlope" value="1.0"/>
+    <PARAM id="inputGain" value="0.0"/>
+    <PARAM id="keyRoot" value="9.0"/>
+    <PARAM id="keyScale" value="1.0"/>
+    <PARAM id="layerLevel" value="0.0"/>
+    <PARAM id="lpFreq" value="16000.0"/>
+    <PARAM id="lpSlope" value="0.0"/>
+    <PARAM id="mix" value="70.0"/>
+    <PARAM id="outputGain" value="0.0"/>
+    <PARAM id="outputMode" value="0.0"/>
+    <PARAM id="pitchDirection" value="0.0"/>
+    <PARAM id="pitchFine" value="0.0"/>
+    <PARAM id="pitchFormant" value="1.0"/>
+    <PARAM id="pitchInterval" value="2.0"/>
+    <PARAM id="pitchMix" value="100.0"/>
+    <PARAM id="pitchMode" value="2.0"/>
+    <PARAM id="pitchOctave" value="2.0"/>
+    <PARAM id="pitchOn" value="1.0"/>
+    <PARAM id="pitchSemitones" value="7.0"/>
+    <PARAM id="safetyLimiter" value="1.0"/>
+    <PARAM id="spaceDamping" value="50.0"/>
+    <PARAM id="spaceDecay" value="70.0"/>
+    <PARAM id="spaceMix" value="40.0"/>
+    <PARAM id="spaceMode" value="2.0"/>
+    <PARAM id="spaceOn" value="1.0"/>
+    <PARAM id="spacePreDelay" value="20.0"/>
+    <PARAM id="toneOn" value="1.0"/>
+    <PARAM id="widthAmount" value="150.0"/>
+    <PARAM id="widthOn" value="1.0"/>
+  </PARAMETERS>
+  <Session presetName="Night Static" presetModified="1" presetKey="factory:Night Static"
+           captureBars="8" captureSource="layer" uiScale="1.25" uiView="spectrum"/>
+</ThunderState>

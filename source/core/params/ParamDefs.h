@@ -57,10 +57,14 @@ enum class Group
     Output,
     Key,
     Pitch,
+    Time,
     Grains,
+    Static,
     Space,
     Tone,
-    Width
+    Width,
+    Shape,
+    Duck
 };
 
 struct GroupDef
@@ -70,14 +74,18 @@ struct GroupDef
     std::string_view name;
 };
 
-inline constexpr std::array<GroupDef, 7> kGroupDefs{{
+inline constexpr std::array<GroupDef, 11> kGroupDefs{{
     {Group::Output, "output", "Output"},
     {Group::Key, "key", "Key"},
     {Group::Pitch, "pitch", "Pitch"},
+    {Group::Time, "time", "Time"},
     {Group::Grains, "grains", "Grains"},
+    {Group::Static, "static", "Static"},
     {Group::Space, "space", "Space"},
     {Group::Tone, "tone", "Tone"},
     {Group::Width, "width", "Width"},
+    {Group::Shape, "shape", "Shape"},
+    {Group::Duck, "duck", "Duck"},
 }};
 
 // JUCE parameter version hint for a Thunder release: v0.5 → 5, v1.0 → 100,
@@ -89,6 +97,7 @@ constexpr int versionHint (int major, int minor) noexcept
 }
 
 inline constexpr int kReleaseV0_5 = versionHint (0, 5);
+inline constexpr int kReleaseV1_0 = versionHint (1, 0);
 
 // Index of every parameter. The order matches kParamDefs (checked at compile
 // time below) and is the order hosts list the parameters in.
@@ -115,6 +124,10 @@ enum class ParamId : int
     pitchFine,
     pitchFormant,
     pitchMix,
+    // Time (§9.4)
+    timeOn,
+    halftimeSpeed,
+    halftimeSmooth,
     // Grains (§9.5)
     grainOn,
     grainAmount,
@@ -124,6 +137,21 @@ enum class ParamId : int
     grainPitchSpread,
     grainPanSpread,
     grainReverse,
+    grainScaleLock,
+    grainSync,
+    grainFreeze,
+    // Static (§9.6)
+    staticOn,
+    staticAmount,
+    staticRate,
+    staticSync,
+    staticRateSynced,
+    staticCharacter,
+    staticTgtPosition,
+    staticTgtPitch,
+    staticTgtFilter,
+    staticTgtPan,
+    staticTgtLevel,
     // Space (§9.7)
     spaceOn,
     spaceMode,
@@ -140,9 +168,23 @@ enum class ParamId : int
     // Width (§9.9)
     widthOn,
     widthAmount,
+    autopanOn,
+    autopanRate,
+    autopanDepth,
+    // Shape (§9.10)
+    shapeOn,
+    shapeType,
+    shapeRate,
+    shapeDepth,
+    shapeSmooth,
+    // Duck (§9.11)
+    duckOn,
+    duckAmount,
+    duckRelease,
+    duckMode,
 };
 
-inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::widthAmount) + 1;
+inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::duckMode) + 1;
 
 constexpr std::size_t toIndex (ParamId id) noexcept
 {
@@ -214,6 +256,23 @@ constexpr ParamDef choiceParam (ParamId p, std::string_view id, std::string_view
     return make (p, id, name, g, Kind::Choice, 0.0f, static_cast<float> (N - 1), static_cast<float> (enumIndex (def)),
                  Taper::Linear, Unit::None, std::span (choices));
 }
+
+// A choice whose default is given by index (for lists without their own enum).
+template<std::size_t N>
+constexpr ParamDef choiceParamAt (ParamId p, std::string_view id, std::string_view name, Group g,
+                                  const std::array<std::string_view, N>& choices, std::size_t def) noexcept
+{
+    return make (p, id, name, g, Kind::Choice, 0.0f, static_cast<float> (N - 1), static_cast<float> (def),
+                 Taper::Linear, Unit::None, std::span (choices));
+}
+
+// A parameter that first ships in v1.0 (PRD §9 rules: the version hint is the
+// release that introduced it).
+constexpr ParamDef v1_0 (ParamDef d) noexcept
+{
+    d.versionHint = kReleaseV1_0;
+    return d;
+}
 } // namespace detail
 
 // clang-format off
@@ -242,6 +301,11 @@ inline constexpr std::array<ParamDef, kNumParams> kParamDefs {{
     detail::boolParam   (ParamId::pitchFormant,  "pitchFormant",  "Preserve Formants", Group::Pitch, true),
     detail::floatParam  (ParamId::pitchMix,      "pitchMix",      "Pitch Mix",         Group::Pitch, 0.0f, 100.0f, 100.0f, Unit::Percent),
 
+    // ---- Time (§9.4) -----------------------------------------------------------------------------------------------
+    detail::v1_0 (detail::boolParam   (ParamId::timeOn,         "timeOn",         "Time On",  Group::Time, false)),
+    detail::v1_0 (detail::choiceParam (ParamId::halftimeSpeed,  "halftimeSpeed",  "Halftime", Group::Time, kHalftimeSpeedNames, HalftimeSpeed::Half)),
+    detail::v1_0 (detail::floatParam  (ParamId::halftimeSmooth, "halftimeSmooth", "Halftime Smooth", Group::Time, 0.0f, 100.0f, 30.0f, Unit::Percent)),
+
     // ---- Grains (§9.5) ---------------------------------------------------------------------------------------------
     detail::boolParam   (ParamId::grainOn,          "grainOn",          "Grains On",           Group::Grains, true),
     detail::floatParam  (ParamId::grainAmount,      "grainAmount",      "Grain Amount",        Group::Grains, 0.0f, 100.0f, 50.0f, Unit::Percent),
@@ -251,6 +315,24 @@ inline constexpr std::array<ParamDef, kNumParams> kParamDefs {{
     detail::floatParam  (ParamId::grainPitchSpread, "grainPitchSpread", "Pitch Spread",        Group::Grains, 0.0f, 12.0f, 0.0f, Unit::Semitones),
     detail::floatParam  (ParamId::grainPanSpread,   "grainPanSpread",   "Pan Spread",          Group::Grains, 0.0f, 100.0f, 40.0f, Unit::Percent),
     detail::floatParam  (ParamId::grainReverse,     "grainReverse",     "Reverse Probability", Group::Grains, 0.0f, 100.0f, 0.0f, Unit::Percent),
+    detail::v1_0 (detail::boolParam (ParamId::grainScaleLock, "grainScaleLock", "Scale Lock",       Group::Grains, true)),
+    detail::v1_0 (detail::boolParam (ParamId::grainSync,      "grainSync",      "Grain Tempo Sync", Group::Grains, false)),
+    detail::v1_0 (detail::boolParam (ParamId::grainFreeze,    "grainFreeze",    "Freeze",           Group::Grains, false)),
+
+    // ---- Static (§9.6) ---------------------------------------------------------------------------------------------
+    // Target defaults (DEC-050): position, filter and pan move; pitch and level
+    // stay put until asked for.
+    detail::v1_0 (detail::boolParam     (ParamId::staticOn,          "staticOn",          "Static On",          Group::Static, false)),
+    detail::v1_0 (detail::floatParam    (ParamId::staticAmount,      "staticAmount",      "Static Amount",      Group::Static, 0.0f, 100.0f, 30.0f, Unit::Percent)),
+    detail::v1_0 (detail::floatParam    (ParamId::staticRate,        "staticRate",        "Static Rate",        Group::Static, 0.05f, 20.0f, 0.5f, Unit::Hertz, Taper::Log)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticSync,        "staticSync",        "Static Sync",        Group::Static, false)),
+    detail::v1_0 (detail::choiceParam   (ParamId::staticRateSynced,  "staticRateSynced",  "Static Synced Rate", Group::Static, kSyncedRateNames, SyncedRate::Bar1)),
+    detail::v1_0 (detail::choiceParam   (ParamId::staticCharacter,   "staticCharacter",   "Static Character",   Group::Static, kStaticCharacterNames, StaticCharacter::Smooth)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticTgtPosition, "staticTgtPosition", "Static to Position", Group::Static, true)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticTgtPitch,    "staticTgtPitch",    "Static to Pitch",    Group::Static, false)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticTgtFilter,   "staticTgtFilter",   "Static to Filter",   Group::Static, true)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticTgtPan,      "staticTgtPan",      "Static to Pan",      Group::Static, true)),
+    detail::v1_0 (detail::boolParam     (ParamId::staticTgtLevel,    "staticTgtLevel",    "Static to Level",    Group::Static, false)),
 
     // ---- Space (§9.7) ----------------------------------------------------------------------------------------------
     detail::boolParam   (ParamId::spaceOn,       "spaceOn",       "Space On",    Group::Space, true),
@@ -270,6 +352,22 @@ inline constexpr std::array<ParamDef, kNumParams> kParamDefs {{
     // ---- Width (§9.9) ----------------------------------------------------------------------------------------------
     detail::boolParam   (ParamId::widthOn,     "widthOn",     "Width On", Group::Width, true),
     detail::floatParam  (ParamId::widthAmount, "widthAmount", "Width",    Group::Width, 0.0f, 200.0f, 100.0f, Unit::Percent),
+    detail::v1_0 (detail::boolParam   (ParamId::autopanOn,    "autopanOn",    "Autopan",       Group::Width, false)),
+    detail::v1_0 (detail::choiceParam (ParamId::autopanRate,  "autopanRate",  "Autopan Rate",  Group::Width, kSyncedRateNames, SyncedRate::Quarter)),
+    detail::v1_0 (detail::floatParam  (ParamId::autopanDepth, "autopanDepth", "Autopan Depth", Group::Width, 0.0f, 100.0f, 50.0f, Unit::Percent)),
+
+    // ---- Shape (§9.10) ---------------------------------------------------------------------------------------------
+    detail::v1_0 (detail::boolParam     (ParamId::shapeOn,     "shapeOn",     "Shape On",     Group::Shape, false)),
+    detail::v1_0 (detail::choiceParam   (ParamId::shapeType,   "shapeType",   "Shape",        Group::Shape, kShapeTypeNames, ShapeType::Pump)),
+    detail::v1_0 (detail::choiceParamAt (ParamId::shapeRate,   "shapeRate",   "Shape Rate",   Group::Shape, kShapeRateNames, enumIndex (SyncedRate::Quarter) - kShapeRateOffset)),
+    detail::v1_0 (detail::floatParam    (ParamId::shapeDepth,  "shapeDepth",  "Shape Depth",  Group::Shape, 0.0f, 100.0f, 60.0f, Unit::Percent)),
+    detail::v1_0 (detail::floatParam    (ParamId::shapeSmooth, "shapeSmooth", "Shape Smooth", Group::Shape, 0.0f, 100.0f, 20.0f, Unit::Percent)),
+
+    // ---- Duck (§9.11) ----------------------------------------------------------------------------------------------
+    detail::v1_0 (detail::boolParam   (ParamId::duckOn,      "duckOn",      "Duck On",      Group::Duck, false)),
+    detail::v1_0 (detail::floatParam  (ParamId::duckAmount,  "duckAmount",  "Duck Amount",  Group::Duck, 0.0f, 100.0f, 40.0f, Unit::Percent)),
+    detail::v1_0 (detail::floatParam  (ParamId::duckRelease, "duckRelease", "Duck Release", Group::Duck, 10.0f, 1000.0f, 150.0f, Unit::Milliseconds, Taper::Log)),
+    detail::v1_0 (detail::choiceParam (ParamId::duckMode,    "duckMode",    "Duck Mode",    Group::Duck, kDuckModeNames, DuckMode::Envelope)),
 }};
 // clang-format on
 

@@ -52,6 +52,15 @@ juce::String describe (ParamId id)
         case ParamId::pitchMix:
             return "How much of the shifted sound the layer uses.";
 
+        // Time
+        case ParamId::timeOn:
+            return "Switches halftime on or off.";
+        case ParamId::halftimeSpeed:
+            return "Plays the start of each bar at half or quarter speed, keeping its pitch, so the layer moves at a "
+                   "slower feel.";
+        case ParamId::halftimeSmooth:
+            return "Softens the jump at the start of each bar.";
+
         // Grains
         case ParamId::grainOn:
             return "Switches the grain cloud on or off.";
@@ -69,6 +78,36 @@ juce::String describe (ParamId id)
             return "How widely grains spread across the stereo field.";
         case ParamId::grainReverse:
             return "The chance that a grain plays backwards.";
+        case ParamId::grainScaleLock:
+            return "Keeps each grain's pitch on a note of your scale.";
+        case ParamId::grainSync:
+            return "Starts grains in time with your song.";
+        case ParamId::grainFreeze:
+            return "Holds the grains on the sound they have now, so it sustains.";
+
+        // Static
+        case ParamId::staticOn:
+            return "Switches Static's random movement on or off.";
+        case ParamId::staticAmount:
+            return "How far Static moves the controls it reaches.";
+        case ParamId::staticRate:
+            return "How fast Static moves.";
+        case ParamId::staticSync:
+            return "Moves in note values of your song's tempo instead of a free rate.";
+        case ParamId::staticRateSynced:
+            return "How fast Static moves, in note values.";
+        case ParamId::staticCharacter:
+            return "Smooth glides, Stepped jumps from value to value, Spark fires sudden bursts that fade.";
+        case ParamId::staticTgtPosition:
+            return "Lets Static move how far back the grains reach.";
+        case ParamId::staticTgtPitch:
+            return "Lets Static widen the grains' pitch spread.";
+        case ParamId::staticTgtFilter:
+            return "Lets Static move the layer's filters.";
+        case ParamId::staticTgtPan:
+            return "Lets Static move the layer left and right.";
+        case ParamId::staticTgtLevel:
+            return "Lets Static dip the layer's level.";
 
         // Space
         case ParamId::spaceOn:
@@ -101,6 +140,34 @@ juce::String describe (ParamId id)
             return "Switches stereo width on or off.";
         case ParamId::widthAmount:
             return "The layer's stereo width: 0% is mono, 100% unchanged, 200% extra wide.";
+        case ParamId::autopanOn:
+            return "Moves the layer from side to side in time with your song.";
+        case ParamId::autopanRate:
+            return "How fast the layer moves from side to side, in note values.";
+        case ParamId::autopanDepth:
+            return "How far the layer moves from side to side.";
+
+        // Shape
+        case ParamId::shapeOn:
+            return "Switches the rhythmic volume shape on or off.";
+        case ParamId::shapeType:
+            return "The volume shape repeated in time with your song.";
+        case ParamId::shapeRate:
+            return "How long one shape lasts, in note values.";
+        case ParamId::shapeDepth:
+            return "How deep the shape cuts into the layer's volume.";
+        case ParamId::shapeSmooth:
+            return "Softens the shape's edges.";
+
+        // Duck
+        case ParamId::duckOn:
+            return "Switches ducking on or off.";
+        case ParamId::duckAmount:
+            return "How much quieter the layer gets while your melody plays.";
+        case ParamId::duckRelease:
+            return "How quickly the layer comes back up after your melody.";
+        case ParamId::duckMode:
+            return "How the layer makes room for your melody.";
     }
 
     // Only an ID outside the table gets here (every parameter has a case above).

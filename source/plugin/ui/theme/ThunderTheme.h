@@ -237,6 +237,14 @@ inline constexpr int toneCurveWidth = 380; // Tone's mini filter curve
 inline constexpr int toneCurveHeight = 80;
 inline constexpr int emptyBolt = 48;
 
+// Module panels (§11.4, §11.8)
+inline constexpr int chipWidth = 96; // Static's target chips
+inline constexpr int chipGap = 8;
+inline constexpr int shapeThumbWidth = 48; // Shape's picker: one thumbnail per shape
+inline constexpr int shapeThumbHeight = 32;
+inline constexpr float shapeThumbStroke = 1.5f;
+inline constexpr int rateDropdownWidth = 120; // Shape's Rate
+
 // Capture bar (§9.10)
 inline constexpr int captureTitleWidth = 64;
 inline constexpr int barsDropdownWidth = 96;

@@ -824,7 +824,7 @@ TEST_CASE ("The spectrum and the grains are read only while they show", "[unit][
     CHECK ((bridge.getWanted() & UiBridge::kGrains) == 0);
 
     // Tone's mini curve needs the spectrum even in the waveform view.
-    f.editor->selectModule (3);
+    f.editor->selectModule (5);
     f.editor->updateVisuals (true, 0.0);
     CHECK ((bridge.getWanted() & UiBridge::kSpectrum) != 0);
 

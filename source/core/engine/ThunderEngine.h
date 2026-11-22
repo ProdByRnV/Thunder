@@ -8,7 +8,10 @@
 #include "core/dsp/gain/SafetyLimiter.h"
 #include "core/dsp/grains/GrainModule.h"
 #include "core/dsp/pitch/PitchModule.h"
+#include "core/dsp/shape/ShapeModule.h"
 #include "core/dsp/space/SpaceModule.h"
+#include "core/dsp/static/StaticModulator.h"
+#include "core/dsp/time/TimeModule.h"
 #include "core/dsp/tone/ToneModule.h"
 #include "core/dsp/width/WidthModule.h"
 #include "core/host/TransportState.h"
@@ -31,15 +34,23 @@ namespace thunder
 //
 // Per chunk:
 //   input gain, sanitise
-//     ├─ dry path: delayed by the chain's latency ─────────────────────────────────────┐
-//     └─ layer:    Pitch → Grains → Space → Tone → Width → Auto Gain → Layer Level ─┴─ Output Mode / Mix
+//     ├─ dry path: delayed by the chain's latency ──────────────────────────────────────────────────┐
+//     └─ layer:    Pitch → Time → Grains → Space → Tone → Width → Shape → Auto Gain → Layer Level ─┤
+//                  → Static's pan and level ──────────────────────────────────────────────────────┴─ Output Mode / Mix
 //                                                       → Output Gain → sanitise → safety limiter (−0.3 dBFS)
 //
 // The chain follows PRD DEC-005 (Pitch → Time → Grains → Space → Tone → Width →
-// Shape → Duck). Time (v0.8) will go between Pitch and Grains, Shape and Duck
-// after Width. Every module sits in a ModuleSlot with its own click-free on/off
-// switch (PRD FR-CORE-009); a switched-off module costs nothing and the latency
-// never changes.
+// Shape → Duck; Duck arrives with v1.0's remaining modules). Every module sits
+// in a ModuleSlot with its own click-free on/off switch (PRD FR-CORE-009); a
+// switched-off module costs nothing and the latency never changes.
+//
+// Static (dsp::StaticModulator) isn't a stage: each chunk it moves the values
+// some modules read (grain spreads, filter cutoffs) in a copy of the snapshot,
+// and pans and dips the layer after Auto Gain (dsp::StaticStage).
+//
+// Tempo-synced modules get the song position of the audio they process: the
+// host's position minus the latency of the modules before them, so their grid
+// lines up with what is heard.
 //
 // The limiter looks ahead 1.5 ms; that is part of the reported latency.
 //
@@ -80,7 +91,11 @@ public:
 
     // Grains keep replaying the input for a while, and the reverb then rings
     // out after the last grain.
-    double getTailSeconds() const noexcept { return grains.getTailSeconds() + space.getTailSeconds(); }
+    // Halftime can play the rest of a bar from its history first.
+    double getTailSeconds() const noexcept
+    {
+        return time.getTailSeconds() + grains.getTailSeconds() + space.getTailSeconds();
+    }
 
     // Capture control and its queue (arm/cancel from the message thread; the
     // writer drains the queue).
@@ -92,6 +107,10 @@ public:
 
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
+    const dsp::TimeModule& getTime() const noexcept { return time.get(); }
+
+    // Where Static moved its targets in the most recent chunk.
+    const dsp::StaticModulator::Frame& getStaticFrame() const noexcept { return staticModulator.getFrame(); }
     bool isPrepared() const noexcept { return prepared; }
 
     // The transport position of the most recent chunk.
@@ -109,7 +128,11 @@ public:
 
 private:
     // The layer chain in processing order (PRD DEC-005).
-    std::array<Module*, 5> chain() noexcept { return {&pitch, &grains, &space, &tone, &width}; }
+    static constexpr std::size_t kChainLength = 7;
+    std::array<Module*, kChainLength> chain() noexcept
+    {
+        return {&pitch, &time, &grains, &space, &tone, &width, &shape};
+    }
 
     void processChunk (float* const* channels, int numSamples, const ProcessContext& context) noexcept;
     void runModule (Module& module, juce::dsp::AudioBlock<float>& block, const ProcessContext& context) noexcept;
@@ -117,7 +140,8 @@ private:
 
     double sampleRate = 44100.0;
     bool prepared = false;
-    bool firstBlock = true; // the first block after prepare/reset snaps instead of ramping
+    bool firstBlock = true;            // the first block after prepare/reset snaps instead of ramping
+    std::int64_t samplesProcessed = 0; // since prepare/reset: Static's control grid counts from here
     int latencySamples = 0;
 
     TransportState transport;
@@ -128,11 +152,21 @@ private:
     dsp::SafetyLimiter limiter;
 
     ModuleSlot<dsp::PitchModule> pitch{params::ParamId::pitchOn};
+    ModuleSlot<dsp::TimeModule> time{params::ParamId::timeOn};
     ModuleSlot<dsp::GrainModule> grains{params::ParamId::grainOn};
     ModuleSlot<dsp::SpaceModule> space{params::ParamId::spaceOn};
     ModuleSlot<dsp::ToneModule> tone{params::ParamId::toneOn};
     ModuleSlot<dsp::WidthModule> width{params::ParamId::widthOn};
+    ModuleSlot<dsp::ShapeModule> shape{params::ParamId::shapeOn};
     OutputStage output;
+
+    // The latency of the modules before each one in chain(), and of the whole chain.
+    std::array<int, kChainLength> upstreamLatency{};
+    int chainLatency = 0;
+
+    dsp::StaticModulator staticModulator;
+    dsp::StaticStage staticStage;
+    params::ParamSnapshot effective; // the host's values with Static's movement
 
     util::LatencyDelay dryDelay;
     std::array<std::vector<float>, kNumChannels> dry;

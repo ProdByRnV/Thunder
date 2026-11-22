@@ -148,10 +148,13 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     , topBar (p.getValueTreeState(), p.getPresetManager())
     , visualiser (visuals, p.getValueTreeState())
     , chain (p.getValueTreeState(), {{"Pitch", ParamId::pitchOn},
+                                     {"Time", ParamId::timeOn},
                                      {"Grains", ParamId::grainOn},
+                                     {"Static", ParamId::staticOn},
                                      {"Space", ParamId::spaceOn},
                                      {"Tone", ParamId::toneOn},
-                                     {"Width", ParamId::widthOn}})
+                                     {"Width", ParamId::widthOn},
+                                     {"Shape", ParamId::shapeOn}})
     , output (p.getValueTreeState(), visuals.getMeters())
     , captureWidget (p)
 {
@@ -159,13 +162,17 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     setTitle ("Thunder");
 
     auto& apvts = p.getValueTreeState();
+    // In the chain's order.
     modules.push_back (std::make_unique<ui::PitchPanel> (apvts));
+    modules.push_back (std::make_unique<ui::TimePanel> (apvts));
     modules.push_back (std::make_unique<ui::GrainsPanel> (apvts));
+    modules.push_back (std::make_unique<ui::StaticPanel> (apvts));
     modules.push_back (std::make_unique<ui::SpacePanel> (apvts));
     auto tone = std::make_unique<ui::TonePanel> (apvts, visuals);
     tonePanel = tone.get();
     modules.push_back (std::move (tone));
     modules.push_back (std::make_unique<ui::WidthPanel> (apvts));
+    modules.push_back (std::make_unique<ui::ShapePanel> (apvts));
 
     // Children in reading order, which is also the keyboard order (UI.md §14).
     content.addAndMakeVisible (topBar);

@@ -129,4 +129,130 @@ enum class FilterSlope
 inline constexpr std::array<std::string_view, 2> kFilterSlopeNames{"12 dB/oct", "24 dB/oct"};
 static_assert (kFilterSlopeNames.size() == enumIndex (FilterSlope::Db24) + 1);
 
+enum class HalftimeSpeed
+{
+    Half,
+    Quarter
+};
+inline constexpr std::array<std::string_view, 2> kHalftimeSpeedNames{"1/2", "1/4"};
+static_assert (kHalftimeSpeedNames.size() == enumIndex (HalftimeSpeed::Quarter) + 1);
+
+// The one synced rate list every tempo-synced choice uses (PRD §9.13, DEC-021).
+// D = dotted (1.5 × as long), T = triplet (2/3 as long).
+enum class SyncedRate
+{
+    Bars4,
+    Bars2,
+    Bar1,
+    Half,
+    HalfDotted,
+    HalfTriplet,
+    Quarter,
+    QuarterDotted,
+    QuarterTriplet,
+    Eighth,
+    EighthDotted,
+    EighthTriplet,
+    Sixteenth,
+    SixteenthDotted,
+    SixteenthTriplet
+};
+inline constexpr std::array<std::string_view, 15> kSyncedRateNames{"4 bars", "2 bars", "1 bar", "1/2",   "1/2D",
+                                                                   "1/2T",   "1/4",    "1/4D",  "1/4T",  "1/8",
+                                                                   "1/8D",   "1/8T",   "1/16",  "1/16D", "1/16T"};
+static_assert (kSyncedRateNames.size() == enumIndex (SyncedRate::SixteenthTriplet) + 1);
+
+// Shape's rates are the synced list from "2 bars" on (FR-SHAPE-002): its index
+// 0 is SyncedRate::Bars2.
+inline constexpr std::size_t kShapeRateOffset = enumIndex (SyncedRate::Bars2);
+inline constexpr std::array<std::string_view, 14> kShapeRateNames{
+    "2 bars", "1 bar", "1/2", "1/2D", "1/2T", "1/4", "1/4D", "1/4T", "1/8", "1/8D", "1/8T", "1/16", "1/16D", "1/16T"};
+static_assert (kShapeRateNames.size() + kShapeRateOffset == kSyncedRateNames.size());
+
+constexpr SyncedRate shapeRateToSynced (std::size_t shapeRateIndex) noexcept
+{
+    return static_cast<SyncedRate> (shapeRateIndex + kShapeRateOffset);
+}
+
+// How long one cycle of a synced rate lasts: in bars for the bar values (so they
+// follow the time signature), in quarter notes otherwise.
+struct RateLength
+{
+    double bars = 0.0;
+    double quarters = 0.0;
+};
+
+constexpr RateLength rateLength (SyncedRate rate) noexcept
+{
+    constexpr double dotted = 1.5;
+    constexpr double triplet = 2.0 / 3.0;
+
+    switch (rate)
+    {
+        case SyncedRate::Bars4:
+            return {4.0, 0.0};
+        case SyncedRate::Bars2:
+            return {2.0, 0.0};
+        case SyncedRate::Bar1:
+            return {1.0, 0.0};
+        case SyncedRate::Half:
+            return {0.0, 2.0};
+        case SyncedRate::HalfDotted:
+            return {0.0, 2.0 * dotted};
+        case SyncedRate::HalfTriplet:
+            return {0.0, 2.0 * triplet};
+        case SyncedRate::Quarter:
+            return {0.0, 1.0};
+        case SyncedRate::QuarterDotted:
+            return {0.0, dotted};
+        case SyncedRate::QuarterTriplet:
+            return {0.0, triplet};
+        case SyncedRate::Eighth:
+            return {0.0, 0.5};
+        case SyncedRate::EighthDotted:
+            return {0.0, 0.5 * dotted};
+        case SyncedRate::EighthTriplet:
+            return {0.0, 0.5 * triplet};
+        case SyncedRate::Sixteenth:
+            return {0.0, 0.25};
+        case SyncedRate::SixteenthDotted:
+            return {0.0, 0.25 * dotted};
+        case SyncedRate::SixteenthTriplet:
+            return {0.0, 0.25 * triplet};
+    }
+    return {0.0, 1.0};
+}
+
+enum class StaticCharacter
+{
+    Smooth,
+    Stepped,
+    Spark
+};
+inline constexpr std::array<std::string_view, 3> kStaticCharacterNames{"Smooth", "Stepped", "Spark"};
+static_assert (kStaticCharacterNames.size() == enumIndex (StaticCharacter::Spark) + 1);
+
+enum class ShapeType
+{
+    Pump,
+    Swell,
+    Gate,
+    RampUp,
+    RampDown,
+    Chop
+};
+inline constexpr std::array<std::string_view, 6> kShapeTypeNames{"Pump",    "Swell",     "Gate",
+                                                                 "Ramp Up", "Ramp Down", "Chop"};
+static_assert (kShapeTypeNames.size() == enumIndex (ShapeType::Chop) + 1);
+
+// Spectral ducking arrives in v2.0; listed from the start so the list never
+// changes (PRD §9 rules). Until then it ducks like Envelope.
+enum class DuckMode
+{
+    Envelope,
+    Spectral
+};
+inline constexpr std::array<std::string_view, 2> kDuckModeNames{"Envelope", "Spectral"};
+static_assert (kDuckModeNames.size() == enumIndex (DuckMode::Spectral) + 1);
+
 } // namespace thunder::params

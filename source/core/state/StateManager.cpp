@@ -9,9 +9,51 @@ namespace thunder::state
 
 namespace
 {
+// The value of parameter `id` in a PARAMETERS tree, or nullptr if it isn't there.
+juce::ValueTree findParameter (const juce::ValueTree& parameters, const juce::String& id)
+{
+    return parameters.getChildWithProperty (ids::parameterId, id);
+}
+
+void setParameter (juce::ValueTree& parameters, const juce::String& id, double value)
+{
+    auto entry = findParameter (parameters, id);
+    if (!entry.isValid())
+    {
+        entry = juce::ValueTree{ids::parameter};
+        entry.setProperty (ids::parameterId, id, nullptr);
+        parameters.appendChild (entry, nullptr);
+    }
+    entry.setProperty (ids::parameterValue, value, nullptr);
+}
+
+// Version 1 → 2 (v1.0's parameters, PRD DEC-050). State saved before v1.0 must
+// sound the same afterwards:
+// - Grains' Scale Lock arrives switched on, but grain pitches were never
+//   quantised before, so older sounds get it switched off.
+// - Space's Plate, Room and Shimmer were listed from the start but played the
+//   Cloud reverb (DEC-035); they now have engines of their own, so older
+//   sounds that chose one get Cloud, which is what they played.
+// Every other new parameter's default reproduces the old sound.
+juce::ValueTree migrateV1ToV2 (juce::ValueTree tree)
+{
+    auto parameters = tree.getChildWithName (ids::parameters);
+    if (!parameters.isValid())
+        return tree;
+
+    if (!findParameter (parameters, "grainScaleLock").isValid())
+        setParameter (parameters, "grainScaleLock", 0.0);
+
+    if (const auto mode = findParameter (parameters, "spaceMode"); mode.isValid())
+        if (static_cast<double> (mode.getProperty (ids::parameterValue)) >= 0.5)
+            setParameter (parameters, "spaceMode", 0.0);
+
+    return tree;
+}
+
 // Element i migrates version i + 1 → i + 2. Add to the end, never edit an entry
 // that has shipped, and add a fixture test for the old version (QA-STATE-001).
-constexpr std::array<Migration, kCurrentStateVersion - 1> kMigrations{};
+constexpr std::array<Migration, kCurrentStateVersion - 1> kMigrations{migrateV1ToV2};
 } // namespace
 
 std::span<const Migration> stateMigrations() noexcept

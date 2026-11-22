@@ -1,5 +1,6 @@
 #include "ModulePanels.h"
 
+#include "core/dsp/shape/ShapeModule.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderIcons.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -93,6 +94,24 @@ ParamCheckbox& ModulePanel::addCheckbox (ParamId id, const juce::String& label)
     return ref;
 }
 
+ParamChip& ModulePanel::addChip (ParamId id, const juce::String& label, juce::Colour accent)
+{
+    auto chip = std::make_unique<ParamChip> (apvts, id, label, accent);
+    auto& ref = *chip;
+    body.addAndMakeVisible (ref);
+    controls.push_back (std::move (chip));
+    return ref;
+}
+
+ParamDropdown& ModulePanel::addDropdown (ParamId id)
+{
+    auto dropdown = std::make_unique<ParamDropdown> (apvts, id);
+    auto& ref = *dropdown;
+    body.addAndMakeVisible (ref);
+    controls.push_back (std::move (dropdown));
+    return ref;
+}
+
 juce::Rectangle<int> ModulePanel::cell (juce::Rectangle<int> row, int column, int span)
 {
     const auto x = row.getX() + column * (size::moduleColumnWidth + size::moduleGutter);
@@ -177,6 +196,25 @@ void PitchPanel::layoutBody (juce::Rectangle<int> area)
     formants.setBounds (area.removeFromTop (size::controlHeight).withWidth (size::checkboxRowWidth));
 }
 
+// ---- Time (§11.2)
+// ------------------------------------------------------------------------------------------------------
+
+TimePanel::TimePanel (juce::AudioProcessorValueTreeState& state)
+    : ModulePanel (state, "Time", ParamId::timeOn)
+    , speed (addSegmented (ParamId::halftimeSpeed))
+    , smooth (addKnob (ParamId::halftimeSmooth, "Smooth"))
+{
+}
+
+void TimePanel::layoutBody (juce::Rectangle<int> area)
+{
+    speed.setBounds (
+        area.removeFromTop (size::controlHeight).withWidth (speed.getNumSegments() * size::segmentedSegment));
+    area.removeFromTop (space::s3);
+    smooth.setBounds (
+        knobIn (cell (area.removeFromTop (knobHeight (ThunderKnob::Size::medium)), 0), ThunderKnob::Size::medium));
+}
+
 // ---- Grains (§11.3)
 // ----------------------------------------------------------------------------------------------------
 
@@ -205,6 +243,57 @@ void GrainsPanel::layoutBody (juce::Rectangle<int> area)
     pitchSpread.setBounds (knobIn (cell (row2, 0), ThunderKnob::Size::medium));
     panSpread.setBounds (knobIn (cell (row2, 1), ThunderKnob::Size::medium));
     reverse.setBounds (knobIn (cell (row2, 2), ThunderKnob::Size::medium));
+}
+
+// ---- Static (§11.4)
+// ----------------------------------------------------------------------------------------------------
+
+StaticPanel::StaticPanel (juce::AudioProcessorValueTreeState& state)
+    : ModulePanel (state, "Static", ParamId::staticOn)
+    , character (addSegmented (ParamId::staticCharacter))
+    , amount (addKnob (ParamId::staticAmount, "Amount", ThunderKnob::Size::large))
+    , rate (addKnob (ParamId::staticRate, "Rate"))
+    , rateSynced (addKnob (ParamId::staticRateSynced, "Rate"))
+    , sync (addCheckbox (ParamId::staticSync, "Sync"))
+    , syncWatcher (state, ParamId::staticSync,
+                   [this] (float on)
+                   {
+                       // One Rate knob at a time: Hz, or a note value while synced.
+                       rate.setVisible (on < 0.5f);
+                       rateSynced.setVisible (on >= 0.5f);
+                   })
+{
+    character.setAccent (colour::accentSecondary);
+
+    const std::array<std::pair<ParamId, const char*>, 5> chips{{{ParamId::staticTgtPosition, "Position"},
+                                                                {ParamId::staticTgtPitch, "Pitch"},
+                                                                {ParamId::staticTgtFilter, "Filter"},
+                                                                {ParamId::staticTgtPan, "Pan"},
+                                                                {ParamId::staticTgtLevel, "Level"}}};
+    for (std::size_t i = 0; i < chips.size(); ++i)
+        targets[i] = &addChip (chips[i].first, chips[i].second, colour::accentSecondary);
+}
+
+void StaticPanel::layoutBody (juce::Rectangle<int> area)
+{
+    character.setBounds (
+        area.removeFromTop (size::controlHeight).withWidth (character.getNumSegments() * size::segmentedSegment));
+    area.removeFromTop (space::s3);
+
+    const auto large = ThunderKnob::Size::large;
+    auto row = area.removeFromTop (knobHeight (large));
+    amount.setBounds (knobIn (cell (row, 0), large));
+    rate.setBounds (knobIn (cell (row, 1), ThunderKnob::Size::medium));
+    rateSynced.setBounds (rate.getBounds());
+    sync.setBounds (cell (row, 2).withSizeKeepingCentre (size::checkboxRowWidth / 2, size::controlHeight));
+
+    area.removeFromTop (space::s3);
+    auto chipRow = area.removeFromTop (size::controlHeight);
+    for (auto* chip : targets)
+    {
+        chip->setBounds (chipRow.removeFromLeft (size::chipWidth));
+        chipRow.removeFromLeft (size::chipGap);
+    }
 }
 
 // ---- Space (§11.5)
@@ -286,6 +375,69 @@ void WidthPanel::layoutBody (juce::Rectangle<int> area)
 {
     width.setBounds (
         knobIn (cell (area.removeFromTop (knobHeight (ThunderKnob::Size::large)), 0), ThunderKnob::Size::large));
+}
+
+// ---- Shape (§11.8)
+// -----------------------------------------------------------------------------------------------------
+
+ShapePanel::ShapePanel (juce::AudioProcessorValueTreeState& state)
+    : ModulePanel (state, "Shape", ParamId::shapeOn)
+    , shape (addSegmented (ParamId::shapeType))
+    , rate (addDropdown (ParamId::shapeRate))
+    , depth (addKnob (ParamId::shapeDepth, "Depth"))
+    , smooth (addKnob (ParamId::shapeSmooth, "Smooth"))
+{
+    // Each segment draws its curve over one cycle (full level at the top).
+    shape.setOptionPainter (
+        [] (juce::Graphics& g, int option, juce::Rectangle<float> area, juce::Colour ink)
+        {
+            const auto type = static_cast<params::ShapeType> (option);
+            const auto steps = std::max (2, static_cast<int> (area.getWidth()) * 2);
+
+            juce::Path curve;
+            for (int i = 0; i <= steps; ++i)
+            {
+                // Just inside the cycle at the end, so a curve that resets
+                // at the next cycle shows its last value.
+                const auto phase = std::min (static_cast<double> (i) / steps, 0.9999);
+                const auto x = area.getX() + area.getWidth() * static_cast<float> (i) / static_cast<float> (steps);
+                const auto y = area.getBottom() - area.getHeight() * dsp::ShapeModule::shapeAt (type, phase);
+                if (i == 0)
+                    curve.startNewSubPath (x, y);
+                else
+                    curve.lineTo (x, y);
+            }
+
+            g.setColour (ink);
+            g.strokePath (curve, juce::PathStrokeType (size::shapeThumbStroke, juce::PathStrokeType::mitered));
+        });
+
+    rateCaption.setText ("RATE", juce::dontSendNotification);
+    rateCaption.setFont (fonts::ui (type::label, fonts::Weight::medium));
+    rateCaption.setColour (juce::Label::textColourId, colour::textSecondary);
+    rateCaption.setJustificationType (juce::Justification::centred);
+    rateCaption.setInterceptsMouseClicks (false, false);
+    rateCaption.setAccessible (false); // the dropdown carries the name
+    body.addAndMakeVisible (rateCaption);
+}
+
+void ShapePanel::layoutBody (juce::Rectangle<int> area)
+{
+    const auto thumb = size::shapeThumbWidth + 2 * space::s1;
+    shape.setBounds (
+        area.removeFromTop (size::shapeThumbHeight + 2 * space::s1).withWidth (shape.getNumSegments() * thumb));
+    area.removeFromTop (space::s3);
+
+    const auto medium = ThunderKnob::Size::medium;
+    auto row = area.removeFromTop (knobHeight (medium));
+
+    // The dropdown lines up with the knobs' dials, its caption with their labels.
+    auto rateCell = cell (row, 0);
+    rateCaption.setBounds (rateCell.removeFromTop (size::labelHeight));
+    rate.setBounds (rateCell.withSizeKeepingCentre (size::rateDropdownWidth, size::controlHeight));
+
+    depth.setBounds (knobIn (cell (row, 1), medium));
+    smooth.setBounds (knobIn (cell (row, 2), medium));
 }
 
 } // namespace thunder::ui

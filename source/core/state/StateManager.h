@@ -12,7 +12,7 @@
 //
 // Saved state is one ValueTree:
 //
-//   <ThunderState stateVersion="1" pluginVersion="0.1.0">
+//   <ThunderState stateVersion="2" pluginVersion="1.0.0">
 //     <PARAMETERS> ... host parameters (APVTS) ... </PARAMETERS>
 //     <Session presetName="" presetModified="0" captureBars="4" captureSource="layer"/>
 //   </ThunderState>
@@ -24,13 +24,13 @@
 namespace thunder::state
 {
 
-inline constexpr int kCurrentStateVersion = 1;
+// 1: before v1.0. 2: v1.0's parameters (StateManager.cpp says what changed).
+inline constexpr int kCurrentStateVersion = 2;
 
 // Turns a version-N state tree into version N + 1. Pure: no I/O, no globals.
 using Migration = juce::ValueTree (*) (juce::ValueTree);
 
-// Migrations in order: element i turns version i + 1 into version i + 2. Empty
-// while kCurrentStateVersion is 1.
+// Migrations in order: element i turns version i + 1 into version i + 2.
 std::span<const Migration> stateMigrations() noexcept;
 
 // [MSG/NRT] Builds the state tree for saving.

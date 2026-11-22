@@ -109,4 +109,22 @@ TransportState TransportState::advancedBy (int numSamples, double sampleRate) co
     return next;
 }
 
+TransportState TransportState::delayedBy (int numSamples, double sampleRate) const noexcept
+{
+    auto earlier = *this;
+
+    if (!isPlaying || numSamples <= 0)
+        return earlier;
+
+    earlier.samplePosition -= numSamples;
+    earlier.ppqPosition -= numSamples / samplesPerQuarterNote (sampleRate);
+
+    const auto barLength = quarterNotesPerBar();
+    if (earlier.ppqPosition < ppqLastBarStart)
+        earlier.ppqLastBarStart =
+            ppqLastBarStart - std::ceil ((ppqLastBarStart - earlier.ppqPosition) / barLength) * barLength;
+
+    return earlier;
+}
+
 } // namespace thunder

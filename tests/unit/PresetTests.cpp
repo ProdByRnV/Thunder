@@ -215,6 +215,27 @@ TEST_CASE ("A preset from a newer Thunder loads what this version knows", "[unit
     CHECK_THAT (p.valueOr (ParamId::grainAmount), WithinAbs (30.0, 1e-6));
 }
 
+TEST_CASE ("A preset saved before v1.0 keeps its sound", "[unit][presets][state]")
+{
+    // Version 1 → 2 (PRD DEC-050): Scale Lock (new, on by default) is off for
+    // it, and a reverb mode that played Cloud plays Cloud.
+    Preset old;
+    REQUIRE (read (presetText ("<P id=\"spaceMode\" v=\"Plate\"/><P id=\"grainPitchSpread\" v=\"4\"/>"), old).ok());
+    CHECK_THAT (old.valueOr (ParamId::spaceMode), WithinAbs (0.0, 1e-6));
+    CHECK_THAT (old.valueOr (ParamId::grainScaleLock), WithinAbs (0.0, 1e-6));
+    CHECK_THAT (old.valueOr (ParamId::grainPitchSpread), WithinAbs (4.0, 1e-6));
+    CHECK_THAT (old.valueOr (ParamId::timeOn), WithinAbs (0.0, 1e-6)); // new modules: off
+
+    // A version 2 preset means what it says.
+    Preset current;
+    REQUIRE (read (presetText ("<P id=\"spaceMode\" v=\"Plate\"/>", "2"), current).ok());
+    CHECK_THAT (current.valueOr (ParamId::spaceMode), WithinAbs (1.0, 1e-6));
+    CHECK_THAT (current.valueOr (ParamId::grainScaleLock), WithinAbs (1.0, 1e-6));
+
+    // What Thunder writes now is version 2.
+    CHECK (write (current, "1.0.0").contains ("stateVersion=\"2\""));
+}
+
 TEST_CASE ("Oversized preset files are refused before they are read", "[unit][presets]")
 {
     TempFolder temp;

@@ -42,6 +42,15 @@ public:
     int getNumSegments() const noexcept { return static_cast<int> (segments.size()); }
     juce::Button& getSegment (int index);
 
+    // Draws a segment's picture instead of its name (Shape's thumbnails). The
+    // name stays the segment's accessible title and tooltip.
+    using OptionPainter =
+        std::function<void (juce::Graphics&, int option, juce::Rectangle<float> area, juce::Colour ink)>;
+    void setOptionPainter (OptionPainter painter);
+
+    // The selected segment's fill (cyan by default; Static uses violet, UI.md §11.4).
+    void setAccent (juce::Colour colour);
+
     // [MSG] As a click on segment `index` would.
     void choose (int index);
     void setSelectedOption (int index);
@@ -56,8 +65,26 @@ private:
     std::unique_ptr<juce::ParameterAttachment> attachment;
     int selected = -1;
     std::function<void (int)> onChooseCallback;
+    OptionPainter optionPainter;
+    juce::Colour accent;
 
     JUCE_DECLARE_NON_COPYABLE (SegmentedControl)
+};
+
+// A toggleable pill with a label (UI.md §11.4's target chips): filled with the
+// accent when on.
+class ParamChip final : public juce::ToggleButton
+{
+public:
+    ParamChip (juce::AudioProcessorValueTreeState& apvts, params::ParamId id, const juce::String& label,
+               juce::Colour accent);
+    ~ParamChip() override;
+
+    void paintButton (juce::Graphics& g, bool highlighted, bool down) override;
+
+private:
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> attachment;
+    juce::Colour accentColour;
 };
 
 // Draws C-TOGGLE's pill (UI.md §9.2) centred in `area`.

@@ -12,8 +12,12 @@ inline const juce::Identifier root{"ThunderState"};
 inline const juce::Identifier stateVersion{"stateVersion"};
 inline const juce::Identifier pluginVersion{"pluginVersion"};
 
-// Host parameters, as written by juce::AudioProcessorValueTreeState.
+// Host parameters, as written by juce::AudioProcessorValueTreeState: one
+// <PARAM id="…" value="…"/> per parameter, values in real units.
 inline const juce::Identifier parameters{"PARAMETERS"};
+inline const juce::Identifier parameter{"PARAM"};
+inline const juce::Identifier parameterId{"id"};
+inline const juce::Identifier parameterValue{"value"};
 
 inline const juce::Identifier session{"Session"};
 inline const juce::Identifier presetName{"presetName"};
