@@ -4,6 +4,8 @@
 // what every control does, accessible names, colour contrast, the Settings and
 // About panels, the glow cache and the click flash. Headless: no window is shown.
 
+#include "support/TestSettings.h"
+
 #include "core/state/SessionState.h"
 #include "core/state/UserSettings.h"
 #include "plugin/ThunderEditor.h"
@@ -52,6 +54,7 @@ struct Fixture
 
     Fixture()
     {
+        test::chooseMotion (settingsFile()); // these tests expect flashes
         processor.setSettingsFile (settingsFile());
         processor.getPresetManager().setUserFolder (temp.folder.getChildFile ("Presets"));
         processor.prepareToPlay (48000.0, 512);

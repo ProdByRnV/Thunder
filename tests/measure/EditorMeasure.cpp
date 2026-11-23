@@ -193,6 +193,50 @@ TEST_CASE ("Visualiser frame cost and the audio thread's share", "[.][uimeasure]
         }
     }
 
+    // Lightning while playing (T-0.7-07): Static at 100% (the most strikes),
+    // 10 s of the melody; each frame reads the data and paints the whole
+    // visualiser (more than the real dirty-region repaint), software renderer.
+    {
+        auto* amount = apvts.getParameter ("staticAmount");
+        amount->setValueNotifyingHost (1.0f);
+        e.selectModule (0);
+        const juce::SoftwareImageType software;
+        auto& region = e.getVisualiser();
+        for (const auto fps : {60, 30})
+        {
+            for (const auto scale : {1.0f, 2.0f})
+            {
+                const auto strikesBefore = region.getLightning().getStrikeCount();
+                juce::Image image (software.create (
+                    juce::Image::ARGB, juce::roundToInt (static_cast<float> (region.getWidth()) * scale),
+                    juce::roundToInt (static_cast<float> (region.getHeight()) * scale), true));
+                auto totalMs = 0.0;
+                auto worstMs = 0.0;
+                const auto count = 10 * fps;
+                for (int i = 0; i < count; ++i)
+                {
+                    test::playMelody (processor, head, 1.0 / fps, rate, 48000 / fps);
+                    const auto start = juce::Time::getMillisecondCounterHiRes();
+                    e.updateVisuals (true, 1.0 / fps);
+                    {
+                        juce::Graphics g (image);
+                        g.addTransform (juce::AffineTransform::scale (scale));
+                        region.paintEntireComponent (g, false);
+                    }
+                    const auto ms = juce::Time::getMillisecondCounterHiRes() - start;
+                    totalMs += ms;
+                    worstMs = std::max (worstMs, ms);
+                }
+                const auto average = totalMs / count;
+                std::cout << "Visualiser with lightning (Static 100%), " << fps << " fps, "
+                          << juce::roundToInt (scale * 100.0f) << "%: " << juce::String (average, 2)
+                          << " ms per frame (worst " << juce::String (worstMs, 1) << " ms), "
+                          << juce::String (average * fps / 10.0, 1) << "% of a core; "
+                          << (region.getLightning().getStrikeCount() - strikesBefore) << " strikes in 10 s\n";
+            }
+        }
+    }
+
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
     editor.reset();

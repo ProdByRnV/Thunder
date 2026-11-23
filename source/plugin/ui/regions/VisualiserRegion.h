@@ -50,6 +50,9 @@ public:
     void setView (View newView);
     View getView() const noexcept { return view; }
     void setOptions (const Options& newOptions);
+
+    // [MSG] Reduce Motion (UI.md §12.5): no lightning, and still grain dots.
+    void setReduceMotion (bool reduce);
     const Options& getOptions() const noexcept { return options; }
 
     // Set by the editor.

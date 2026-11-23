@@ -36,7 +36,7 @@ protected:
 // Grains (§11.3): every sounding grain as a dot. x = where it reads in the
 // buffer (newest at the left, on a square-root scale so short spreads still
 // separate), y = its pitch (±12 semitones), size = grain size, opacity = its
-// window.
+// window. Under Reduce Motion, a still bar of how many grains play.
 class GrainCloudView final : public ModuleDisplay
 {
 public:
@@ -44,6 +44,7 @@ public:
 
     static constexpr float kMaxAgeSeconds = 4.5f;
     static constexpr float kPitchRange = 12.0f;
+    static constexpr float kDensityFull = 32.0f; // grains for a full bar under Reduce Motion
 
     // Where a grain's dot sits in `area`.
     static juce::Point<float> dotPosition (const visual::GrainSpark& spark, juce::Rectangle<float> area) noexcept;

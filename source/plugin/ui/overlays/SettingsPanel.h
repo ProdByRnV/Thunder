@@ -18,10 +18,9 @@ namespace thunder::ui
 // covers the editor so a click anywhere else, or Esc, closes it. Each setting
 // is global (every Thunder instance and session) except Quality, which is the
 // project's (it can change the latency):
-//   UI scale · Visualiser (the view new projects open with) · Quality · Show tooltips ·
-//   Capture format · Captures folder · Keep Key, Scale and Output Mode when
-//   loading presets.
-// Reduce Motion and the frame rate join it with the motion work.
+//   UI scale · Visualiser (the view new projects open with) · Quality · Reduce
+//   motion · Frame rate · Show tooltips · Capture format · Captures folder ·
+//   Keep Key, Scale and Output Mode when loading presets.
 class SettingsPanel final : public juce::Component
 {
 public:
@@ -37,6 +36,7 @@ public:
     std::function<void (float scale)> onScaleChosen;
     std::function<void (bool show)> onShowTooltips;
     std::function<void()> onQualityChanged; // the editor updates the latency shown and its frame rate
+    std::function<void()> onMotionChanged;  // Reduce Motion or the frame rate changed
     std::function<void()> onClose;
 
     // [MSG] What the controls do (also for tests).
@@ -44,6 +44,8 @@ public:
     void setShowTooltips (bool show);
     void setSpectrumByDefault (bool spectrum);
     void setQuality (params::Quality quality); // this project's, not global
+    void setReduceMotion (bool reduce);
+    void setFrameRate (int framesPerSecond); // 30 or 60
     void setCaptureFormat (bool float32);
     void setCapturesFolder (const juce::File& folder); // juce::File() = the default
     void setPreserveSession (bool preserve);
@@ -73,6 +75,8 @@ private:
     juce::ComboBox scaleBox;
     SegmentedControl viewControl;
     SegmentedControl qualityControl;
+    PillToggle motionToggle{"Reduce motion"};
+    SegmentedControl frameRateControl;
     PillToggle tooltipsToggle{"Show tooltips"};
     SegmentedControl formatControl;
     juce::Label folderText;

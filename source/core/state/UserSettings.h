@@ -26,6 +26,13 @@ struct UserSettings
     bool showDry = true;               // the dry signal in the waveform and the spectrum
     bool showGrains = true;            // the live grain view (UI.md §9.19)
 
+    // Reduce Motion (PRD UI-FX-005, UI.md §12.5): no lightning, flashes or
+    // other animation. Until it is chosen, the editor follows the operating
+    // system's "reduce animations" setting where it can read it.
+    bool reduceMotion = false;
+    bool reduceMotionChosen = false;
+    int frameRate = 60; // 60 or 30 animation updates a second (UI.md §10.3, PRD UI-FX-004)
+
     // `<user documents>/Thunder/Captures`.
     static juce::File defaultCapturesFolder();
 
@@ -47,7 +54,8 @@ struct UserSettings
                preservePresetSession == other.preservePresetSession && presetAuthor == other.presetAuthor &&
                juce::exactlyEqual (uiScale, other.uiScale) && showTooltips == other.showTooltips &&
                spectrumByDefault == other.spectrumByDefault && visualiserBars == other.visualiserBars &&
-               showDry == other.showDry && showGrains == other.showGrains;
+               showDry == other.showDry && showGrains == other.showGrains && reduceMotion == other.reduceMotion &&
+               reduceMotionChosen == other.reduceMotionChosen && frameRate == other.frameRate;
     }
 };
 

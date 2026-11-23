@@ -2,6 +2,7 @@
 
 #include "ThunderProcessor.h"
 #include "core/state/UserSettings.h"
+#include "plugin/ui/Motion.h"
 #include "ui/theme/ThunderFonts.h"
 #include "ui/theme/ThunderPaint.h"
 #include "ui/theme/ThunderTheme.h"
@@ -210,6 +211,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
 
     const auto settings = state::UserSettings::load (p.getSettingsFile());
     showTooltips (settings.showTooltips);
+    applyMotion (settings);
 
     // The visualiser: the menu's choices are global, the view is the project's
     // (or the default from Settings).
@@ -370,8 +372,24 @@ void ThunderEditor::openSaveForm (bool saveAs)
 
 int ThunderEditor::frameRate() const noexcept
 {
-    // Eco draws half as often (UI.md §12.6).
-    return thunderProcessor.getQuality() == params::Quality::Eco ? motion::frameHz / 2 : motion::frameHz;
+    // 30 a second when chosen in Settings, and always at Eco (UI.md §10.3, §12.6).
+    const auto half = frameRateSetting == motion::frameHz / 2 || thunderProcessor.getQuality() == params::Quality::Eco;
+    return half ? motion::frameHz / 2 : motion::frameHz;
+}
+
+void ThunderEditor::applyMotion (const state::UserSettings& settings)
+{
+    // Reduce Motion (UI.md §12.5): no lightning, flashes, grain sparks or
+    // playheads; the views that carry information keep updating.
+    const auto reduced = ui::reduceMotion::wanted (settings);
+    ui::reduceMotion::setOn (reduced);
+    visualiser.setReduceMotion (reduced);
+    for (auto& m : modules)
+        m->repaint();
+
+    frameRateSetting = settings.frameRate;
+    if (isTimerRunning() && getTimerInterval() < 1000 / 4)
+        startTimerHz (frameRate());
 }
 
 void ThunderEditor::applyQuality()
@@ -396,6 +414,8 @@ void ThunderEditor::openSettings()
     settingsPanel->onScaleChosen = [this] (float s) { setScale (s); };
     settingsPanel->onShowTooltips = [this] (bool show) { showTooltips (show); };
     settingsPanel->onQualityChanged = [this] { applyQuality(); };
+    settingsPanel->onMotionChanged = [this]
+    { applyMotion (state::UserSettings::load (thunderProcessor.getSettingsFile())); };
     settingsPanel->onClose = [this] { closeLater (*this, settingsPanel); };
     content.addAndMakeVisible (*settingsPanel);
     settingsPanel->setBounds (content.getLocalBounds());
@@ -453,6 +473,15 @@ void ThunderEditor::updateVisuals (bool showing, double seconds)
     visuals.setWanted (parts);
     if (parts == 0)
         return;
+
+    // Static Amount sets how readily lightning strikes; with Static off, only
+    // strong transients strike (UI.md §12.3).
+    {
+        auto& apvts = thunderProcessor.getValueTreeState();
+        const auto on = apvts.getRawParameterValue (ui::paramIdString (ParamId::staticOn))->load() >= 0.5f;
+        const auto amount = apvts.getRawParameterValue (ui::paramIdString (ParamId::staticAmount))->load();
+        visuals.setStrikeSensitivity (on ? amount / 100.0f : 0.0f);
+    }
 
     const auto changes = visuals.update (seconds);
     visualiser.refresh (changes, seconds);

@@ -2,6 +2,7 @@
 
 #include "core/dsp/shape/ShapeModule.h"
 #include "core/dsp/space/SpaceModule.h"
+#include "plugin/ui/Motion.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderIcons.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -590,7 +591,7 @@ void ShapePanel::refresh (const VisualModel::Changes& changes)
 {
     // The playhead moves only while the song does (or Shape counts its own time).
     const auto& activity = visualModel.getActivity();
-    if (changes.modules &&
+    if (changes.modules && !reduceMotion::isOn() &&
         (!juce::exactlyEqual (activity.shapePhase, shownPhase) || !juce::exactlyEqual (activity.shapeGain, shownGain)))
     {
         shownPhase = activity.shapePhase;

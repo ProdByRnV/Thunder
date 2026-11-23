@@ -217,7 +217,11 @@ bool StrikeDetector::addFrame (float layerPeak, float outputPeak, double frameSe
 
 float StrikeDetector::getThresholdDb() const noexcept
 {
-    return std::clamp (tokens::onsetShare * typicalRise, tokens::onsetMinDb, tokens::onsetMaxDb);
+    const auto share =
+        tokens::onsetShareStrong + (tokens::onsetShareSensitive - tokens::onsetShareStrong) * sensitivity;
+    const auto least =
+        tokens::onsetMinStrongDb + (tokens::onsetMinSensitiveDb - tokens::onsetMinStrongDb) * sensitivity;
+    return std::clamp (share * typicalRise, least, tokens::onsetMaxDb);
 }
 
 float StrikeDetector::getBrightness() const noexcept
@@ -226,6 +230,43 @@ float StrikeDetector::getBrightness() const noexcept
         return 0.0f;
     const auto t = std::clamp ((levelDb - tokens::dimLevelDb) / (tokens::fullLevelDb - tokens::dimLevelDb), 0.0f, 1.0f);
     return levelDb < tokens::dimLevelDb - 12.0f ? 0.0f : tokens::dimBrightness + (1.0f - tokens::dimBrightness) * t;
+}
+
+int FlashLimiter::countIn (double from) const noexcept
+{
+    auto n = 0;
+    for (const auto t : times)
+        if (t >= from && t < from + kWindowSeconds)
+            ++n;
+    return n;
+}
+
+bool FlashLimiter::tryAdd (double time)
+{
+    // Forget what can no longer share a window with anything new.
+    times.erase (
+        std::remove_if (times.begin(), times.end(), [time] (double t) { return t < time - 2.0 * kWindowSeconds; }),
+        times.end());
+
+    // Every window holding `time` starts in (time - window, time]; the busiest
+    // starts at one of the flashes in that range, or at its beginning.
+    const auto fits = [this] (double start) { return countIn (start) < kMaxFlashes; };
+    if (!fits (time - kWindowSeconds + 1.0e-9))
+        return false;
+    for (const auto t : times)
+        if (t > time - kWindowSeconds && t <= time && !fits (t))
+            return false;
+
+    times.push_back (time);
+    return true;
+}
+
+int FlashLimiter::busiestWindow() const
+{
+    auto most = 0;
+    for (const auto t : times)
+        most = std::max (most, countIn (t));
+    return most;
 }
 
 } // namespace thunder::ui::lightning

@@ -3,6 +3,7 @@
 #include "core/dsp/duck/DuckModule.h"
 #include "core/dsp/shape/ShapeModule.h"
 #include "core/dsp/static/StaticModulator.h"
+#include "plugin/ui/Motion.h"
 #include "plugin/ui/ParamUi.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -73,6 +74,24 @@ juce::Point<float> GrainCloudView::dotPosition (const visual::GrainSpark& spark,
 
 void GrainCloudView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
 {
+    // Under Reduce Motion: a still bar of how many grains are playing (UI.md §11.3).
+    if (reduceMotion::isOn())
+    {
+        const auto share = std::clamp (static_cast<float> (visuals.getGrains().count) / kDensityFull, 0.0f, 1.0f);
+        const auto bar = area.reduced (static_cast<float> (space::s2))
+                             .withSizeKeepingCentre (area.getWidth() - 2.0f * static_cast<float> (space::s2),
+                                                     size::reductionBarHeight);
+        g.setColour (colour::meterTrack);
+        g.fillRoundedRectangle (bar, bar.getHeight() * 0.5f);
+        if (share > 0.0f)
+        {
+            g.setColour (colour::accentPrimary);
+            g.fillRoundedRectangle (bar.withWidth (std::max (bar.getHeight(), bar.getWidth() * share)),
+                                    bar.getHeight() * 0.5f);
+        }
+        return;
+    }
+
     // The unshifted pitch.
     g.setColour (colour::gridBeat);
     g.fillRect (area.withY (area.getCentreY() - border::width * 0.5f).withHeight (border::width));
@@ -231,7 +250,7 @@ void ShapeView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
     g.strokePath (curve, juce::PathStrokeType (size::displayStroke));
 
     // The playhead: where Shape is now, while it is on.
-    if (value (ParamId::shapeOn) >= 0.5f)
+    if (value (ParamId::shapeOn) >= 0.5f && !reduceMotion::isOn())
     {
         const auto& activity = visuals.getActivity();
         const auto x = inner.getX() + inner.getWidth() * std::clamp (activity.shapePhase, 0.0f, 1.0f);

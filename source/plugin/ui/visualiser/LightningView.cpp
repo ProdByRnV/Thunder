@@ -1,6 +1,7 @@
 #include "LightningView.h"
 
 #include "core/util/Rng.h"
+#include "plugin/ui/Motion.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 
 #include <algorithm>
@@ -43,8 +44,15 @@ LightningView::~LightningView() = default;
 
 void LightningView::strike (float peak, float brightness)
 {
-    if (getWidth() <= 0 || getHeight() <= 0 || brightness <= 0.0f)
+    if (getWidth() <= 0 || getHeight() <= 0 || brightness <= 0.0f || ui::reduceMotion::isOn())
         return;
+
+    // UI.md §12.5: a strike that would make a 4th flash in a second is dropped.
+    if (!flashes.tryAdd (clock))
+    {
+        ++dropped;
+        return;
+    }
 
     ++strikes;
     util::Rng rng (strikes, 0x7b01u);
@@ -67,7 +75,8 @@ void LightningView::strike (float peak, float brightness)
 
     auto bolt = std::make_unique<Bolt>();
     bolt->shape = lightning::generateBolt (start, end, strikes, within);
-    bolt->flicker = rng.nextFloat() < 0.5f;
+    // The re-flicker is a flash too: only if it fits the limit.
+    bolt->flicker = rng.nextFloat() < 0.5f && flashes.tryAdd (clock + tokens::hold + tokens::flickerGap);
     bolt->brightness = std::clamp (brightness, 0.0f, 1.0f);
 
     for (const auto& strand : bolt->shape.strands)
@@ -117,8 +126,17 @@ juce::Rectangle<int> LightningView::dirtyArea() const
     return area.expanded (margin).getSmallestIntegerContainer().getIntersection (getLocalBounds());
 }
 
+void LightningView::clear()
+{
+    if (!bolts.empty() || getAmbient() > 0.0f)
+        repaint();
+    bolts.clear();
+    ambientAge = 1.0e9;
+}
+
 bool LightningView::advance (double seconds)
 {
+    clock += seconds;
     if (bolts.empty() && getAmbient() <= 0.0f)
         return false;
 

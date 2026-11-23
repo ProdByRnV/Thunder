@@ -72,6 +72,7 @@ public:
     // Lightning (UI.md §12.3): the transient detector, fed every frame. While
     // the display is frozen nothing strikes.
     const lightning::StrikeDetector& getStrikes() const noexcept { return strikes; }
+    void setStrikeSensitivity (float s) noexcept { strikes.setSensitivity (s); }
 
     // How long the song position has stood still (the waveform dims after 2 s).
     double getSecondsStopped() const noexcept { return secondsStopped; }

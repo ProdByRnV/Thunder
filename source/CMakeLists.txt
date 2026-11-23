@@ -131,6 +131,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/presets/PresetManager.h
     plugin/ui/ParamHelp.cpp
     plugin/ui/ParamHelp.h
+    plugin/ui/Motion.cpp
+    plugin/ui/Motion.h
     plugin/ui/ParamUi.h
     plugin/ui/components/Buttons.cpp
     plugin/ui/components/Buttons.h

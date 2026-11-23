@@ -1,5 +1,7 @@
 #include "ThunderPaint.h"
 
+#include "plugin/ui/Motion.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -65,6 +67,10 @@ Flash::~Flash()
 
 void Flash::trigger()
 {
+    // Decoration only: none under Reduce Motion (UI.md §12.5).
+    if (ui::reduceMotion::isOn())
+        return;
+
     startMs = juce::Time::getMillisecondCounterHiRes();
     startTimerHz (motion::frameHz);
     owner.repaint();

@@ -2,6 +2,7 @@
 
 #include "core/state/UserSettings.h"
 #include "plugin/ThunderProcessor.h"
+#include "plugin/ui/Motion.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 
@@ -23,6 +24,8 @@ enum Row
     scaleRow,
     viewRow,
     qualityRow,
+    motionRow,
+    frameRateRow,
     tooltipsRow,
     formatRow,
     folderRow,
@@ -65,6 +68,7 @@ SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
     , viewControl ("Default visualiser view", {"Wave", "Spectrum"}, [this] (int i) { setSpectrumByDefault (i == 1); })
     , qualityControl ("Quality", {"Eco", "Standard", "High"},
                       [this] (int i) { setQuality (static_cast<params::Quality> (i)); })
+    , frameRateControl ("Frame rate", {"30", "60"}, [this] (int i) { setFrameRate (i == 0 ? 30 : 60); })
     , formatControl ("Capture format", {"24-bit", "32-bit float"}, [this] (int i) { setCaptureFormat (i == 1); })
 {
     setTitle ("Settings");
@@ -95,6 +99,15 @@ SettingsPanel::SettingsPanel (ThunderProcessor& p, float currentScale)
     qualityControl.setTooltip ("This project's sound quality: Eco uses the least CPU; High has the steadiest pitch on "
                                "low notes but adds 40 ms of latency");
     addAndMakeVisible (qualityControl);
+
+    addLabel ("Reduce motion");
+    motionToggle.setTooltip ("No lightning, flashes or other animation; the waveform, spectrum and meters still move");
+    motionToggle.onClick = [this] { setReduceMotion (motionToggle.getToggleState()); };
+    addAndMakeVisible (motionToggle);
+
+    addLabel ("Frame rate");
+    frameRateControl.setTooltip ("How often the visualiser and animations update a second (Eco always uses 30)");
+    addAndMakeVisible (frameRateControl);
 
     addLabel ("Show tooltips");
     tooltipsToggle.setTooltip ("Show what a control does when the pointer rests on it");
@@ -143,6 +156,8 @@ void SettingsPanel::refresh()
 {
     const auto settings = state::UserSettings::load (processor.getSettingsFile());
     tooltipsToggle.setToggleState (settings.showTooltips, juce::dontSendNotification);
+    motionToggle.setToggleState (reduceMotion::wanted (settings), juce::dontSendNotification);
+    frameRateControl.setSelectedOption (settings.frameRate == 30 ? 0 : 1);
     viewControl.setSelectedOption (settings.spectrumByDefault ? 1 : 0);
     qualityControl.setSelectedOption (static_cast<int> (params::enumIndex (processor.getQuality())));
     formatControl.setSelectedOption (settings.captureFormat == capture::CaptureFormat::Float32 ? 1 : 0);
@@ -209,6 +224,12 @@ void SettingsPanel::resized()
                 break;
             case qualityRow:
                 qualityControl.setBounds (control (row, 3 * size::segmentedSegment, size::controlHeight));
+                break;
+            case motionRow:
+                motionToggle.setBounds (control (row, size::toggleWidth + space::s3, size::controlHeight));
+                break;
+            case frameRateRow:
+                frameRateControl.setBounds (control (row, 2 * size::segmentedSegment, size::controlHeight));
                 break;
             case tooltipsRow:
                 tooltipsToggle.setBounds (control (row, size::toggleWidth + space::s3, size::controlHeight));
@@ -322,6 +343,27 @@ void SettingsPanel::close()
 {
     if (onClose)
         onClose();
+}
+
+void SettingsPanel::setReduceMotion (bool reduce)
+{
+    auto settings = state::UserSettings::load (processor.getSettingsFile());
+    settings.reduceMotion = reduce;
+    settings.reduceMotionChosen = true;
+    settings.save (processor.getSettingsFile());
+    refresh();
+    if (onMotionChanged)
+        onMotionChanged();
+}
+
+void SettingsPanel::setFrameRate (int framesPerSecond)
+{
+    auto settings = state::UserSettings::load (processor.getSettingsFile());
+    settings.frameRate = framesPerSecond == 30 ? 30 : 60;
+    settings.save (processor.getSettingsFile());
+    refresh();
+    if (onMotionChanged)
+        onMotionChanged();
 }
 
 } // namespace thunder::ui

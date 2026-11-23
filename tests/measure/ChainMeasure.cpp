@@ -112,10 +112,20 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         rhythm.set (id, 1.0f);
     rhythm.set (ParamId::staticRate, 8.0f);
 
-    for (const params::ParamSnapshot* settings : {&defaults, static_cast<const params::ParamSnapshot*> (&rhythm)})
+    struct EngineCase
     {
+        const char* name;
+        const params::ParamSnapshot* settings;
+        params::Quality quality;
+    };
+    for (const auto& c : {EngineCase{"Whole engine (defaults)", &defaults, params::Quality::Standard},
+                          EngineCase{"Whole engine (defaults, Eco)", &defaults, params::Quality::Eco},
+                          EngineCase{"Whole engine (defaults, High)", &defaults, params::Quality::High},
+                          EngineCase{"Whole engine + Time, Static (all), Shape", &rhythm, params::Quality::Standard}})
+    {
+        const auto* settings = c.settings;
         ThunderEngine engine;
-        engine.prepare (kRate);
+        engine.prepare (kRate, c.quality);
         std::vector<float> left = input, right = input;
         const auto run = [&]
         {
@@ -132,9 +142,7 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         const auto start = juce::Time::getMillisecondCounterHiRes();
         run();
         const auto ms = juce::Time::getMillisecondCounterHiRes() - start;
-        std::printf ("  %-40s %5.2f%%\n",
-                     settings == &defaults ? "Whole engine (defaults)" : "Whole engine + Time, Static (all), Shape",
-                     ms / 10000.0 * 100.0);
+        std::printf ("  %-40s %5.2f%%\n", c.name, ms / 10000.0 * 100.0);
     }
 
     std::printf ("\nReset time on the audio thread (worst of 20):\n");

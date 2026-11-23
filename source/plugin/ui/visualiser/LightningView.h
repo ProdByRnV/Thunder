@@ -48,6 +48,11 @@ public:
     const lightning::BoltShape& getBolt (int index) const;
     float getAmbient() const noexcept;
     std::uint64_t getStrikeCount() const noexcept { return strikes; }
+    std::uint64_t getDroppedCount() const noexcept { return dropped; } // refused by the flash limit
+    const lightning::FlashLimiter& getFlashes() const noexcept { return flashes; }
+
+    // [MSG] Removes every bolt at once (Reduce Motion turned on).
+    void clear();
 
 private:
     struct Bolt;
@@ -57,6 +62,9 @@ private:
 
     std::vector<std::unique_ptr<Bolt>> bolts;
     std::uint64_t strikes = 0;
+    std::uint64_t dropped = 0;
+    double clock = 0.0; // seconds of advance(), for the flash limit
+    lightning::FlashLimiter flashes;
     juce::Rectangle<int> keepClear;
     double ambientAge = 1.0e9;
     float ambientBrightness = 0.0f;

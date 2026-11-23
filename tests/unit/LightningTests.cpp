@@ -4,9 +4,11 @@
 // Headless: no window is shown.
 
 #include "support/TestHost.h"
+#include "support/TestSettings.h"
 
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
+#include "plugin/ui/ParamUi.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 #include "plugin/ui/visualiser/Lightning.h"
 #include "plugin/ui/visualiser/LightningView.h"
@@ -201,8 +203,10 @@ TEST_CASE ("Strikes never come faster than 3 a second; extra transients are drop
 
 TEST_CASE ("The threshold adapts: punchy music needs big hits, soft music strikes on soft rises", "[unit][lightning]")
 {
-    // Soft: notes rising ~6 dB over a sustained level, every half second.
+    // Soft: notes rising ~6 dB over a sustained level, every half second
+    // (at full sensitivity, as with Static at 100%).
     StrikeDetector soft;
+    soft.setSensitivity (1.0f);
     feed (soft, 0.1f, 1.0);
     auto softStrikes = 0;
     for (int note = 0; note < 8; ++note)
@@ -267,9 +271,13 @@ TEST_CASE ("The view keeps at most three bolts, inside the well and above the to
     view.strike (0.5f, 0.0f); // nothing to show at zero brightness
     CHECK (view.getNumBolts() == 0);
 
+    // Four at once: the flash limit lets at most three through (fewer when one
+    // books its re-flicker), and never more than maxBolts show.
     for (int i = 0; i < 4; ++i)
         view.strike (0.5f, 1.0f);
-    CHECK (view.getNumBolts() == tokens::maxBolts);
+    CHECK (view.getNumBolts() >= 2);
+    CHECK (view.getNumBolts() <= tokens::maxBolts);
+    CHECK (view.getDroppedCount() >= 1);
     CHECK (view.getAmbient() > 0.0f);
 
     for (int b = 0; b < view.getNumBolts(); ++b)
@@ -316,15 +324,25 @@ TEST_CASE ("A bolt draws its glow, body and core", "[unit][lightning][ui]")
 
 TEST_CASE ("Lightning strikes on the layer's transients while the melody plays", "[unit][lightning][ui][plugin]")
 {
+    const auto settingsFile = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                  .getChildFile ("ThunderLightningTests-" + juce::Uuid().toString() + ".xml");
+    test::chooseMotion (settingsFile);
     ThunderProcessor processor;
-    processor.setSettingsFile (juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                   .getChildFile ("ThunderLightningTests-" + juce::Uuid().toString() + ".xml"));
+    processor.setSettingsFile (settingsFile);
     processor.prepareToPlay (48000.0, 512);
     test::TestPlayHead head;
     processor.setPlayHead (&head);
     std::unique_ptr<juce::AudioProcessorEditor> owner (processor.createEditorAndMakeActive());
     auto& e = dynamic_cast<ThunderEditor&> (*owner);
     auto& lightning = e.getVisualiser().getLightning();
+
+    // Static at full Amount: the most sensitive (UI.md §12.3).
+    for (const auto& [id, value] :
+         {std::pair<params::ParamId, float>{params::ParamId::staticOn, 1.0f}, {params::ParamId::staticAmount, 100.0f}})
+    {
+        auto& p = ui::parameter (processor.getValueTreeState(), id);
+        p.setValueNotifyingHost (p.convertTo0to1 (value));
+    }
 
     const auto frame = [&e] { e.updateVisuals (true, 512.0 / 48000.0); };
     e.updateVisuals (true, 0.0);
@@ -340,6 +358,7 @@ TEST_CASE ("Lightning strikes on the layer's transients while the melody plays",
 
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (owner.get());
+    settingsFile.deleteFile();
 }
 
 TEST_CASE ("A bolt's bounds contain every point", "[unit][lightning]")

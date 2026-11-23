@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/state/UserSettings.h"
 #include "ui/components/CaptureWidget.h"
 #include "ui/overlays/AboutPanel.h"
 #include "ui/overlays/SaveForm.h"
@@ -68,6 +69,7 @@ public:
     ui::CaptureWidget& getCaptureWidget() noexcept { return captureWidget; }
     ui::SaveForm* getSaveForm() noexcept { return saveForm.get(); }
     ui::SettingsPanel* getSettingsPanel() noexcept { return settingsPanel.get(); }
+    int getFrameRate() const noexcept { return frameRate(); } // animation updates a second
     ui::AboutPanel* getAboutPanel() noexcept { return aboutPanel.get(); }
     ui::Toast& getToast() noexcept { return toast; }
     juce::Component& getContent() noexcept { return content; }
@@ -138,6 +140,7 @@ private:
     void timerCallback() override;
     void applyQuality(); // the latency shown, the frame rate and the spectrum's detail
     int frameRate() const noexcept;
+    void applyMotion (const state::UserSettings& settings); // Reduce Motion and the frame rate
     void showTooltips (bool show);
     void rememberScale();
     void rememberView (ui::VisualiserRegion::View view);
@@ -162,6 +165,7 @@ private:
     std::unique_ptr<ui::AboutPanel> aboutPanel;
     std::unique_ptr<juce::TooltipWindow> tooltips;
     ui::TonePanel* tonePanel = nullptr;
+    int frameRateSetting = 60; // Settings: 60 or 30
     double lastFrameMs = 0.0;
     float scale = 1.0f;
     bool constructed = false;

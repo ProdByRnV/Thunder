@@ -92,6 +92,13 @@ void VisualiserRegion::chooseView (View newView)
         onViewChosen (view);
 }
 
+void VisualiserRegion::setReduceMotion (bool reduce)
+{
+    waveform.setReduceMotion (reduce);
+    if (reduce)
+        lightning.clear();
+}
+
 void VisualiserRegion::setOptions (const Options& newOptions)
 {
     options = newOptions;
