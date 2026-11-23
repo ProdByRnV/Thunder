@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bridge/UiBridge.h"
+#include "core/analysis/AnalysisWorker.h"
 #include "core/capture/CaptureStatus.h"
 #include "core/capture/CaptureWriter.h"
 #include "core/engine/ThunderEngine.h"
@@ -76,6 +77,11 @@ public:
 
     const ThunderEngine& getEngine() const noexcept { return engine; }
 
+    // [MSG] Key detection and the source (PRD FR-KEY-002/003, FR-INPUT-*).
+    // Auto Detect is the session's keyAutoDetect.
+    analysis::AnalysisWorker& getAnalysisWorker() noexcept { return analysisWorker; }
+    void loadSourceFile (const juce::File& file);
+
     // [MSG] Capture (PRD FR-CAPT-*). Arming uses the session's bars and source
     // and the global captures folder and format.
     void armCapture();
@@ -105,7 +111,8 @@ private:
     params::ParamSnapshot snapshot = params::ParamSnapshot::defaults();
 
     ThunderEngine engine;
-    capture::CaptureWriter captureWriter{engine.getCapture()}; // after the engine: destroyed first
+    analysis::AnalysisWorker analysisWorker{engine.getAnalysisTap()}; // after the engine: destroyed first
+    capture::CaptureWriter captureWriter{engine.getCapture()};        // after the worker it reports to
     UiBridge uiBridge{engine.getVisualTap()};
     juce::File settingsFile;
 

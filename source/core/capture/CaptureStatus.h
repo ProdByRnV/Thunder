@@ -25,6 +25,7 @@ struct CaptureStatus
     Phase phase = Phase::Idle;
     int bars = 4;
     float progress = 0.0f; // 0 … 1 while recording
+    bool tail = false;     // recording the tail after the last bar (Include Tail)
     CaptureFailure failure = CaptureFailure::None;
     juce::File file;
 

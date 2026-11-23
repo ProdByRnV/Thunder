@@ -46,6 +46,7 @@ class ThunderProcessor;
 // session state and the capture API.
 class ThunderEditor final
     : public juce::AudioProcessorEditor
+    , public juce::FileDragAndDropTarget
     , private juce::Timer
 {
 public:
@@ -78,6 +79,21 @@ public:
     void openSettings();
     void openAbout();
     void showMessage (const juce::String& text, bool isError);
+
+    // [MSG] An audio file dragged anywhere over the window can be dropped as the
+    // source (UI.md §16.2, PRD FR-INPUT-001).
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void fileDragEnter (const juce::StringArray& files, int x, int y) override;
+    void fileDragMove (const juce::StringArray& files, int x, int y) override;
+    void fileDragExit (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int x, int y) override;
+
+    // [MSG] The source strip, its messages and the detected key, from the
+    // analysis worker. The timer calls it; tests call it directly.
+    void refreshSource();
+
+    // [MSG] "Locate…": choose the source file again.
+    void locateSource();
 
     // [MSG] Shows the spectrum view (and remembers it for the project).
     void showSpectrum();
@@ -169,6 +185,8 @@ private:
     double lastFrameMs = 0.0;
     float scale = 1.0f;
     bool constructed = false;
+    std::uint32_t seenSourceVersion = 0;
+    std::unique_ptr<juce::FileChooser> sourceChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderEditor)
 };

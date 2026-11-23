@@ -20,6 +20,18 @@ add_library(ThunderCore INTERFACE)
 target_include_directories(ThunderCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(ThunderCore INTERFACE
+    core/analysis/AnalysisTap.h
+    core/analysis/AnalysisWorker.cpp
+    core/analysis/AnalysisWorker.h
+    core/analysis/KeyDetector.cpp
+    core/analysis/KeyDetector.h
+    core/capture/LoopFold.cpp
+    core/capture/LoopFold.h
+    core/source/SourceBuffer.h
+    core/source/SourceLoader.cpp
+    core/source/SourceLoader.h
+    core/source/SourceRef.cpp
+    core/source/SourceRef.h
     core/capture/CaptureController.cpp
     core/capture/CaptureController.h
     core/capture/CaptureNaming.cpp
@@ -109,7 +121,10 @@ target_link_libraries(ThunderCore INTERFACE
     ThunderPresetData)
 
 target_compile_definitions(ThunderCore INTERFACE
-    THUNDER_VERSION_STRING="${PROJECT_VERSION}")
+    THUNDER_VERSION_STRING="${PROJECT_VERSION}"
+    # Sources can be MP3 files (PRD FR-INPUT-001); WAV, AIFF, FLAC and Ogg
+    # Vorbis are on by default.
+    JUCE_USE_MP3AUDIOFORMAT=1)
 
 # ---------------------------------------------------------------------------
 # ThunderPluginCode — the host adapter (processor, parameter layout, editor).
@@ -140,6 +155,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/components/CaptureWidget.h
     plugin/ui/components/Meters.cpp
     plugin/ui/components/Meters.h
+    plugin/ui/components/KeyBadge.cpp
+    plugin/ui/components/KeyBadge.h
     plugin/ui/components/ModuleDisplays.cpp
     plugin/ui/components/ModuleDisplays.h
     plugin/ui/components/Controls.cpp
@@ -179,6 +196,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/visualiser/MeterModel.h
     plugin/ui/visualiser/SpectrumAnalyser.cpp
     plugin/ui/visualiser/SpectrumAnalyser.h
+    plugin/ui/visualiser/SourceStrip.cpp
+    plugin/ui/visualiser/SourceStrip.h
     plugin/ui/visualiser/SpectrumView.cpp
     plugin/ui/visualiser/SpectrumView.h
     plugin/ui/visualiser/VisualModel.cpp

@@ -1,6 +1,7 @@
 #include "CaptureWriter.h"
 
 #include "CaptureNaming.h"
+#include "LoopFold.h"
 
 namespace thunder::capture
 {
@@ -92,6 +93,7 @@ void CaptureWriter::begin (const CaptureBlock& startBlock)
 {
     discard(); // a capture that never ended (shouldn't happen) is dropped
     openId = startBlock.captureId;
+    openStart = startBlock.start;
 
     Settings s;
     {
@@ -109,6 +111,7 @@ void CaptureWriter::begin (const CaptureBlock& startBlock)
     }
 
     finalFile = claimed.finalFile;
+    openFormat = s.format;
     partialFile = partialFileFor (finalFile);
     std::unique_ptr<juce::OutputStream> stream = std::move (claimed.stream);
 
@@ -158,7 +161,10 @@ void CaptureWriter::end (const CaptureBlock& endBlock)
     writer.reset();
     isOpen = false;
 
-    const auto finished = flushed ? finishCaptureFile (partialFile, finalFile) : juce::File();
+    // Loop: exactly N bars, the tail folded onto the start (PRD FR-CAPT-004).
+    const auto folded = flushed && (!openStart.loop || foldLoopFile (partialFile, endBlock.loopFrames, openFormat));
+
+    const auto finished = flushed && folded ? finishCaptureFile (partialFile, finalFile) : juce::File();
     if (finished == juce::File())
     {
         partialFile.deleteFile();
@@ -174,6 +180,9 @@ void CaptureWriter::end (const CaptureBlock& endBlock)
 
     completed.fetch_add (1, std::memory_order_acq_rel);
     state.store (State::Ready, std::memory_order_release);
+
+    if (onCaptureFinished)
+        onCaptureFinished (finalFile, openStart);
 }
 
 void CaptureWriter::discard()

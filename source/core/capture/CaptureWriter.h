@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 namespace thunder::capture
@@ -18,6 +19,7 @@ namespace thunder::capture
 //   a half-written capture is never offered for drag-out (ARCHITECTURE AD-04).
 // - A capture that fails or is cancelled leaves no file behind.
 // - 24-bit or 32-bit float at the host's sample rate, stereo.
+// - Loop captures are folded (LoopFold.h) before the file is offered.
 //
 // Threads: the writer runs on its own background thread, started by the first
 // start() call. Tests may instead call service() themselves without starting
@@ -57,6 +59,11 @@ public:
     // it directly.
     void service();
 
+    // Called on the writer's thread after each completed capture, with the file
+    // and what started it (Input captures become the source). Set before the
+    // first capture.
+    std::function<void (const juce::File&, const CaptureStart&)> onCaptureFinished;
+
     // [MSG] Deletes the last completed capture's file (UI "Delete capture").
     void deleteLastCapture();
 
@@ -91,6 +98,8 @@ private:
     // Writer-thread state.
     CaptureBlock block;
     std::uint32_t openId = 0;
+    CaptureStart openStart;
+    CaptureFormat openFormat = CaptureFormat::Int24;
     bool isOpen = false;
     std::unique_ptr<juce::AudioFormatWriter> writer;
     juce::File partialFile;

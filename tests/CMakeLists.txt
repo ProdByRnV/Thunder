@@ -29,6 +29,7 @@ target_sources(ThunderTests PRIVATE
     unit/GainTests.cpp
     unit/GrainModuleTests.cpp
     unit/IntervalFollowerTests.cpp
+    unit/KeyDetectionTests.cpp
     unit/ModuleSlotTests.cpp
     unit/ModuleExtrasTests.cpp
     unit/ModuleDisplayTests.cpp
@@ -41,6 +42,8 @@ target_sources(ThunderTests PRIVATE
     unit/PitchTrackerTests.cpp
     unit/ProcessorTests.cpp
     unit/RhythmModuleTests.cpp
+    unit/SourceTests.cpp
+    unit/SourceUiTests.cpp
     unit/SpaceModuleTests.cpp
     unit/StateTests.cpp
     unit/TransportStateTests.cpp

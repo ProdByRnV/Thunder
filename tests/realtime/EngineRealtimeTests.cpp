@@ -405,13 +405,17 @@ TEST_CASE ("Duck, Autopan, the grain extras and every reverb mode do not allocat
 
 TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
 {
-    // Arming, recording a Layer and a Full Mix capture, finishing, failing and
-    // cancelling all happen on the audio thread. The queue is allocated
-    // beforehand on the message thread, as the processor does when arming.
+    // Arming, recording Layer, Full Mix and Input captures (with and without a
+    // tail), finishing, failing and cancelling all happen on the audio thread,
+    // with the key detection feed on. The queues are allocated beforehand on
+    // the message thread, as the processor does.
     ThunderEngine engine;
     engine.prepare (48000.0);
     auto& capture = engine.getCapture();
     capture.allocateQueue();
+    engine.getAnalysisTap().allocate();
+    engine.getAnalysisTap().setEnabled (true);
+    std::vector<float> keyFeed (analysis::AnalysisTap::kCapacity);
 
     const auto snapshot = params::ParamSnapshot::defaults();
     std::vector<float> left (512, 0.1f), right (512, 0.1f);
@@ -431,16 +435,18 @@ TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
     };
 
     // The queue is drained between sections, as the writer thread would.
-    auto drain = [&capture]
+    auto drain = [&capture, &engine, &keyFeed]
     {
         auto block = std::make_unique<capture::CaptureBlock>();
         while (capture.getQueue().pop (block.get(), 1) == 1)
         {
         }
+        engine.getAnalysisTap().read (keyFeed.data(), static_cast<int> (keyFeed.size()));
     };
 
     test::RealtimeReport total;
-    for (const auto source : {capture::CaptureSource::Layer, capture::CaptureSource::FullMix})
+    for (const auto source :
+         {capture::CaptureSource::Layer, capture::CaptureSource::FullMix, capture::CaptureSource::Input})
     {
         capture.arm (1, source);
         accumulate (total, test::runInRealtimeSection ([&] { playSeconds (1.0); }));
@@ -451,6 +457,23 @@ TEST_CASE ("Capturing does not allocate or block", "[realtime][capture]")
 
     capture.arm (2, capture::CaptureSource::Layer);
     accumulate (total, test::runInRealtimeSection ([&] { playSeconds (2.5); }));
+    capture.cancel();
+    accumulate (total, test::runInRealtimeSection ([&] { playSeconds (0.1); }));
+    drain();
+
+    // With a tail (the input never goes quiet: it runs to its 10 s limit) and Loop.
+    capture.arm (1, capture::CaptureSource::Layer, true, true);
+    for (int i = 0; i < 14; ++i)
+    {
+        accumulate (total, test::runInRealtimeSection ([&] { playSeconds (1.0); }));
+        drain();
+    }
+    CHECK (capture.getPhase() == capture::CaptureController::Phase::Idle);
+
+    // Stop during a tail keeps the capture.
+    capture.arm (1, capture::CaptureSource::FullMix, true, false);
+    accumulate (total, test::runInRealtimeSection ([&] { playSeconds (2.5); }));
+    drain();
     capture.cancel();
     accumulate (total, test::runInRealtimeSection ([&] { playSeconds (0.1); }));
     drain();

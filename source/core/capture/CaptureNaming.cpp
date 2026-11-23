@@ -65,7 +65,10 @@ juce::String buildCaptureName (const CaptureStart& start, const juce::String& pr
 {
     juce::StringArray parts{"Thunder"};
 
-    if (const auto preset = sanitiseForFileName (presetName); preset.isNotEmpty())
+    // Input captures are the user's own audio, not a preset's sound.
+    if (start.source == CaptureSource::Input)
+        parts.add ("Input");
+    else if (const auto preset = sanitiseForFileName (presetName); preset.isNotEmpty())
         parts.add (preset);
 
     parts.add (keyTag (start.keyRoot, start.keyScale));

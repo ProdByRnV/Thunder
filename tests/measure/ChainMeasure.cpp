@@ -111,21 +111,36 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
          {ParamId::timeOn, ParamId::staticOn, ParamId::shapeOn, ParamId::staticTgtPitch, ParamId::staticTgtLevel})
         rhythm.set (id, 1.0f);
     rhythm.set (ParamId::staticRate, 8.0f);
+    // Every v1.0 module on (PRD NFR-PERF-002's condition).
+    auto everything = rhythm;
+    for (const auto id : {ParamId::duckOn, ParamId::autopanOn, ParamId::staticTgtPosition, ParamId::staticTgtFilter,
+                          ParamId::staticTgtPan})
+        everything.set (id, 1.0f);
 
     struct EngineCase
     {
         const char* name;
         const params::ParamSnapshot* settings;
         params::Quality quality;
+        bool keyDetection;
     };
-    for (const auto& c : {EngineCase{"Whole engine (defaults)", &defaults, params::Quality::Standard},
-                          EngineCase{"Whole engine (defaults, Eco)", &defaults, params::Quality::Eco},
-                          EngineCase{"Whole engine (defaults, High)", &defaults, params::Quality::High},
-                          EngineCase{"Whole engine + Time, Static (all), Shape", &rhythm, params::Quality::Standard}})
+    for (const auto& c :
+         {EngineCase{"Whole engine (defaults)", &defaults, params::Quality::Standard, false},
+          EngineCase{"Whole engine (defaults, key detection feed)", &defaults, params::Quality::Standard, true},
+          EngineCase{"Whole engine (defaults, Eco)", &defaults, params::Quality::Eco, false},
+          EngineCase{"Whole engine (defaults, High)", &defaults, params::Quality::High, false},
+          EngineCase{"Whole engine + Time, Static (all), Shape", &rhythm, params::Quality::Standard, false},
+          EngineCase{"Whole engine, every module on", &everything, params::Quality::Standard, false}})
     {
         const auto* settings = c.settings;
         ThunderEngine engine;
         engine.prepare (kRate, c.quality);
+        if (c.keyDetection)
+        {
+            engine.getAnalysisTap().allocate();
+            engine.getAnalysisTap().setEnabled (true);
+        }
+        std::vector<float> keyFeed (analysis::AnalysisTap::kCapacity);
         std::vector<float> left = input, right = input;
         const auto run = [&]
         {
@@ -134,6 +149,8 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
                 const auto n = std::min<std::size_t> (256, left.size() - start);
                 float* channels[] = {left.data() + start, right.data() + start};
                 engine.process (channels, static_cast<int> (n), {}, *settings);
+                if ((start / 256) % 64 == 0) // drained as the analysis thread would
+                    engine.getAnalysisTap().read (keyFeed.data(), static_cast<int> (keyFeed.size()));
             }
         };
         run(); // warm up

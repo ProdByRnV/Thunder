@@ -208,6 +208,7 @@ inline constexpr int presetBarWidth = 340;
 inline constexpr int tooltipMaxWidth = 260; // §9.14
 inline constexpr int keyRootWidth = 64;
 inline constexpr int keyScaleWidth = 148;
+inline constexpr int keyBadgeWidth = 64; // the detected key: dot and confidence (§9.13)
 inline constexpr int labelHeight = 16;
 inline constexpr int valueHeight = 18;
 inline constexpr int bolt = 18; // logo glyph height
@@ -262,7 +263,7 @@ inline constexpr float displayDotMax = 4.0f;
 
 // Capture bar (§9.10)
 inline constexpr int captureTitleWidth = 64;
-inline constexpr int barsDropdownWidth = 96;
+inline constexpr int barsDropdownWidth = 112; // room for "4 bars +tail"
 inline constexpr int sourceDropdownWidth = 104;
 inline constexpr int armButtonWidth = 84;
 inline constexpr int statusWidth = 150;
@@ -275,6 +276,8 @@ inline constexpr int saveFormLabelWidth = 96;
 inline constexpr int saveFormDescriptionHeight = 64;
 inline constexpr int toastWidth = 320;
 inline constexpr int toastHeight = 44;
+inline constexpr int toastActionsHeight = 76; // with a row of buttons (e.g. Locate… · Dismiss)
+inline constexpr int toastButtonWidth = 84;
 inline constexpr int maxTextLength = 128;
 inline constexpr int maxDescriptionLength = 1024;
 inline constexpr int settingsWidth = 380;
@@ -316,6 +319,15 @@ inline constexpr int toastMs = 4000;            // §9.15
 // ---- Visualiser and meters (UI.md §8.2, §8.5, §9.9, §9.19) -------------------------------------------------------
 namespace visualiser
 {
+// Source (§16.2): the strip at the top of the well, and the drop target.
+inline constexpr int sourceStripHeight = 40;
+inline constexpr int sourceNameWidth = 200;
+inline constexpr int sourceKeyWidth = 120;
+inline constexpr float sourceStripOpacity = 0.92f; // the strip's background over the waveform
+inline constexpr float dropDash = 6.0f;            // the dashed outline while a file is dragged over
+inline constexpr float dropGap = 4.0f;
+inline constexpr float dropFill = 0.10f; // cyan wash over the well
+
 // Waveform (§8.2)
 inline constexpr int defaultBars = 2;          // time window; 1, 2 or 4 from the right-click menu
 inline constexpr double maxSeconds = 32.0;     // the longest window kept (4 bars at 30 BPM)

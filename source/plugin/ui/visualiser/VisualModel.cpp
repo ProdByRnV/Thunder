@@ -52,6 +52,7 @@ VisualModel::Changes VisualModel::update (double seconds)
             const auto& frame = frameScratch[static_cast<std::size_t> (i)];
             meters.add (frame);
             addActivity (frame, bridge.getFrameSeconds());
+            tempo = {frame.bpm, frame.timeSigNumerator, frame.timeSigDenominator};
             const auto layerPeak = std::max (std::abs (frame.layerMin), std::abs (frame.layerMax));
             const auto outputPeak = std::max (frame.peakLeft, frame.peakRight);
             if (strikes.addFrame (layerPeak, outputPeak, bridge.getFrameSeconds()) && !frozen)

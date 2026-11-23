@@ -180,7 +180,7 @@ jobs:
             Linux)   install=packaging/install-linux.txt ;;
           esac
           cp "$install" "staging/$name/How to install.txt"
-          # Copyright notices that the bundled third-party components (MIT, OFL) require
+          # Copyright notices that the bundled third-party components (MIT, BSD, OFL) require
           # to travel with the binaries, taken from each component's own
           # licence file in external/.
           {
@@ -190,6 +190,8 @@ jobs:
               "Signalsmith Linear|external/signalsmith-linear/LICENSE.txt" \
               "Cloud Seed reverb algorithm (Ghost Note Audio)|external/CloudSeedCore/LICENSE" \
               "VST3 SDK (Steinberg Media Technologies GmbH)|external/JUCE/modules/juce_audio_processors_headless/format_types/VST3_SDK/LICENSE.txt" \
+              "FLAC (Xiph.Org Foundation)|external/JUCE/modules/juce_audio_formats/codecs/flac/Flac Licence.txt" \
+              "Ogg Vorbis (Xiph.Org Foundation)|external/JUCE/modules/juce_audio_formats/codecs/oggvorbis/Ogg Vorbis Licence.txt" \
               "CLAP|external/clap-juce-extensions/clap-libs/clap/LICENSE" \
               "CLAP helpers|external/clap-juce-extensions/clap-libs/clap-helpers/LICENSE" \
               "clap-juce-extensions|external/clap-juce-extensions/LICENSE.md" \
@@ -469,7 +471,7 @@ jobs:
           # LeakSanitizer would report them on every run. ASan still catches
           # use-after-free, overruns and stack corruption.
           ASAN_OPTIONS: detect_leaks=0
-          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1:suppressions=${{ github.workspace }}/tests/sanitizers/ubsan.supp
         run: ctest --test-dir build-san -L unit --output-on-failure
 
   # The audio path under Clang's RealtimeSanitizer: any malloc/free, lock or

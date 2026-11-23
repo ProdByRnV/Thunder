@@ -1,6 +1,7 @@
 #include "ThunderEditor.h"
 
 #include "ThunderProcessor.h"
+#include "core/source/SourceLoader.h"
 #include "core/state/UserSettings.h"
 #include "plugin/ui/Motion.h"
 #include "ui/theme/ThunderFonts.h"
@@ -101,7 +102,7 @@ void ThunderEditor::Content::resized()
     const auto well = visualiserWell (area.removeFromTop (size::visualiserHeight));
     owner.visualiser.setBounds (well);
     owner.toast.setBounds (
-        well.reduced (space::s3).removeFromTop (size::toastHeight).removeFromRight (size::toastWidth));
+        well.reduced (space::s3).removeFromTop (owner.toast.getPreferredHeight()).removeFromRight (size::toastWidth));
 
     owner.chain.setBounds (area.removeFromTop (size::chainHeight));
 
@@ -195,6 +196,21 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     topBar.onSettings = [this] { openSettings(); };
     topBar.onAbout = [this] { openAbout(); };
     tonePanel->onOpenSpectrum = [this] { showSpectrum(); };
+
+    // Key detection (UI.md §9.13): Auto Detect is the project's.
+    topBar.isAutoDetectOn = [this] { return thunderProcessor.getSessionState().keyAutoDetect; };
+    topBar.setAutoDetect = [this] (bool on)
+    {
+        auto session = thunderProcessor.getSessionState();
+        session.keyAutoDetect = on;
+        thunderProcessor.setSessionState (session);
+        refreshSource();
+    };
+    visualiser.getSourceStrip().onRemove = [this]
+    {
+        thunderProcessor.getAnalysisWorker().clearSource();
+        refreshSource();
+    };
 
     // Status (UI.md §8.6): the latency the host compensates for, and the version.
     const auto sampleRate = p.getSampleRate() > 0.0 ? p.getSampleRate() : 48000.0;
@@ -458,6 +474,7 @@ void ThunderEditor::timerCallback()
         startTimerHz (showing ? frameRate() : kHiddenCheckHz);
 
     updateVisuals (showing, seconds);
+    refreshSource();
 }
 
 void ThunderEditor::updateVisuals (bool showing, double seconds)
@@ -490,6 +507,119 @@ void ThunderEditor::updateVisuals (bool showing, double seconds)
     for (auto& m : modules)
         if (m->isVisible())
             m->refresh (changes);
+}
+
+// ---- Source and key (UI.md §9.13, §16.2)
+// -------------------------------------------------------------------------------------
+
+bool ThunderEditor::isInterestedInFileDrag (const juce::StringArray& files)
+{
+    // Any single file: one that can't be a source is told so while it hovers.
+    return files.size() == 1;
+}
+
+void ThunderEditor::fileDragEnter (const juce::StringArray& files, int, int)
+{
+    const auto supported = files.size() == 1 && source::isSupportedFile (juce::File (files[0]));
+    visualiser.setDropHint (supported ? ui::VisualiserRegion::DropHint::supported
+                                      : ui::VisualiserRegion::DropHint::unsupported);
+}
+
+void ThunderEditor::fileDragMove (const juce::StringArray& files, int x, int y)
+{
+    if (visualiser.getDropHint() == ui::VisualiserRegion::DropHint::none)
+        fileDragEnter (files, x, y);
+}
+
+void ThunderEditor::fileDragExit (const juce::StringArray&)
+{
+    visualiser.setDropHint (ui::VisualiserRegion::DropHint::none);
+}
+
+void ThunderEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    visualiser.setDropHint (ui::VisualiserRegion::DropHint::none);
+    if (files.size() != 1)
+        return;
+
+    const juce::File file (files[0]);
+    if (!source::isSupportedFile (file))
+    {
+        showMessage (source::describe (source::LoadError::NotSupported), true);
+        return;
+    }
+
+    thunderProcessor.loadSourceFile (file);
+    refreshSource();
+}
+
+void ThunderEditor::locateSource()
+{
+    const auto missing = juce::File (thunderProcessor.getAnalysisWorker().getSourceRef().path);
+    const auto start = missing.getParentDirectory().isDirectory()
+                           ? missing.getParentDirectory()
+                           : juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+    sourceChooser = std::make_unique<juce::FileChooser> ("Locate the source", start,
+                                                         "*.wav;*.wave;*.aif;*.aiff;*.aifc;*.flac;*.mp3;*.ogg");
+    sourceChooser->launchAsync (
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<ThunderEditor> (this)] (const juce::FileChooser& fc)
+        {
+            if (safe == nullptr || fc.getResult() == juce::File())
+                return;
+            safe->thunderProcessor.loadSourceFile (fc.getResult());
+            safe->refreshSource();
+        });
+}
+
+void ThunderEditor::refreshSource()
+{
+    auto& worker = thunderProcessor.getAnalysisWorker();
+    const auto sourceStatus = worker.getSourceStatus();
+
+    auto& strip = visualiser.getSourceStrip();
+    const auto& tempo = visuals.getTempo();
+    strip.setHostTempo (tempo.bpm, tempo.numerator, tempo.denominator);
+
+    if (sourceStatus.version != seenSourceVersion)
+    {
+        seenSourceVersion = sourceStatus.version;
+        strip.setStatus (sourceStatus);
+
+        // Messages (UI.md §16.4, PRD FR-INPUT-005): never blocking.
+        using Phase = analysis::AnalysisWorker::SourcePhase;
+        if (sourceStatus.phase == Phase::Failed && sourceStatus.error == source::LoadError::NotFound)
+        {
+            toast.show ("The source file couldn't be found: " + sourceStatus.name, true,
+                        {{juce::String::fromUTF8 ("Locate\xe2\x80\xa6"), [this] { locateSource(); }}, {"Dismiss", {}}});
+        }
+        else if (sourceStatus.phase == Phase::Failed)
+        {
+            showMessage (source::describe (sourceStatus.error), true);
+        }
+        else if (sourceStatus.phase == Phase::Ready && sourceStatus.usedSavedCopy)
+        {
+            showMessage (sourceStatus.name + " has moved, so the copy saved with the project is used.", false);
+        }
+    }
+
+    // The detected key: the source's when it has one, else the input's.
+    ui::KeyBadge::Shown shown;
+    const auto autoDetect = thunderProcessor.getSessionState().keyAutoDetect;
+    if (sourceStatus.phase == analysis::AnalysisWorker::SourcePhase::Ready && sourceStatus.buffer != nullptr &&
+        sourceStatus.buffer->key.valid)
+    {
+        shown.estimate = sourceStatus.buffer->key;
+        shown.from = sourceStatus.buffer->fromCapture ? juce::String ("the captured input") : sourceStatus.name;
+        shown.listening = true;
+    }
+    else if (autoDetect)
+    {
+        shown.estimate = worker.getLiveEstimate();
+        shown.from = "the input";
+        shown.listening = true;
+    }
+    topBar.getKeyBadge().setShown (shown);
 }
 
 void ThunderEditor::rememberView (ui::VisualiserRegion::View view)

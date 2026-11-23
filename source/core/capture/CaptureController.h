@@ -34,6 +34,16 @@ namespace thunder::capture
 // The end is found by counting beats at the host's tempo, so tempo changes
 // during a capture still give exactly N bars.
 //
+// Include Tail and Loop (PRD FR-CAPT-004): after the N bars, recording carries
+// on until the captured audio has stayed below −60 dBFS for 0.25 s, for at most
+// 10 s. Transport changes no longer matter then (the tail rings on when the
+// DAW stops); Stop, a host reset or a re-prepare end the tail and keep the
+// capture. The End block says where the N bars end, so the writer can fold the
+// tail onto the start for Loop (LoopFold.h).
+//
+// Input captures (PRD FR-INPUT-003) record Thunder's input, in input time: the
+// file starts exactly on the bar line. They have no tail.
+//
 // Threads: arm() and cancel() are [MSG]; everything else that changes state is
 // [RT]. The getters may be called from any thread.
 class CaptureController
@@ -55,6 +65,11 @@ public:
     // their own tick grid; real jumps are far bigger.
     static constexpr double kPositionTolerance = 1.0 / 32.0;
 
+    // Include Tail: quiet means below this level (−60 dBFS) for this long.
+    static constexpr float kTailQuietLevel = 0.001f;
+    static constexpr double kTailQuietSeconds = 0.25;
+    static constexpr double kMaxTailSeconds = 10.0;
+
     CaptureController() = default;
 
     // [NRT] Called from the engine's prepare(). Ends any capture in progress.
@@ -66,8 +81,9 @@ public:
     bool isQueueAllocated() const noexcept { return queueAllocated.load (std::memory_order_acquire); }
 
     // [MSG] Arms a capture of `bars` bars. Ignored while recording; while armed
-    // it changes the length and source of the coming capture.
-    void arm (int bars, CaptureSource source) noexcept;
+    // it changes the length, source and tail options of the coming capture.
+    // `loop` implies `tail`; neither applies to Input captures.
+    void arm (int bars, CaptureSource source, bool tail = false, bool loop = false) noexcept;
 
     // [MSG] Disarms, or stops a recording and discards it.
     void cancel() noexcept;
@@ -80,13 +96,19 @@ public:
     // renders the layer as Layer Only would play it.
     bool wantsLayer() const noexcept { return phase != Phase::Idle && source == CaptureSource::Layer; }
 
-    // [RT] One engine chunk. `mix` is Thunder's output; `layer` is the layer as
-    // Layer Only would play it, and may be null unless wantsLayer() is true.
-    // `transport` is the chunk's position in input time.
-    void process (const float* const* mix, const float* const* layer, int numSamples, const TransportState& transport,
-                  const params::ParamSnapshot& snapshot) noexcept;
+    // [RT] True while an Input capture is armed or recording: the engine then
+    // passes Thunder's input to process().
+    bool wantsInput() const noexcept { return phase != Phase::Idle && source == CaptureSource::Input; }
 
-    // [RT] The host reset the plugin: a recording fails, an armed capture stays armed.
+    // [RT] One engine chunk. `mix` is Thunder's output; `layer` is the layer as
+    // Layer Only would play it, and may be null unless wantsLayer() is true;
+    // `input` is the chunk's input, and may be null unless wantsInput() is true.
+    // `transport` is the chunk's position in input time.
+    void process (const float* const* mix, const float* const* layer, const float* const* input, int numSamples,
+                  const TransportState& transport, const params::ParamSnapshot& snapshot) noexcept;
+
+    // [RT] The host reset the plugin: a recording fails (a tail ends and the
+    // capture is kept); an armed capture stays armed.
     void reset() noexcept;
 
     // The queue the writer drains (single consumer).
@@ -97,6 +119,9 @@ public:
 
     // Fraction of the current recording done (0 … 1).
     float getProgress() const noexcept { return progress.load (std::memory_order_relaxed); }
+
+    // True while recording the tail after the last bar.
+    bool isRecordingTail() const noexcept { return recordingTail.load (std::memory_order_relaxed); }
 
     // Bars of the capture armed or recording.
     int getBars() const noexcept { return publishedBars.load (std::memory_order_relaxed); }
@@ -119,6 +144,8 @@ private:
     void collect (const float* const* audio, int numSamples) noexcept;
     bool flushPending() noexcept;
     void finish (CaptureBlock::Kind kind, CaptureFailure failure = CaptureFailure::None) noexcept;
+    bool isInTail() const noexcept { return tail && endSample >= 0 && clock >= endSample; }
+    void endKeepingCapture() noexcept; // a tail cut short: the N bars are complete
 
     util::SpscFifo<CaptureBlock> queue;
     std::atomic<bool> queueAllocated{false};
@@ -127,12 +154,15 @@ private:
     std::atomic<Request> request{Request::None};
     std::atomic<int> requestedBars{4};
     std::atomic<CaptureSource> requestedSource{CaptureSource::Layer};
+    std::atomic<bool> requestedTail{false};
+    std::atomic<bool> requestedLoop{false};
 
     // [RT] → anyone
     std::atomic<Phase> publishedPhase{Phase::Idle};
     std::atomic<bool> waitingForPlay{false};
     std::atomic<float> progress{0.0f};
     std::atomic<int> publishedBars{4};
+    std::atomic<bool> recordingTail{false};
 
     // Audio-thread state.
     double sampleRate = 44100.0;
@@ -140,6 +170,9 @@ private:
     Phase phase = Phase::Idle;
     int bars = 4;
     CaptureSource source = CaptureSource::Layer;
+    bool tail = false;
+    bool loop = false;
+    int captureLatency = 0; // the output's latency, or 0 for Input captures
     std::uint32_t captureId = 0;
 
     std::int64_t clock = 0;       // output samples processed since prepare()
@@ -151,6 +184,8 @@ private:
     bool hasExpectedPpq = false;
     std::int64_t framesCaptured = 0;
     std::int64_t expectedFrames = 1;
+    std::int64_t tailFrames = 0;  // recorded after the N bars
+    std::int64_t quietFrames = 0; // the tail's latest run of quiet frames
 
     CaptureBlock pending; // audio waiting for a full block
 

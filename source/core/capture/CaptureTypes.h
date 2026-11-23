@@ -46,6 +46,12 @@ struct CaptureStart
     int keyRoot = 0;                 // params::KeyRoot index
     int keyScale = 0;                // params::Scale index
     std::int64_t expectedFrames = 0; // bars at the starting tempo; for progress only
+
+    // PRD FR-CAPT-004: keep recording after the last bar until the layer goes
+    // quiet (Include Tail), and fold that tail back onto the start so the file
+    // is exactly N bars and loops seamlessly (Loop). Never for Input captures.
+    bool tail = false;
+    bool loop = false;
 };
 
 // One item in the capture queue. Audio is batched into full blocks so the
@@ -68,6 +74,7 @@ struct CaptureBlock
     int numFrames = 0;
     CaptureFailure failure = CaptureFailure::None;
     CaptureStart start;
+    std::int64_t loopFrames = 0; // End: the N bars, in frames (what follows them is the tail)
     std::array<std::array<float, kMaxFrames>, 2> audio{};
 };
 

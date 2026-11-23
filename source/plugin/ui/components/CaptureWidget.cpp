@@ -115,14 +115,18 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
     for (const auto bars : kBarChoices)
         barsBox.addItem (juce::String (bars) + (bars == 1 ? " bar" : " bars"), bars);
     barsBox.setTitle ("Capture length");
-    barsBox.setTooltip ("Capture length: how many bars to record");
+    barsBox.setTooltip ("Capture length: how many bars to record. The menu also has Include tail (keep recording "
+                        "while the sound rings out) and Loop (fold that tail onto the start, so the file loops "
+                        "seamlessly).");
     barsBox.onChange = [this] { writeSessionChoices(); };
     addAndMakeVisible (barsBox);
 
     sourceBox.addItem ("Layer", 1);
     sourceBox.addItem ("Full Mix", 2);
+    sourceBox.addItem ("Input", 3);
     sourceBox.setTitle ("Capture source");
-    sourceBox.setTooltip ("Capture source: Layer records the layer alone; Full Mix records everything Thunder outputs");
+    sourceBox.setTooltip ("Capture source: Layer records the layer alone; Full Mix records everything Thunder outputs; "
+                          "Input records what comes into Thunder and loads it as the source.");
     sourceBox.onChange = [this] { writeSessionChoices(); };
     addAndMakeVisible (sourceBox);
 
@@ -139,8 +143,11 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
     // Show the session's choices, and the last capture if there is one.
     const auto session = processor.getSessionState();
     barsBox.setSelectedId (session.captureBars, juce::dontSendNotification);
-    sourceBox.setSelectedId (session.captureSource == state::CaptureSource::FullMix ? 2 : 1,
+    sourceBox.setSelectedId (session.captureSource == state::CaptureSource::FullMix ? 2
+                             : session.captureSource == state::CaptureSource::Input ? 3
+                                                                                    : 1,
                              juce::dontSendNotification);
+    updateLengthTexts();
     seenCompleted = processor.getCaptureWriter().getCompletedCount();
 
     refresh();
@@ -254,13 +261,87 @@ void CaptureWidget::writeSessionChoices()
 {
     auto session = processor.getSessionState();
     session.captureBars = barsBox.getSelectedId() > 0 ? barsBox.getSelectedId() : session.captureBars;
-    session.captureSource =
-        sourceBox.getSelectedId() == 2 ? state::CaptureSource::FullMix : state::CaptureSource::Layer;
+    session.captureSource = sourceBox.getSelectedId() == 2   ? state::CaptureSource::FullMix
+                            : sourceBox.getSelectedId() == 3 ? state::CaptureSource::Input
+                                                             : state::CaptureSource::Layer;
     processor.setSessionState (session);
+    updateLengthTexts();
 
     // An armed capture takes the new length and source.
     if (status.phase == Phase::Armed || status.phase == Phase::WaitingForPlay)
         processor.armCapture();
+}
+
+void CaptureWidget::LengthBox::showPopup()
+{
+    owner.buildLengthMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                                           [safe = juce::Component::SafePointer<CaptureWidget> (&owner)] (int result)
+                                           {
+                                               if (safe != nullptr && result != 0)
+                                                   safe->chooseLengthMenuItem (result);
+                                           });
+}
+
+juce::PopupMenu CaptureWidget::buildLengthMenu() const
+{
+    const auto session = processor.getSessionState();
+    const auto hasTail = session.captureSource != state::CaptureSource::Input;
+
+    juce::PopupMenu menu;
+    for (const auto bars : kBarChoices)
+        menu.addItem (bars, juce::String (bars) + (bars == 1 ? " bar" : " bars"), true, session.captureBars == bars);
+    menu.addSeparator();
+    menu.addItem (kMenuTail, "Include tail", hasTail, hasTail && session.captureTail);
+    menu.addItem (kMenuLoop, "Loop (fold the tail onto the start)", hasTail, hasTail && session.captureLoop);
+    return menu;
+}
+
+void CaptureWidget::chooseLengthMenuItem (int itemId)
+{
+    if (itemId != kMenuTail && itemId != kMenuLoop)
+    {
+        barsBox.setSelectedId (itemId, juce::sendNotificationSync); // writes the session
+        return;
+    }
+
+    auto session = processor.getSessionState();
+    if (itemId == kMenuTail)
+    {
+        session.captureTail = !session.captureTail;
+        session.captureLoop = session.captureLoop && session.captureTail; // Loop needs the tail
+    }
+    else
+    {
+        session.captureLoop = !session.captureLoop;
+        session.captureTail = session.captureTail || session.captureLoop;
+    }
+    processor.setSessionState (session);
+    updateLengthTexts();
+
+    // An armed capture takes the new options.
+    if (status.phase == Phase::Armed || status.phase == Phase::WaitingForPlay)
+        processor.armCapture();
+}
+
+void CaptureWidget::updateLengthTexts()
+{
+    // "4 bars", "4 bars +tail" or "4 bars loop": the options show where they are chosen.
+    const auto session = processor.getSessionState();
+    const auto hasTail = session.captureSource != state::CaptureSource::Input;
+    const auto suffix = !hasTail ? juce::String() : session.captureLoop ? " loop" : session.captureTail ? " +tail" : "";
+    for (const auto bars : kBarChoices)
+        barsBox.changeItemText (bars, juce::String (bars) + (bars == 1 ? " bar" : " bars") + suffix);
+    // Renaming an item doesn't redraw the shown text; setting the text (which
+    // matches the item) does, and keeps it selected.
+    barsBox.setText (barsBox.getItemText (barsBox.indexOfItemId (session.captureBars)), juce::dontSendNotification);
+}
+
+void CaptureWidget::chooseSource (state::CaptureSource source)
+{
+    sourceBox.setSelectedId (source == state::CaptureSource::FullMix ? 2
+                             : source == state::CaptureSource::Input ? 3
+                                                                     : 1,
+                             juce::sendNotificationSync);
 }
 
 void CaptureWidget::showChipMenu()

@@ -74,6 +74,15 @@ public:
     const lightning::StrikeDetector& getStrikes() const noexcept { return strikes; }
     void setStrikeSensitivity (float s) noexcept { strikes.setSensitivity (s); }
 
+    // The host's tempo and meter in the newest frame (120 BPM, 4/4 without one).
+    struct Tempo
+    {
+        float bpm = 120.0f;
+        int numerator = 4;
+        int denominator = 4;
+    };
+    const Tempo& getTempo() const noexcept { return tempo; }
+
     // How long the song position has stood still (the waveform dims after 2 s).
     double getSecondsStopped() const noexcept { return secondsStopped; }
     double getSampleRate() const noexcept { return bridge.getSampleRate(); }
@@ -90,6 +99,7 @@ private:
     std::vector<visual::SpectrumSample> spectrumScratch;
     bool frozen = false;
     double secondsStopped = 1.0e9; // nothing has moved yet
+    Tempo tempo;
 
     void addActivity (const visual::WaveFrame& frame, double frameSeconds) noexcept;
     lightning::StrikeDetector strikes;

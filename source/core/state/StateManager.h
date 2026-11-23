@@ -14,7 +14,9 @@
 //
 //   <ThunderState stateVersion="2" pluginVersion="1.0.0">
 //     <PARAMETERS> ... host parameters (APVTS) ... </PARAMETERS>
-//     <Session presetName="" presetModified="0" captureBars="4" captureSource="layer"/>
+//     <Session presetName="" presetModified="0" captureBars="4" captureSource="layer" …>
+//       <Source path="…" … />   (when the session has a source)
+//     </Session>
 //   </ThunderState>
 //
 // stateVersion goes up by one whenever the meaning of saved data changes, and
@@ -33,14 +35,16 @@ using Migration = juce::ValueTree (*) (juce::ValueTree);
 // Migrations in order: element i turns version i + 1 into version i + 2.
 std::span<const Migration> stateMigrations() noexcept;
 
-// [MSG/NRT] Builds the state tree for saving.
+// [MSG/NRT] Builds the state tree for saving. `source` (the session's Source,
+// source::SourceRef) goes inside Session when valid.
 juce::ValueTree createState (const juce::ValueTree& parameters, const SessionState& session,
-                             const juce::String& pluginVersion);
+                             const juce::String& pluginVersion, const juce::ValueTree& source = {});
 
 struct LoadedState
 {
     juce::ValueTree parameters; // type PARAMETERS, ready for APVTS::replaceState
     SessionState session;
+    juce::ValueTree source; // the session's Source child; invalid if there is none
     int savedVersion = 0;
     bool fromNewerVersion = false; // saved by a newer Thunder: known data loaded, the rest ignored
 };

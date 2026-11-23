@@ -39,11 +39,14 @@ void ThunderEngine::prepare (double newSampleRate, params::Quality newQuality)
         channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
     for (auto& channel : layerTap)
         channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
+    for (auto& channel : inputTap)
+        channel.assign (static_cast<std::size_t> (kMaxChunkSize), 0.0f);
 
     layerTapLimiter.prepare (sampleRate);
     layerTapActive = false;
     capture.prepare (sampleRate, latencySamples);
     visual.prepare (sampleRate, kMaxChunkSize, chainLatency);
+    analysisTap.prepare (sampleRate);
 
     inputGain.prepare (sampleRate);
     layerLevel.prepare (sampleRate);
@@ -149,6 +152,19 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
 
 void ThunderEngine::processChunk (float* const* channels, int numSamples, const ProcessContext& context) noexcept
 {
+    // The input as the host sent it: for live key detection, and for Input captures.
+    analysisTap.push (channels, numSamples);
+    float* inputChannels[kNumChannels] = {inputTap[0].data(), inputTap[1].data()};
+    const auto inputTapActive = capture.wantsInput();
+    if (inputTapActive)
+    {
+        for (int ch = 0; ch < kNumChannels; ++ch)
+        {
+            juce::FloatVectorOperations::copy (inputChannels[ch], channels[ch], numSamples);
+            util::replaceNonFinite (inputChannels[ch], numSamples);
+        }
+    }
+
     inputGain.apply (channels, kNumChannels, numSamples);
 
     // After the input gain, so bad input and gain overflow are both caught
@@ -228,7 +244,8 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
         layerTapLimiter.process (tapChannels, kNumChannels, numSamples, limiterOn);
     }
 
-    capture.process (channels, layerTapActive ? tapChannels : nullptr, numSamples, context.transport, context.params);
+    capture.process (channels, layerTapActive ? tapChannels : nullptr, inputTapActive ? inputChannels : nullptr,
+                     numSamples, context.transport, context.params);
 
     // ... and the final output, for the meters, and where the grains read.
     if (visual.isActive())

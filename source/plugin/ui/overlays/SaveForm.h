@@ -6,6 +6,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <memory>
+#include <vector>
 
 namespace thunder::ui
 {
@@ -67,25 +69,41 @@ private:
 };
 
 // C-TOAST (UI.md §9.15): a short message at the top right of the visualiser.
-// Errors stay until clicked; other messages fade after 4 s.
+// Errors stay until clicked; other messages fade after 4 s. A message can
+// offer buttons under it (a missing source: "Locate…" and "Dismiss", §16.4);
+// it then stays until one is pressed.
 class Toast final
     : public juce::Component
     , private juce::Timer
 {
 public:
-    Toast();
+    struct Action
+    {
+        juce::String label;
+        std::function<void()> onClick; // the toast closes first
+    };
 
-    void show (const juce::String& text, bool isError);
+    Toast();
+    ~Toast() override;
+
+    void show (const juce::String& text, bool isError, std::vector<Action> actions = {});
     void paint (juce::Graphics& g) override;
+    void resized() override;
     void mouseUp (const juce::MouseEvent&) override;
 
     juce::String getText() const { return text; }
+    int getPreferredHeight() const noexcept;
+    int getNumActions() const noexcept { return static_cast<int> (buttons.size()); }
+    ThunderButton& getActionButton (int index) { return *buttons[static_cast<std::size_t> (index)]; }
 
 private:
     void timerCallback() override;
+    juce::Rectangle<int> textArea() const;
 
     juce::String text;
     bool error = false;
+    std::vector<Action> actions;
+    std::vector<std::unique_ptr<ThunderButton>> buttons, retired;
 };
 
 } // namespace thunder::ui

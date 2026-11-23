@@ -1,0 +1,6 @@
+# UndefinedBehaviorSanitizer suppressions for the Sanitizers CI job.
+#
+# libFLAC (used to read FLAC files and to write the copy of a source saved in a
+# project) adds offsets to null pointers it never reads through while encoding.
+# Only that check, only in that file, is suppressed; Thunder's own code is not.
+pointer-overflow:*libFLAC/stream_encoder.c

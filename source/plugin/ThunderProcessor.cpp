@@ -25,6 +25,15 @@ ThunderProcessor::ThunderProcessor()
         parameterRefs[params::toIndex (def.param)] = apvts.getRawParameterValue (id);
         jassert (parameterRefs[params::toIndex (def.param)] != nullptr);
     }
+
+    // A finished Input capture becomes the source (PRD FR-INPUT-003). Called on
+    // the writer's thread; the worker takes requests from any thread.
+    captureWriter.onCaptureFinished = [this] (const juce::File& file, const capture::CaptureStart& start)
+    {
+        if (start.source == capture::CaptureSource::Input)
+            analysisWorker.loadCapture (file,
+                                        {start.bpm, start.bars, start.timeSigNumerator, start.timeSigDenominator});
+    };
 }
 
 void ThunderProcessor::prepareToPlay (double sampleRate, int)
@@ -34,6 +43,9 @@ void ThunderProcessor::prepareToPlay (double sampleRate, int)
     preparedSampleRate = sampleRate;
     engine.prepare (sampleRate, getSessionState().quality);
     setLatencySamples (engine.getLatencySamples());
+
+    analysisWorker.setLiveDetection (getSessionState().keyAutoDetect);
+    analysisWorker.start();
 }
 
 void ThunderProcessor::releaseResources() {}
@@ -135,7 +147,8 @@ void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto current = getSessionState();
     current.presetModified = presetManager.isModified();
-    const auto tree = state::createState (apvts.copyState(), current, THUNDER_VERSION_STRING);
+    const auto tree = state::createState (apvts.copyState(), current, THUNDER_VERSION_STRING,
+                                          analysisWorker.getSourceRef().toValueTree());
 
     if (const auto xml = tree.createXml())
         copyXmlToBinary (*xml, destData);
@@ -156,6 +169,13 @@ void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
     setSessionState (loaded->session);
     presetManager.rememberLoadedSound (loaded->session);
     loadedNewerState.store (loaded->fromNewerVersion);
+
+    // The project's source loads in the background; a missing file is reported
+    // by the editor, never here (PRD FR-INPUT-005).
+    const auto source = source::SourceRef::fromValueTree (loaded->source);
+    if (!source.isEmpty())
+        analysisWorker.start();
+    analysisWorker.restore (source);
 }
 
 state::SessionState ThunderProcessor::getSessionState() const
@@ -173,6 +193,7 @@ void ThunderProcessor::setSessionState (const state::SessionState& newState)
         session = newState;
     }
 
+    analysisWorker.setLiveDetection (newState.keyAutoDetect);
     if (newState.quality != previous)
         applyQuality (newState.quality);
 }
@@ -214,13 +235,19 @@ void ThunderProcessor::armCapture()
 
     auto& controller = engine.getCapture();
     controller.allocateQueue();
-    controller.arm (current.captureBars, current.captureSource);
+    controller.arm (current.captureBars, current.captureSource, current.captureTail, current.captureLoop);
     captureWriter.start();
 }
 
 void ThunderProcessor::cancelCapture()
 {
     engine.getCapture().cancel();
+}
+
+void ThunderProcessor::loadSourceFile (const juce::File& file)
+{
+    analysisWorker.start();
+    analysisWorker.loadFile (file);
 }
 
 capture::CaptureStatus ThunderProcessor::getCaptureStatus() const

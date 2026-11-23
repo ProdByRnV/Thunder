@@ -10,7 +10,8 @@ namespace thunder::state
 enum class CaptureSource
 {
     Layer,
-    FullMix
+    FullMix,
+    Input // Thunder's input: becomes the source (PRD FR-INPUT-003)
 };
 
 // The visualiser's view in this session (UI.md §8.2); not set = the global default.
@@ -32,7 +33,10 @@ struct SessionState
     juce::String presetKey; // the loaded preset in the library (PRD FR-PRESET-014); empty = Init
     int captureBars = 4;    // 1, 2, 4, 8 or 16
     CaptureSource captureSource = CaptureSource::Layer;
-    float uiScale = 0.0f; // the editor size this session last used (UI.md §10.3); 0 = not set
+    bool captureTail = false;  // Include Tail (PRD FR-CAPT-004)
+    bool captureLoop = false;  // Loop: the tail folded onto the start
+    bool keyAutoDetect = true; // PRD §9.2: detect the key of the input (never applied without a click)
+    float uiScale = 0.0f;      // the editor size this session last used (UI.md §10.3); 0 = not set
     VisualiserView uiView = VisualiserView::notSet;
     params::Quality quality = params::Quality::Standard; // PRD FR-CORE-013; changes the latency
 
@@ -47,7 +51,8 @@ struct SessionState
         return presetName == other.presetName && presetModified == other.presetModified &&
                presetKey == other.presetKey && captureBars == other.captureBars &&
                captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale) &&
-               uiView == other.uiView && quality == other.quality;
+               uiView == other.uiView && quality == other.quality && captureTail == other.captureTail &&
+               captureLoop == other.captureLoop && keyAutoDetect == other.keyAutoDetect;
     }
 };
 

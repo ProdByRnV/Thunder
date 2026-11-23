@@ -1,5 +1,7 @@
 #include "VisualiserRegion.h"
 
+#include "plugin/ui/theme/ThunderFonts.h"
+#include "plugin/ui/theme/ThunderPaint.h"
 #include "plugin/ui/theme/ThunderTheme.h"
 
 namespace thunder::ui
@@ -29,6 +31,58 @@ private:
     juce::Component& target;
 };
 
+// The well while a file is dragged over the window (UI.md §16.2): a dashed cyan
+// outline and "Drop to load as source", or "File type not supported".
+class VisualiserRegion::DropOverlay final : public juce::Component
+{
+public:
+    DropOverlay()
+    {
+        setInterceptsMouseClicks (false, false);
+        setAccessible (false);
+    }
+
+    void setHint (DropHint newHint)
+    {
+        hint = newHint;
+        setVisible (hint != DropHint::none);
+        repaint();
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        const auto supported = hint == DropHint::supported;
+        const auto tint = supported ? colour::accentPrimary : colour::stateError;
+        const auto bounds = getLocalBounds().toFloat().reduced (static_cast<float> (space::s1));
+
+        g.setColour (tint.withAlpha (visualiser::dropFill));
+        g.fillRoundedRectangle (bounds, radius::md);
+
+        juce::Path outline;
+        outline.addRoundedRectangle (bounds, radius::md);
+        juce::Path dashed;
+        const float dashes[] = {visualiser::dropDash, visualiser::dropGap};
+        juce::PathStrokeType (2.0f * border::width).createDashedStroke (dashed, outline, dashes, 2);
+        g.setColour (tint);
+        g.fillPath (dashed);
+
+        // The words on a plate, so the waveform under them doesn't get in the way.
+        const juce::String text (supported ? "Drop to load as source" : "File type not supported");
+        const auto font = fonts::ui (type::title, fonts::Weight::semiBold);
+        const auto plateWidth =
+            juce::GlyphArrangement::getStringWidth (font, text) + 2.0f * static_cast<float> (space::s4);
+        const auto plate = getLocalBounds().toFloat().withSizeKeepingCentre (
+            plateWidth, static_cast<float> (size::controlHeight + space::s2));
+        paint::fillRaised (g, plate, radius::md, colour::bgRaised, tint);
+        g.setColour (tint);
+        g.setFont (font);
+        g.drawText (text, plate, juce::Justification::centred);
+    }
+
+private:
+    DropHint hint = DropHint::none;
+};
+
 VisualiserRegion::VisualiserRegion (VisualModel& m, juce::AudioProcessorValueTreeState& apvts)
     : model (m)
     , waveform (m)
@@ -43,6 +97,9 @@ VisualiserRegion::VisualiserRegion (VisualModel& m, juce::AudioProcessorValueTre
     addChildComponent (spectrum);
     addAndMakeVisible (lightning);
     addAndMakeVisible (toggle);
+    addChildComponent (sourceStrip);
+    dropOverlay = std::make_unique<DropOverlay>();
+    addChildComponent (*dropOverlay);
     hoverFade = std::make_unique<HoverFade> (toggle);
     setView (View::wave);
 }
@@ -59,6 +116,16 @@ void VisualiserRegion::resized()
     toggle.setBounds (
         inner.reduced (space::s2).removeFromBottom (size::viewToggleHeight).removeFromRight (size::viewToggleWidth));
     lightning.setKeepClear (toggle.getBounds() - lightning.getPosition());
+    sourceStrip.setBounds (inner.withHeight (visualiser::sourceStripHeight));
+    dropOverlay->setBounds (inner);
+}
+
+void VisualiserRegion::setDropHint (DropHint hint)
+{
+    dropHint = hint;
+    dropOverlay->setHint (hint);
+    if (hint != DropHint::none)
+        dropOverlay->toFront (false);
 }
 
 void VisualiserRegion::mouseDown (const juce::MouseEvent& e)

@@ -17,6 +17,8 @@ const char* toName (CaptureSource source) noexcept
             return "layer";
         case CaptureSource::FullMix:
             return "fullMix";
+        case CaptureSource::Input:
+            return "input";
     }
 
     return "layer";
@@ -31,6 +33,9 @@ juce::ValueTree SessionState::toValueTree() const
     tree.setProperty (ids::presetKey, presetKey, nullptr);
     tree.setProperty (ids::captureBars, captureBars, nullptr);
     tree.setProperty (ids::captureSource, toName (captureSource), nullptr);
+    tree.setProperty (ids::captureTail, captureTail, nullptr);
+    tree.setProperty (ids::captureLoop, captureLoop, nullptr);
+    tree.setProperty (ids::keyAutoDetect, keyAutoDetect, nullptr);
     if (uiScale > 0.0f)
         tree.setProperty (ids::uiScale, uiScale, nullptr);
     if (uiView != VisualiserView::notSet)
@@ -60,8 +65,12 @@ SessionState SessionState::fromValueTree (const juce::ValueTree& tree)
     if (const auto scale = static_cast<float> (tree.getProperty (ids::uiScale, 0.0f)); scale >= 0.75f && scale <= 2.0f)
         s.uiScale = scale;
 
-    if (tree.getProperty (ids::captureSource).toString() == toName (CaptureSource::FullMix))
-        s.captureSource = CaptureSource::FullMix;
+    for (const auto source : {CaptureSource::FullMix, CaptureSource::Input})
+        if (tree.getProperty (ids::captureSource).toString() == toName (source))
+            s.captureSource = source;
+    s.captureTail = static_cast<bool> (tree.getProperty (ids::captureTail, s.captureTail));
+    s.captureLoop = static_cast<bool> (tree.getProperty (ids::captureLoop, s.captureLoop));
+    s.keyAutoDetect = static_cast<bool> (tree.getProperty (ids::keyAutoDetect, s.keyAutoDetect));
 
     if (const auto view = tree.getProperty (ids::uiView).toString(); view == "wave")
         s.uiView = VisualiserView::wave;

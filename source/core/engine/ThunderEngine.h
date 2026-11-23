@@ -3,6 +3,7 @@
 #include "ModuleSlot.h"
 #include "OutputStage.h"
 
+#include "core/analysis/AnalysisTap.h"
 #include "core/capture/CaptureController.h"
 #include "core/dsp/duck/DuckModule.h"
 #include "core/dsp/gain/AutoGain.h"
@@ -62,6 +63,9 @@ namespace thunder
 // Output Mode "Layer Only" would play it (after Output Gain and its own safety
 // limiter), so both are on the output's timeline.
 //
+// Input captures (PRD FR-INPUT-003) and live key detection (FR-KEY-002) read
+// Thunder's input as the host sent it, before Input Gain.
+//
 // The visualiser's tap (visual::VisualTap) reads the aligned dry signal and the
 // layer before the mix, the output after the limiter and where the grains
 // read. It only reads, and only while an editor shows it.
@@ -109,6 +113,9 @@ public:
 
     // The visualiser's feed (PRD UI-VIS-002): the editor reads it through UiBridge.
     visual::VisualTap& getVisualTap() noexcept { return visual; }
+
+    // Live key detection's feed (PRD FR-KEY-002): analysis::AnalysisWorker reads it.
+    analysis::AnalysisTap& getAnalysisTap() noexcept { return analysisTap; }
 
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
@@ -180,10 +187,12 @@ private:
 
     capture::CaptureController capture;
     std::array<std::vector<float>, kNumChannels> layerTap; // the layer for Layer captures
+    std::array<std::vector<float>, kNumChannels> inputTap; // the input for Input captures
     dsp::SafetyLimiter layerTapLimiter;
     bool layerTapActive = false;
 
     visual::VisualTap visual;
+    analysis::AnalysisTap analysisTap;
 
     std::atomic<std::uint64_t> nonFiniteReplaced{0};
     std::atomic<std::uint64_t> moduleResets{0};

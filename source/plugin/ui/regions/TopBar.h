@@ -3,6 +3,7 @@
 #include "plugin/presets/PresetManager.h"
 #include "plugin/ui/components/Buttons.h"
 #include "plugin/ui/components/Controls.h"
+#include "plugin/ui/components/KeyBadge.h"
 
 #include <functional>
 
@@ -53,8 +54,12 @@ private:
     NameField nameField;
 };
 
-// R-TOPBAR (UI.md §8.1): logo, preset bar, key (C-KEYSELECT, manual), Settings
-// and About. Clicking the logo also opens About.
+// R-TOPBAR (UI.md §8.1): logo, preset bar, key (C-KEYSELECT with the detected
+// key's badge), Settings and About. Clicking the logo also opens About.
+//
+// The key menu (the badge's click, UI.md §9.13): what was detected and from
+// what, "Use <key>", "Keep <key>", and Auto Detect. Only "Use" changes the key
+// (PRD FR-KEY-003).
 class TopBar final : public juce::Component
 {
 public:
@@ -71,12 +76,32 @@ public:
     std::function<void()> onSettings;
     std::function<void()> onAbout;
 
+    // The detected key (the editor sets it as detection goes on).
+    KeyBadge& getKeyBadge() noexcept { return keyBadge; }
+
+    // Auto Detect (the session's keyAutoDetect), set by the editor.
+    std::function<bool()> isAutoDetectOn;
+    std::function<void (bool)> setAutoDetect;
+
+    // [MSG] The key menu and what choosing an item does (for tests too).
+    static constexpr int kMenuUseDetected = 1;
+    static constexpr int kMenuKeepManual = 2;
+    static constexpr int kMenuAutoDetect = 3;
+    juce::PopupMenu buildKeyMenu() const;
+    void chooseKeyMenuItem (int itemId);
+    void showKeyMenu();
+
+    // [MSG] Sets Key Root and Scale to the detected key, as one undoable gesture each.
+    void useDetectedKey();
+
 private:
     juce::Rectangle<int> logoBounds() const;
 
     PresetBar presetBar;
     ParamDropdown keyRoot;
     ParamDropdown keyScale;
+    KeyBadge keyBadge;
+    juce::AudioProcessorValueTreeState& state;
     IconButton settingsButton;
     IconButton aboutButton;
 };

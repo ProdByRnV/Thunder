@@ -37,6 +37,9 @@ if(_thunder_sanitizers)
 
     if(THUNDER_ENABLE_UBSAN)
         add_compile_options(-fno-sanitize-recover=undefined)
+        # Recoverable only so tests/sanitizers/ubsan.supp can apply; with
+        # UBSAN_OPTIONS=halt_on_error=1 any report it doesn't suppress still stops the run.
+        add_compile_options(-fsanitize-recover=pointer-overflow)
     endif()
 
     # Tells the tests which checking strategy to use (see tests/support/Realtime.h).

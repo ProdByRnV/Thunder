@@ -2,6 +2,7 @@
 
 #include "plugin/ui/components/Controls.h"
 #include "plugin/ui/visualiser/LightningView.h"
+#include "plugin/ui/visualiser/SourceStrip.h"
 #include "plugin/ui/visualiser/SpectrumView.h"
 #include "plugin/ui/visualiser/VisualModel.h"
 #include "plugin/ui/visualiser/WaveformView.h"
@@ -18,6 +19,10 @@ namespace thunder::ui
 // Right-click: time window (1, 2 or 4 bars), Freeze display, Show dry, Show
 // grains (UI.md §10.1, §9.19). The editor remembers the view per project and
 // the menu's choices for every project.
+//
+// The source strip (UI.md §16.2) sits across the top while there is a source,
+// and while a file is dragged over the window the well shows whether it can be
+// dropped as the source.
 class VisualiserRegion final : public juce::Component
 {
 public:
@@ -51,6 +56,18 @@ public:
     View getView() const noexcept { return view; }
     void setOptions (const Options& newOptions);
 
+    // [MSG] While a file is dragged over the window (UI.md §16.2).
+    enum class DropHint
+    {
+        none,
+        supported,  // "Drop to load as source"
+        unsupported // "File type not supported"
+    };
+    void setDropHint (DropHint hint);
+    DropHint getDropHint() const noexcept { return dropHint; }
+
+    SourceStrip& getSourceStrip() noexcept { return sourceStrip; }
+
     // [MSG] Reduce Motion (UI.md §12.5): no lightning, and still grain dots.
     void setReduceMotion (bool reduce);
     const Options& getOptions() const noexcept { return options; }
@@ -76,6 +93,7 @@ public:
 
 private:
     class HoverFade;
+    class DropOverlay;
 
     void chooseView (View newView);
 
@@ -84,6 +102,9 @@ private:
     SpectrumView spectrum;
     LightningView lightning; // over both views (UI.md §12.1)
     SegmentedControl toggle;
+    SourceStrip sourceStrip; // over the views and the lightning
+    std::unique_ptr<DropOverlay> dropOverlay;
+    DropHint dropHint = DropHint::none;
     std::unique_ptr<HoverFade> hoverFade;
     Options options;
     View view = View::wave;

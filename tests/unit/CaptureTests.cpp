@@ -9,6 +9,7 @@
 #include "core/capture/CaptureNaming.h"
 #include "core/capture/CaptureStatus.h"
 #include "core/capture/CaptureWriter.h"
+#include "core/capture/LoopFold.h"
 #include "core/engine/ThunderEngine.h"
 #include "core/state/UserSettings.h"
 #include "plugin/ThunderEditor.h"
@@ -1114,6 +1115,298 @@ TEST_CASE ("The capture bar arms, shows progress and offers the file for drag-ou
         CHECK_FALSE (file.exists());
         CHECK (widget.getDraggableFile() == juce::File());
     }
+
+    processor.setPlayHead (nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// Input captures (FR-INPUT-003)
+// ---------------------------------------------------------------------------
+
+TEST_CASE ("An Input capture records the input itself, from the bar line", "[unit][capture][source]")
+{
+    // At High quality the layer is 40 ms late; the input isn't, and Input Gain
+    // doesn't touch it.
+    auto engine = std::make_unique<ThunderEngine>();
+    engine->prepare (48000.0, params::Quality::High);
+    engine->getCapture().allocateQueue();
+    REQUIRE (engine->getLatencySamples() > 1000);
+
+    auto snapshot = ParamSnapshot::defaults();
+    snapshot.set (ParamId::inputGain, 6.0f);
+
+    FakeHost host;
+    host.ppq = 1.0;
+    const auto barAt = host.samplesUntilBar (1);
+    const auto bar = static_cast<std::size_t> (std::llround (host.samplesPerBar()));
+    auto input = test::impulse (barAt + bar + kMargin, barAt, 0.5f);
+    input[barAt + bar - 1] = 0.25f; // the bar's last sample
+
+    engine->getCapture().arm (1, CaptureSource::Input, true, true); // tail and loop don't apply
+    Drained d;
+    play (*engine, host, input, 512, snapshot, &d);
+
+    REQUIRE (d.completed());
+    CHECK (d.start.source == CaptureSource::Input);
+    CHECK_FALSE (d.start.tail);
+    CHECK_FALSE (d.start.loop);
+    REQUIRE (d.left.size() == bar);
+    CHECK (juce::exactlyEqual (d.left[0], 0.5f));
+    CHECK (juce::exactlyEqual (d.right[0], 0.5f));
+    CHECK (juce::exactlyEqual (d.left[bar - 1], 0.25f));
+    CHECK (test::energy (d.left, 1, bar - 1) < 1.0e-12);
+}
+
+TEST_CASE ("Input capture files are named as input", "[unit][capture][source]")
+{
+    CaptureStart start;
+    start.bpm = 90.0;
+    start.bars = 2;
+    start.source = CaptureSource::Input;
+    const auto name = buildCaptureName (start, "Night Static", juce::Time (2026, 10, 23, 12, 0, 0));
+    CHECK (name.startsWith ("Thunder_Input_C-maj_90bpm_2bars_"));
+}
+
+// ---------------------------------------------------------------------------
+// Include Tail and Loop (FR-CAPT-004)
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// A sine from `from` for `length` samples, silence elsewhere.
+std::vector<float> burst (std::size_t total, std::size_t from, std::size_t length, float amplitude = 0.3f)
+{
+    std::vector<float> s (total, 0.0f);
+    for (std::size_t i = from; i < std::min (total, from + length); ++i)
+        s[i] =
+            amplitude * static_cast<float> (std::sin (test::kTwoPi * 220.0 * static_cast<double> (i - from) / 48000.0));
+    return s;
+}
+} // namespace
+
+TEST_CASE ("Include Tail records on until the sound has died away", "[unit][capture]")
+{
+    auto engine = preparedEngine (48000.0);
+    FakeHost host;
+    host.ppq = 2.0;
+    const auto barAt = host.samplesUntilBar (1);
+    const auto bar = static_cast<std::size_t> (std::llround (host.samplesPerBar()));
+
+    // Sound through the bar and 0.6 s past it.
+    const auto ringing = static_cast<std::size_t> (0.6 * 48000.0);
+    const auto input = burst (barAt + bar + ringing + 48000 + kMargin, barAt, bar + ringing);
+
+    engine->getCapture().arm (1, CaptureSource::FullMix, true, false);
+    Drained d;
+    play (*engine, host, input, 512, passThrough(), &d);
+
+    REQUIRE (d.completed());
+    CHECK (d.start.tail);
+    // N bars, the ringing, then a quarter of a second of quiet.
+    const auto expected = bar + ringing + static_cast<std::size_t> (CaptureController::kTailQuietSeconds * 48000.0);
+    CHECK (d.left.size() >= expected - 64);
+    CHECK (d.left.size() <= expected + 64);
+    CHECK (engine->getCapture().getPhase() == CaptureController::Phase::Idle);
+}
+
+TEST_CASE ("The tail is at most 10 s", "[unit][capture]")
+{
+    auto engine = preparedEngine (48000.0);
+    FakeHost host;
+    host.ppq = 0.0;
+    const auto bar = static_cast<std::size_t> (std::llround (host.samplesPerBar()));
+    const auto input = burst (bar + 12 * 48000 + kMargin, 0, bar + 12 * 48000);
+
+    engine->getCapture().arm (1, CaptureSource::FullMix, true, false);
+    Drained d;
+    play (*engine, host, input, 512, passThrough(), &d);
+    REQUIRE (d.completed());
+    CHECK (d.left.size() == bar + static_cast<std::size_t> (CaptureController::kMaxTailSeconds * 48000.0));
+}
+
+TEST_CASE ("Stopping playback or pressing Stop during the tail keeps the capture", "[unit][capture]")
+{
+    for (const auto viaStop : {false, true})
+    {
+        INFO ((viaStop ? "Stop pressed" : "transport stopped"));
+        auto engine = preparedEngine (48000.0);
+        FakeHost host;
+        host.ppq = 0.0;
+        const auto bar = static_cast<std::size_t> (std::llround (host.samplesPerBar()));
+        const auto input = burst (bar + 12 * 48000, 0, bar + 12 * 48000);
+
+        engine->getCapture().arm (1, CaptureSource::FullMix, true, false);
+        Drained d;
+        const auto stopAt = bar + 48000; // a second into the tail
+        play (*engine, host, input, 512, passThrough(), &d,
+              [&] (std::size_t start)
+              {
+                  if (start >= stopAt && start < stopAt + 512)
+                  {
+                      if (viaStop)
+                          engine->getCapture().cancel();
+                      else
+                          host.playing = false;
+                  }
+              });
+
+        REQUIRE (d.completed());
+        CHECK (d.left.size() > bar);
+        if (viaStop)
+            CHECK (d.left.size() < bar + 2 * 48000);
+        else
+            CHECK (d.left.size() == bar + static_cast<std::size_t> (CaptureController::kMaxTailSeconds * 48000.0));
+    }
+}
+
+TEST_CASE ("Stopping before the last bar still fails a capture with a tail", "[unit][capture]")
+{
+    auto engine = preparedEngine (48000.0);
+    FakeHost host;
+    host.ppq = 0.0;
+    const auto input = burst (4 * 48000, 0, 4 * 48000);
+    engine->getCapture().arm (2, CaptureSource::FullMix, true, true);
+    Drained d;
+    play (*engine, host, input, 512, passThrough(), &d,
+          [&] (std::size_t start)
+          {
+              if (start >= 48000)
+                  host.playing = false;
+          });
+    REQUIRE (!d.kinds.empty());
+    CHECK (d.kinds.back() == CaptureBlock::Kind::Failed);
+    CHECK (d.failure == CaptureFailure::TransportStopped);
+}
+
+TEST_CASE ("Loop adds a tail onto the start", "[unit][capture]")
+{
+    juce::AudioBuffer<float> head (2, 48000);
+    juce::AudioBuffer<float> tail (2, 9600);
+    head.clear();
+    for (int ch = 0; ch < 2; ++ch)
+        for (int i = 0; i < 9600; ++i)
+            tail.setSample (
+                ch, i, 0.4f * std::exp (-static_cast<float> (i) / 2000.0f) * static_cast<float> (std::sin (0.05 * i)));
+    // The start of the loop has its own, different sound.
+    for (int i = 0; i < 48000; ++i)
+        head.setSample (0, i, 0.2f * static_cast<float> (std::sin (0.013 * i)));
+    const auto original = head;
+
+    CHECK (foldTail (head, 96000, tail, 48000.0) == FoldKind::added);
+    for (const auto i : {0, 100, 5000})
+        CHECK_THAT (head.getSample (0, i), WithinAbs (original.getSample (0, i) + tail.getSample (0, i), 1.0e-6));
+    CHECK_THAT (head.getSample (1, 9599), WithinAbs (0.0, 1.0e-3)); // faded out
+    CHECK (juce::exactlyEqual (head.getSample (0, 20000), original.getSample (0, 20000)));
+}
+
+TEST_CASE ("Loop wraps a tail longer than the loop", "[unit][capture]")
+{
+    juce::AudioBuffer<float> head (1, 1000);
+    juce::AudioBuffer<float> tail (1, 2500);
+    head.clear();
+    for (int i = 0; i < 2500; ++i)
+        tail.setSample (0, i, 0.001f * static_cast<float> (i % 7 + 1));
+
+    CHECK (foldTail (head, 1000, tail, 48000.0) == FoldKind::added);
+    // Sample 10 gets the tail at 10, 1010 and 2010.
+    CHECK_THAT (head.getSample (0, 10),
+                WithinAbs (tail.getSample (0, 10) + tail.getSample (0, 1010) + tail.getSample (0, 2010), 1.0e-6));
+}
+
+TEST_CASE ("Loop replaces the start with a replay instead of doubling it", "[unit][capture]")
+{
+    // The DAW looped back: what followed the last bar is the start again, now
+    // with the end's ring in it.
+    juce::AudioBuffer<float> head (2, 48000);
+    juce::AudioBuffer<float> tail (2, 24000);
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        for (int i = 0; i < 48000; ++i)
+            head.setSample (ch, i, 0.3f * static_cast<float> (std::sin (0.031 * i)));
+        for (int i = 0; i < 24000; ++i)
+            tail.setSample (ch, i, head.getSample (ch, i) + 0.05f * std::exp (-static_cast<float> (i) / 4000.0f));
+    }
+    const auto original = head;
+
+    CHECK (foldTail (head, 96000, tail, 48000.0) == FoldKind::replaced);
+    CHECK_THAT (head.getSample (0, 100), WithinAbs (tail.getSample (0, 100), 1.0e-6));
+    CHECK (head.getMagnitude (0, 0, 24000) < 0.36f); // not doubled
+    CHECK (juce::exactlyEqual (head.getSample (0, 30000), original.getSample (0, 30000)));
+}
+
+TEST_CASE ("A Loop capture is exactly N bars with the tail folded in", "[unit][capture]")
+{
+    for (const auto format : {CaptureFormat::Int24, CaptureFormat::Float32})
+    {
+        TempFolder temp;
+        auto engine = preparedEngine (48000.0);
+        CaptureWriter writer (engine->getCapture());
+        writer.setSettings ({temp.folder, format, {}});
+
+        FakeHost host;
+        host.ppq = 0.0;
+        const auto bar = static_cast<std::size_t> (std::llround (host.samplesPerBar()));
+        // Silence, then a sound that starts half a second before the bar ends
+        // and rings 0.3 s past it.
+        const auto input = burst (bar + 48000 + kMargin, bar - 24000, 24000 + 14400);
+
+        engine->getCapture().arm (1, CaptureSource::FullMix, true, true);
+        play (*engine, host, input, 512, passThrough(), nullptr,
+              [&writer] (std::size_t start)
+              {
+                  if (start % 8192 == 0)
+                      writer.service();
+              });
+        writer.service();
+
+        REQUIRE (writer.getState() == CaptureWriter::State::Ready);
+        const auto reader = openWav (writer.getLastFile());
+        REQUIRE (reader != nullptr);
+        CHECK (reader->lengthInSamples == static_cast<juce::int64> (bar));
+
+        juce::AudioBuffer<float> audio (2, static_cast<int> (bar));
+        reader->read (&audio, 0, static_cast<int> (bar), 0, true, true);
+        CHECK (audio.getMagnitude (0, 0, 14000) > 0.25f); // the ring, folded onto the silent start
+        CHECK (audio.getMagnitude (0, 20000, 20000) < 1.0e-4f);
+        CHECK (temp.folder.findChildFiles (juce::File::findFiles, false, "*.fold").isEmpty());
+    }
+}
+
+TEST_CASE ("A finished Input capture becomes the source", "[unit][capture][source][plugin]")
+{
+    TempFolder temp;
+    state::UserSettings settings;
+    settings.capturesFolder = temp.folder.getChildFile ("Captures");
+    REQUIRE (settings.save (temp.folder.getChildFile ("settings.xml")));
+
+    ThunderProcessor processor;
+    processor.setSettingsFile (temp.folder.getChildFile ("settings.xml"));
+    TestPlayHead head;
+    processor.setPlayHead (&head);
+    processor.prepareToPlay (48000.0, 512);
+
+    auto session = processor.getSessionState();
+    session.captureBars = 2;
+    session.captureSource = state::CaptureSource::Input;
+    processor.setSessionState (session);
+
+    head.ppq = 2.0;
+    processor.armCapture();
+    playProcessor (processor, head, 5.0); // to bar 2, then two bars
+
+    REQUIRE (waitFor ([&] { return processor.getCaptureStatus().phase == CaptureStatus::Phase::Ready; }));
+    const auto file = processor.getCaptureStatus().file;
+    CHECK (file.getFileName().startsWith ("Thunder_Input_"));
+
+    using analysis::AnalysisWorker;
+    REQUIRE (waitFor (
+        [&] { return processor.getAnalysisWorker().getSourceStatus().phase == AnalysisWorker::SourcePhase::Ready; }));
+    const auto status = processor.getAnalysisWorker().getSourceStatus();
+    CHECK (status.buffer->fromCapture);
+    CHECK (status.buffer->bars == 2);
+    CHECK (juce::exactlyEqual (status.buffer->bpm, 120.0));
+    CHECK (status.buffer->audio.getNumSamples() == 2 * 96000);
+    CHECK (processor.getAnalysisWorker().getSourceRef().path == file.getFullPathName());
 
     processor.setPlayHead (nullptr);
 }

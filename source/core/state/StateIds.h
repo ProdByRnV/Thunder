@@ -28,5 +28,19 @@ inline const juce::Identifier captureSource{"captureSource"};
 inline const juce::Identifier uiScale{"uiScale"};
 inline const juce::Identifier uiView{"uiView"};
 inline const juce::Identifier quality{"quality"};
+inline const juce::Identifier captureTail{"captureTail"};
+inline const juce::Identifier captureLoop{"captureLoop"};
+inline const juce::Identifier keyAutoDetect{"keyAutoDetect"};
+
+// The session's source (PRD §9.12, FR-INPUT-004): a child of Session.
+inline const juce::Identifier source{"Source"};
+inline const juce::Identifier sourcePath{"path"};
+inline const juce::Identifier sourceGridOffset{"gridOffsetSamples"};
+inline const juce::Identifier sourceCaptured{"captured"};
+inline const juce::Identifier sourceBpm{"bpm"};
+inline const juce::Identifier sourceBars{"bars"};
+inline const juce::Identifier sourceTimeSigNumerator{"timeSigNumerator"};
+inline const juce::Identifier sourceTimeSigDenominator{"timeSigDenominator"};
+inline const juce::Identifier sourceEmbedded{"embedded"}; // FLAC, base64
 
 } // namespace thunder::state::ids

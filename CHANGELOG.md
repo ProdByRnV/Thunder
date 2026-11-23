@@ -64,10 +64,15 @@ Each release's notes on GitHub are taken from its section below.
   - A **safety limiter** keeps the output under −0.3 dBFS.
 - The layer stays exactly in time with your melody: Thunder reports its latency (about 82 ms) to your DAW, which compensates for it.
 - Offline bounces sound exactly like playback.
-- **Capture**: record 1, 2, 4, 8 or 16 bars of the layer, or of Thunder's whole output, to a WAV file and drag it straight into your DAW.
+- **Capture**: record 1, 2, 4, 8 or 16 bars of the layer, of Thunder's whole output, or of its input, to a WAV file and drag it straight into your DAW.
   - Arm it and press play: recording starts at the next bar, and the file starts exactly on that bar.
   - A loop that wraps around on a bar line keeps recording; if playback stops or jumps elsewhere, the capture is cancelled and no file is left behind.
   - 24-bit or 32-bit float at your project's sample rate, saved to `Documents/Thunder/Captures` or a folder you choose, with descriptive names such as `Thunder_A-min_140bpm_4bars_20261121-143005.wav`.
   - Right-click a capture to Save as…, Show in folder or Delete it.
   - Thunder on several tracks can capture at the same time; each capture gets its own file.
+  - **Include tail** (in the length menu) keeps recording after the last bar until the reverb and grains have died away, for up to 10 s. Stopping playback doesn't cut the tail short; pressing Stop ends it and keeps the capture.
+  - **Loop** folds that tail back onto the start, so the file is exactly the bars you chose and loops seamlessly. If your DAW looped and played the melody again, the start isn't doubled.
+- **Key detection**: Thunder listens to your melody and shows the key it hears next to the Key controls, with how sure it is (cyan when confident, amber when unsure). Click it to use the detected key or keep yours; Thunder never changes your key by itself. Turn listening off for a project in the same menu.
+- **Source**: drop a WAV, AIFF, FLAC, MP3 or OGG file (up to 5 minutes) anywhere on Thunder, or capture your input, to load it as the source. It appears across the top of the visualiser with its waveform, bar lines and key, and the key badge shows its key. ✕ removes it.
+  - Your project remembers the source. Sources up to about half a minute are also saved inside the project, so they come back even if the file moves; if a file can't be found, Thunder says so and offers Locate….
 - **Installing**: each download includes step-by-step instructions for your system. On Linux, Thunder runs on Ubuntu 22.04 or newer (glibc 2.35+), on x86_64 and ARM64.

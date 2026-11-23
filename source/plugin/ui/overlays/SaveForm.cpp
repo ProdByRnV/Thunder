@@ -262,17 +262,71 @@ Toast::Toast()
     setTitle ("Message");
 }
 
-void Toast::show (const juce::String& newText, bool isError)
+Toast::~Toast() = default;
+
+int Toast::getPreferredHeight() const noexcept
+{
+    return buttons.empty() ? size::toastHeight : size::toastActionsHeight;
+}
+
+void Toast::show (const juce::String& newText, bool isError, std::vector<Action> newActions)
 {
     text = newText;
     error = isError;
+    actions = std::move (newActions);
+
+    // Old buttons are kept until the next message: one of them may be the
+    // button whose click is showing this one.
+    retired = std::move (buttons);
+    buttons.clear();
+    for (auto& old : retired)
+        removeChildComponent (old.get());
+    for (std::size_t i = 0; i < actions.size(); ++i)
+    {
+        auto button = std::make_unique<ThunderButton> (actions[i].label, i == 0 ? ThunderButton::Variant::secondary
+                                                                                : ThunderButton::Variant::ghost);
+        button->onClick = [this, i]
+        {
+            auto action = actions[i].onClick;
+            setVisible (false);
+            if (action)
+                action();
+        };
+        addAndMakeVisible (*button);
+        buttons.push_back (std::move (button));
+    }
+
+    // Grows downwards for its buttons, keeping its top-right corner.
+    if (getHeight() > 0 && getHeight() != getPreferredHeight())
+        setBounds (getBounds().withHeight (getPreferredHeight()));
+
+    setDescription (text);
     setVisible (true);
     toFront (false);
+    resized();
     repaint();
 
     stopTimer();
-    if (!isError)
+    if (!isError && buttons.empty())
         startTimer (timing::toastMs);
+}
+
+juce::Rectangle<int> Toast::textArea() const
+{
+    auto area = getLocalBounds().reduced (space::s3, space::s1);
+    if (!buttons.empty())
+        area = area.withHeight (size::toastHeight - 2 * space::s1);
+    return area;
+}
+
+void Toast::resized()
+{
+    auto row = getLocalBounds().reduced (space::s3, space::s2).removeFromBottom (size::controlHeight);
+    for (auto it = buttons.rbegin(); it != buttons.rend(); ++it)
+    {
+        (*it)->setBounds (row.removeFromRight (size::toastButtonWidth));
+        row.removeFromRight (space::s2);
+    }
 }
 
 void Toast::paint (juce::Graphics& g)
@@ -281,7 +335,7 @@ void Toast::paint (juce::Graphics& g)
     paint::fillRaised (g, bounds, radius::md, colour::bgRaised, error ? colour::stateError : colour::borderSubtle);
 
     // A status dot: red for errors, green otherwise (the words say which, too).
-    auto area = getLocalBounds().reduced (space::s3, space::s1);
+    auto area = textArea();
     const auto dot = static_cast<float> (size::chainDot);
     g.setColour (error ? colour::stateError : colour::stateSuccess);
     g.fillEllipse (area.removeFromLeft (size::chainDot).toFloat().withSizeKeepingCentre (dot, dot));
@@ -294,7 +348,9 @@ void Toast::paint (juce::Graphics& g)
 
 void Toast::mouseUp (const juce::MouseEvent&)
 {
-    setVisible (false);
+    // With buttons, one of them closes it.
+    if (buttons.empty())
+        setVisible (false);
 }
 
 void Toast::timerCallback()

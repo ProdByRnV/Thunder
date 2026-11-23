@@ -19,6 +19,7 @@ CaptureStatus CaptureStatus::from (const CaptureController& controller, const Ca
             return status;
         case CaptureController::Phase::Recording:
             status.phase = Phase::Recording;
+            status.tail = controller.isRecordingTail();
             status.progress = controller.getProgress();
             return status;
         case CaptureController::Phase::Idle:
@@ -63,7 +64,8 @@ juce::String CaptureStatus::describe() const
         case Phase::Armed:
             return "Starts at the next bar";
         case Phase::Recording:
-            return "Recording bar " + juce::String (currentBar()) + " of " + juce::String (bars);
+            return tail ? juce::String ("Recording the tail")
+                        : "Recording bar " + juce::String (currentBar()) + " of " + juce::String (bars);
         case Phase::Saving:
             return juce::String::fromUTF8 ("Saving\xe2\x80\xa6");
         case Phase::Ready:

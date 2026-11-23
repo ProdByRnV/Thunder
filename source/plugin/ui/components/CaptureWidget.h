@@ -25,6 +25,10 @@ namespace thunder::ui
 //   right-click it for Save as…, Show in folder and Delete capture.
 // - The folder button opens the captures folder. The format and the folder
 //   are chosen in Settings.
+// - Sources: Layer, Full Mix, or Input (Thunder's input, which becomes the
+//   source; PRD FR-INPUT-003).
+// - The length menu also holds "Include tail" and "Loop" (UI.md §8.6, PRD
+//   FR-CAPT-004); Loop needs the tail, and Input captures have neither.
 //
 // Message thread only. It polls the processor's capture status on a timer.
 class CaptureWidget final
@@ -57,11 +61,32 @@ public:
     void deleteCapture();
     void openCapturesFolder();
 
+    // [MSG] The length menu's items (bars use their count as the id).
+    static constexpr int kMenuTail = 101;
+    static constexpr int kMenuLoop = 102;
+    juce::PopupMenu buildLengthMenu() const;
+    void chooseLengthMenuItem (int itemId);
+    juce::String getLengthText() const { return barsBox.getText(); }
+    void chooseSource (state::CaptureSource source);
+
 private:
     class Chip;
+    class LengthBox final : public juce::ComboBox
+    {
+    public:
+        explicit LengthBox (CaptureWidget& w)
+            : owner (w)
+        {
+        }
+        void showPopup() override;
+
+    private:
+        CaptureWidget& owner;
+    };
 
     void timerCallback() override;
     void writeSessionChoices();
+    void updateLengthTexts();
     void showChipMenu();
 
     ThunderProcessor& processor;
@@ -70,7 +95,7 @@ private:
     juce::uint32 successUntil = 0;
 
     juce::Label title;
-    juce::ComboBox barsBox;
+    LengthBox barsBox{*this};
     juce::ComboBox sourceBox;
     ThunderButton armButton;
     std::unique_ptr<Chip> chip;

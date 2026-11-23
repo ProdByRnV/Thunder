@@ -1,5 +1,6 @@
 #include "TopBar.h"
 
+#include "plugin/ui/ParamUi.h"
 #include "plugin/ui/theme/ThunderFonts.h"
 #include "plugin/ui/theme/ThunderIcons.h"
 #include "plugin/ui/theme/ThunderTheme.h"
@@ -188,6 +189,7 @@ TopBar::TopBar (juce::AudioProcessorValueTreeState& apvts, PresetManager& preset
     : presetBar (presets)
     , keyRoot (apvts, params::ParamId::keyRoot)
     , keyScale (apvts, params::ParamId::keyScale)
+    , state (apvts)
     , settingsButton ("Settings", icons::gear())
     , aboutButton ("About Thunder", icons::info())
 {
@@ -202,8 +204,10 @@ TopBar::TopBar (juce::AudioProcessorValueTreeState& apvts, PresetManager& preset
             onAbout();
     };
 
-    for (auto* c :
-         std::initializer_list<juce::Component*>{&presetBar, &keyRoot, &keyScale, &settingsButton, &aboutButton})
+    keyBadge.onClick = [this] { showKeyMenu(); };
+
+    for (auto* c : std::initializer_list<juce::Component*>{&presetBar, &keyRoot, &keyScale, &keyBadge, &settingsButton,
+                                                           &aboutButton})
         addAndMakeVisible (c);
 }
 
@@ -254,9 +258,91 @@ void TopBar::resized()
     settingsButton.setBounds (centred (area.removeFromRight (size::iconButton), size::iconButton, size::iconButton));
     area.removeFromRight (space::s4);
 
+    keyBadge.setBounds (centred (area.removeFromRight (size::keyBadgeWidth), size::keyBadgeWidth, size::controlHeight));
+    area.removeFromRight (space::s2);
     keyScale.setBounds (centred (area.removeFromRight (size::keyScaleWidth), size::keyScaleWidth, size::controlHeight));
     area.removeFromRight (space::s2);
     keyRoot.setBounds (centred (area.removeFromRight (size::keyRootWidth), size::keyRootWidth, size::controlHeight));
+}
+
+namespace
+{
+juce::String currentKeyName (juce::AudioProcessorValueTreeState& apvts)
+{
+    const auto root = static_cast<int> (apvts.getRawParameterValue (paramIdString (params::ParamId::keyRoot))->load());
+    const auto scale =
+        static_cast<int> (apvts.getRawParameterValue (paramIdString (params::ParamId::keyScale))->load());
+    return juce::String (std::string (params::kKeyRootNames[static_cast<std::size_t> (juce::jlimit (0, 11, root))])) +
+           " " +
+           juce::String (std::string (params::kScaleNames[static_cast<std::size_t> (
+               juce::jlimit (0, static_cast<int> (params::kScaleNames.size()) - 1, scale))]));
+}
+} // namespace
+
+juce::PopupMenu TopBar::buildKeyMenu() const
+{
+    const auto& shown = keyBadge.getShown();
+    juce::PopupMenu menu;
+
+    if (shown.estimate.valid)
+    {
+        menu.addSectionHeader ("Detected from " + shown.from + ": " + KeyBadge::keyName (shown.estimate) + " (" +
+                               keyBadge.getBadgeText() + ")");
+        menu.addItem (kMenuUseDetected, "Use " + KeyBadge::keyName (shown.estimate));
+        menu.addItem (kMenuKeepManual, "Keep " + currentKeyName (state));
+    }
+    else
+    {
+        menu.addSectionHeader (shown.listening ? "Listening for the key" : "No key detected");
+    }
+
+    menu.addSeparator();
+    menu.addItem (kMenuAutoDetect, "Detect the key of the input", true, isAutoDetectOn && isAutoDetectOn());
+    return menu;
+}
+
+void TopBar::chooseKeyMenuItem (int itemId)
+{
+    switch (itemId)
+    {
+        case kMenuUseDetected:
+            useDetectedKey();
+            break;
+        case kMenuAutoDetect:
+            if (setAutoDetect && isAutoDetectOn)
+                setAutoDetect (!isAutoDetectOn());
+            break;
+        case kMenuKeepManual:
+        default:
+            break;
+    }
+}
+
+void TopBar::showKeyMenu()
+{
+    buildKeyMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&keyBadge),
+                                  [safe = juce::Component::SafePointer<TopBar> (this)] (int result)
+                                  {
+                                      if (safe != nullptr && result != 0)
+                                          safe->chooseKeyMenuItem (result);
+                                  });
+}
+
+void TopBar::useDetectedKey()
+{
+    const auto& e = keyBadge.getShown().estimate;
+    if (!e.valid)
+        return;
+
+    const auto set = [this] (params::ParamId id, int index)
+    {
+        auto* p = state.getParameter (paramIdString (id));
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (index)));
+        p->endChangeGesture();
+    };
+    set (params::ParamId::keyRoot, static_cast<int> (params::enumIndex (e.root)));
+    set (params::ParamId::keyScale, static_cast<int> (params::enumIndex (e.scale)));
 }
 
 } // namespace thunder::ui

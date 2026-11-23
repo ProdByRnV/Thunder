@@ -189,3 +189,81 @@ TEST_CASE ("Editor snapshot of lightning", "[.][editorshot]")
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
 }
+
+TEST_CASE ("Editor snapshot of the source and key detection", "[.][editorshot]")
+{
+    constexpr double rate = 48000.0;
+    const auto temp = juce::File::getSpecialLocation (juce::File::tempDirectory);
+    ThunderProcessor processor;
+    processor.setSettingsFile (temp.getChildFile ("Thunder-editorshot-settings.xml"));
+    processor.prepareToPlay (rate, 512);
+    test::TestPlayHead head;
+    processor.setPlayHead (&head);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+
+    // Live detection of the test melody, with the waveform playing.
+    test::playMelody (processor, head, 8.0, rate, 512, [&] { e.updateVisuals (true, 512.0 / rate); });
+    juce::Thread::sleep (300);
+    e.refreshSource();
+    save (e, "key-live", 1.0f);
+
+    // Dragging files over the window.
+    e.fileDragEnter ({temp.getChildFile ("loop.wav").getFullPathName()}, 10, 10);
+    save (e, "drop-supported", 1.0f);
+    e.fileDragEnter ({temp.getChildFile ("notes.pdf").getFullPathName()}, 10, 10);
+    save (e, "drop-unsupported", 1.0f);
+    e.fileDragExit ({});
+
+    // A dropped source: 4 bars of the melody, written as a file.
+    const auto file = temp.getChildFile ("Thunder-editorshot-melody.wav");
+    {
+        juce::AudioBuffer<float> audio (2, static_cast<int> (8.0 * rate));
+        for (int i = 0; i < audio.getNumSamples(); ++i)
+        {
+            const auto v = test::melodyAt (i * 2.0 / rate, 120.0);
+            audio.setSample (0, i, v);
+            audio.setSample (1, i, v);
+        }
+        file.deleteFile();
+        std::unique_ptr<juce::OutputStream> stream = file.createOutputStream();
+        auto writer = juce::WavAudioFormat().createWriterFor (
+            stream, juce::AudioFormatWriterOptions{}.withSampleRate (rate).withNumChannels (2).withBitsPerSample (24));
+        writer->writeFromAudioSampleBuffer (audio, 0, audio.getNumSamples());
+    }
+    e.filesDropped ({file.getFullPathName()}, 10, 10);
+    e.refreshSource();
+    save (e, "source-loading", 1.0f);
+    for (int i = 0; i < 300 && processor.getAnalysisWorker().getSourceStatus().phase !=
+                                   analysis::AnalysisWorker::SourcePhase::Ready;
+         ++i)
+        juce::Thread::sleep (10);
+    test::playMelody (processor, head, 2.0, rate, 512, [&] { e.updateVisuals (true, 512.0 / rate); });
+    e.refreshSource();
+    save (e, "source", 1.0f);
+    save (e, "source-200", 2.0f);
+
+    // A project whose source file has gone.
+    e.getVisualiser().getSourceStrip().onRemove();
+    source::SourceRef missing;
+    missing.path = temp.getChildFile ("Thunder-editorshot-gone.wav").getFullPathName();
+    processor.getAnalysisWorker().restore (missing);
+    for (int i = 0; i < 300 && processor.getAnalysisWorker().getSourceStatus().phase !=
+                                   analysis::AnalysisWorker::SourcePhase::Failed;
+         ++i)
+        juce::Thread::sleep (10);
+    e.refreshSource();
+    save (e, "source-missing", 1.0f);
+
+    // The capture bar with Input and Loop.
+    auto session = processor.getSessionState();
+    session.captureSource = state::CaptureSource::Layer;
+    processor.setSessionState (session);
+    e.getCaptureWidget().chooseLengthMenuItem (ui::CaptureWidget::kMenuLoop);
+    save (e, "capture-loop", 1.0f);
+
+    file.deleteFile();
+    processor.setPlayHead (nullptr);
+    processor.editorBeingDeleted (editor.get());
+}

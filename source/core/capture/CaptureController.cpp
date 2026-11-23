@@ -28,7 +28,12 @@ void CaptureController::prepare (double newSampleRate, int latencySamples) noexc
 
     // prepare() never runs alongside process(), so this thread may act as the producer.
     if (phase == Phase::Recording)
-        finish (CaptureBlock::Kind::Failed, CaptureFailure::Restarted);
+    {
+        if (isInTail())
+            endKeepingCapture();
+        else
+            finish (CaptureBlock::Kind::Failed, CaptureFailure::Restarted);
+    }
 
     sampleRate = newSampleRate;
     latency = latencySamples;
@@ -46,7 +51,7 @@ void CaptureController::allocateQueue()
     queueAllocated.store (true, std::memory_order_release);
 }
 
-void CaptureController::arm (int newBars, CaptureSource newSource) noexcept
+void CaptureController::arm (int newBars, CaptureSource newSource, bool newTail, bool newLoop) noexcept
 {
     jassert (isQueueAllocated());
     if (!isQueueAllocated())
@@ -54,6 +59,8 @@ void CaptureController::arm (int newBars, CaptureSource newSource) noexcept
 
     requestedBars.store (isValidBars (newBars) ? newBars : 4, std::memory_order_relaxed);
     requestedSource.store (newSource, std::memory_order_relaxed);
+    requestedTail.store (newTail || newLoop, std::memory_order_relaxed);
+    requestedLoop.store (newLoop, std::memory_order_relaxed);
     request.store (Request::Arm, std::memory_order_release);
 }
 
@@ -70,13 +77,18 @@ void CaptureController::handleRequests() noexcept
     {
         bars = requestedBars.load (std::memory_order_relaxed);
         source = requestedSource.load (std::memory_order_relaxed);
+        tail = source != CaptureSource::Input && requestedTail.load (std::memory_order_relaxed);
+        loop = tail && requestedLoop.load (std::memory_order_relaxed);
         publishedBars.store (bars, std::memory_order_relaxed);
         progress.store (0.0f, std::memory_order_relaxed);
         setPhase (Phase::Armed);
     }
     else if (r == Request::Cancel)
     {
-        if (phase == Phase::Recording)
+        // Stop during the tail ends it: the N bars are already recorded.
+        if (phase == Phase::Recording && isInTail())
+            endKeepingCapture();
+        else if (phase == Phase::Recording)
             finish (CaptureBlock::Kind::Cancelled);
         else
             setPhase (Phase::Idle);
@@ -85,8 +97,18 @@ void CaptureController::handleRequests() noexcept
 
 void CaptureController::reset() noexcept
 {
-    if (phase == Phase::Recording)
+    if (phase == Phase::Recording && isInTail())
+        endKeepingCapture();
+    else if (phase == Phase::Recording)
         finish (CaptureBlock::Kind::Failed, CaptureFailure::Restarted);
+}
+
+void CaptureController::endKeepingCapture() noexcept
+{
+    if (flushPending())
+        finish (CaptureBlock::Kind::End);
+    else
+        finish (CaptureBlock::Kind::Failed, CaptureFailure::TooSlow);
 }
 
 int CaptureController::findBarStart (const TransportState& transport, double rate, int numSamples) noexcept
@@ -104,8 +126,9 @@ int CaptureController::findBarStart (const TransportState& transport, double rat
     return offset < numSamples ? static_cast<int> (offset) : -1;
 }
 
-void CaptureController::process (const float* const* mix, const float* const* layer, int numSamples,
-                                 const TransportState& transport, const params::ParamSnapshot& snapshot) noexcept
+void CaptureController::process (const float* const* mix, const float* const* layer, const float* const* input,
+                                 int numSamples, const TransportState& transport,
+                                 const params::ParamSnapshot& snapshot) noexcept
 {
     if (phase == Phase::Armed)
     {
@@ -132,14 +155,16 @@ void CaptureController::process (const float* const* mix, const float* const* la
             const auto samplesPerQuarter = transport.samplesPerQuarterNote (sampleRate);
             const auto toEnd = std::max<long long> (0, std::llround ((beatsToRecord - beatsDone) * samplesPerQuarter));
             if (toEnd < numSamples)
-                endSample = clock + toEnd + latency;
+                endSample = clock + toEnd + captureLatency;
 
             beatsDone += numSamples / samplesPerQuarter;
             expectedPpq = transport.ppqPosition + numSamples / samplesPerQuarter;
             hasExpectedPpq = true;
         }
 
-        const auto* const* audio = source == CaptureSource::Layer ? layer : mix;
+        const auto* const* audio = source == CaptureSource::Layer   ? layer
+                                   : source == CaptureSource::Input ? input
+                                                                    : mix;
         jassert (audio != nullptr);
         if (audio != nullptr)
             collect (audio, numSamples);
@@ -155,7 +180,11 @@ void CaptureController::beginRecording (const TransportState& transport, int off
     const auto samplesPerBar = transport.samplesPerBar (sampleRate);
 
     ++captureId;
-    startSample = clock + offset + latency;
+    captureLatency = source == CaptureSource::Input ? 0 : latency;
+    startSample = clock + offset + captureLatency;
+    tailFrames = 0;
+    quietFrames = 0;
+    recordingTail.store (false, std::memory_order_relaxed);
     endSample = -1;
     // At this chunk's start the bar line is `offset` samples ahead.
     beatsDone = -offset / transport.samplesPerQuarterNote (sampleRate);
@@ -176,6 +205,8 @@ void CaptureController::beginRecording (const TransportState& transport, int off
     start.start.keyRoot = key.root;
     start.start.keyScale = static_cast<int> (params::enumIndex (key.scale));
     start.start.expectedFrames = expectedFrames;
+    start.start.tail = tail;
+    start.start.loop = loop;
     queue.push (&start, 1);
 
     pending.captureId = captureId;
@@ -216,7 +247,30 @@ void CaptureController::collect (const float* const* audio, int numSamples) noex
 {
     const auto chunkEnd = clock + numSamples;
     const auto from = std::max (clock, startSample);
-    const auto to = endSample >= 0 ? std::min (chunkEnd, endSample) : chunkEnd;
+    auto to = endSample >= 0 && !tail ? std::min (chunkEnd, endSample) : chunkEnd;
+
+    // The tail: from the end of the N bars until the audio has been quiet for
+    // a while, or for at most kMaxTailSeconds.
+    auto tailDone = false;
+    if (tail && endSample >= 0 && chunkEnd > endSample)
+    {
+        recordingTail.store (true, std::memory_order_relaxed);
+        const auto quietNeeded = static_cast<std::int64_t> (kTailQuietSeconds * sampleRate);
+        const auto maxTail = static_cast<std::int64_t> (kMaxTailSeconds * sampleRate);
+        for (auto position = std::max (from, endSample); position < chunkEnd; ++position)
+        {
+            const auto index = static_cast<int> (position - clock);
+            const auto loud =
+                std::abs (audio[0][index]) > kTailQuietLevel || std::abs (audio[1][index]) > kTailQuietLevel;
+            quietFrames = loud ? 0 : quietFrames + 1;
+            if (++tailFrames >= maxTail || quietFrames >= quietNeeded)
+            {
+                to = position + 1;
+                tailDone = true;
+                break;
+            }
+        }
+    }
 
     for (auto position = from; position < to;)
     {
@@ -243,13 +297,8 @@ void CaptureController::collect (const float* const* audio, int numSamples) noex
                         std::min (1.0, static_cast<double> (framesCaptured) / static_cast<double> (expectedFrames))),
                     std::memory_order_relaxed);
 
-    if (endSample >= 0 && chunkEnd >= endSample)
-    {
-        if (flushPending())
-            finish (CaptureBlock::Kind::End);
-        else
-            finish (CaptureBlock::Kind::Failed, CaptureFailure::TooSlow);
-    }
+    if (tailDone || (!tail && endSample >= 0 && chunkEnd >= endSample))
+        endKeepingCapture();
 }
 
 bool CaptureController::flushPending() noexcept
@@ -272,9 +321,12 @@ void CaptureController::finish (CaptureBlock::Kind kind, CaptureFailure failure)
     last.captureId = captureId;
     last.kind = kind;
     last.failure = failure;
+    if (kind == CaptureBlock::Kind::End)
+        last.loopFrames = endSample >= 0 ? std::min (framesCaptured, endSample - startSample) : framesCaptured;
     queue.push (&last, 1);
 
     pending.numFrames = 0;
+    recordingTail.store (false, std::memory_order_relaxed);
     if (kind == CaptureBlock::Kind::End)
         progress.store (1.0f, std::memory_order_relaxed);
     setPhase (Phase::Idle);
