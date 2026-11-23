@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Lightning.h"
 #include "MeterModel.h"
 #include "SpectrumAnalyser.h"
 #include "WaveformHistory.h"
@@ -40,6 +41,7 @@ public:
         bool meters = false;
         bool grains = false;
         bool modules = false; // the module displays' data (any frame arrived)
+        bool strike = false;  // a layer transient: strike a bolt (UI.md §12.3)
     };
 
     // [MSG] Reads what has arrived; `seconds` have passed since the last call.
@@ -67,6 +69,10 @@ public:
     // Static's value for `target` at trace point `index` (0 oldest … kTracePoints − 1 newest).
     float getStaticTrace (int target, int index) const noexcept;
 
+    // Lightning (UI.md §12.3): the transient detector, fed every frame. While
+    // the display is frozen nothing strikes.
+    const lightning::StrikeDetector& getStrikes() const noexcept { return strikes; }
+
     // How long the song position has stood still (the waveform dims after 2 s).
     double getSecondsStopped() const noexcept { return secondsStopped; }
     double getSampleRate() const noexcept { return bridge.getSampleRate(); }
@@ -85,6 +91,7 @@ private:
     double secondsStopped = 1.0e9; // nothing has moved yet
 
     void addActivity (const visual::WaveFrame& frame, double frameSeconds) noexcept;
+    lightning::StrikeDetector strikes;
     visual::ModuleActivity activity;
     float duckReductionDb = 0.0f;
     float pendingDuckDb = 0.0f; // the largest in the frames read so far this update

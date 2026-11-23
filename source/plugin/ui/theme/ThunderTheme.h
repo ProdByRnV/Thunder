@@ -357,4 +357,59 @@ inline constexpr float grainTrail = 0.25f;     // trail opacity
 inline constexpr int reducedMotionHz = 10;     // static dots update rate under Reduce Motion
 } // namespace visualiser
 
+// ---- Lightning (UI.md §12; PRD UI-FX-001, UI-FX-002) ------------------------------------------------------------
+namespace lightning
+{
+// Bolt geometry (§12.2)
+inline constexpr int depthLong = 6;             // subdivision levels for a bolt longer than longBolt px
+inline constexpr int depthShort = 5;            // … and for a shorter one
+inline constexpr float longBolt = 150.0f;       // px
+inline constexpr float displacement = 0.35f;    // × the segment length at the first level
+inline constexpr float jitterDecay = 0.55f;     // per level
+inline constexpr float branchChance = 0.12f;    // per subdivision of the main strand
+inline constexpr float branchMinLength = 0.30f; // × the distance left to the end
+inline constexpr float branchMaxLength = 0.60f;
+inline constexpr int branchDepthDrop = 2; // a branch has this many fewer levels
+inline constexpr float branchBrightness = 0.60f;
+inline constexpr float branchMinAngle = 0.35f; // radians off the main direction (20°)
+inline constexpr float branchMaxAngle = 0.80f; // (46°)
+inline constexpr int maxBolts = 3;             // at the same time
+inline constexpr float maxLean = 0.33f;        // a bolt starts up to this share of the width left of its end
+
+// Rendering (§12.4)
+inline constexpr float glowWidth = 10.0f;
+inline constexpr float glowOpacity = 0.30f;
+inline constexpr float bodyWidth = 3.0f;
+inline constexpr float bodyOpacity = 0.85f;
+inline constexpr float coreWidth = 1.0f;
+inline constexpr float glowResolution = 0.25f; // the glow is blurred at this share of the display resolution
+
+// Strike timeline (§12.4), seconds
+inline constexpr double hold = 0.060;
+inline constexpr double flickerGap = 0.030; // dark gap before the re-flicker
+inline constexpr double flickerLength = 0.030;
+inline constexpr float flickerLevel = 0.40f;
+inline constexpr double fadeOut = 0.250;
+inline constexpr double ambientFlash = 0.080; // the well brightens this long …
+inline constexpr float ambientLevel = 0.06f;  // … by this much (+6% luminance)
+
+// Triggers (§12.3)
+inline constexpr float onsetShare = 0.60f;    // a transient rises this share of the recent typical rise …
+inline constexpr float onsetMinDb = 4.0f;     // … at least this far above the recent level …
+inline constexpr float onsetMaxDb = 12.0f;    // … and never needs more than this
+inline constexpr double riseMemory = 3.0;     // how long the typical rise is remembered (s)
+inline constexpr float rearmShare = 0.5f;     // before the next strike the rise falls below this share of the threshold
+inline constexpr double peakRelease = 0.020;  // the layer peak is held this long (s): one noisy frame doesn't count
+inline constexpr float floorDb = -45.0f;      // nothing quieter strikes
+inline constexpr double recentAttack = 0.120; // the recent level's time constants (s)
+inline constexpr double recentRelease = 0.300;
+inline constexpr double minStrikeInterval = 1.0 / 3.0; // never more than 3 strikes a second (§12.5)
+inline constexpr double silenceSeconds = 2.0;          // after this long below floorDb, no bolts
+inline constexpr double levelAttack = 0.010;           // bolt brightness follows the output level
+inline constexpr double levelRelease = 0.250;
+inline constexpr float dimLevelDb = -48.0f; // brightness: dimmest here …
+inline constexpr float fullLevelDb = -6.0f; // … full from here
+inline constexpr float dimBrightness = 0.35f;
+} // namespace lightning
+
 } // namespace thunder::ui::theme

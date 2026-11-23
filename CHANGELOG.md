@@ -24,6 +24,7 @@ Each release's notes on GitHub are taken from its section below.
   - **Spectrum**: the layer and your melody from 20 Hz to 20 kHz, with the Tone filter curve on top. Drag its handles to set the high-pass and low-pass. The Tone module has a small version of the curve, and Open in Spectrum.
   - Switch with WAVE | SPECTRUM in the corner. Each project remembers its view; Settings chooses the one new projects open with.
   - When playback stops the picture holds, then dims.
+  - **Lightning** strikes from the top of the visualiser onto the layer on its stronger attacks, brighter the louder the output. It adapts to the music: a layer with soft attacks strikes on softer notes, a punchy one only on its bigger hits. At most three strikes a second, and only the visualiser lights up.
 - **Meters** in the Output panel: the level of each channel with peak hold and clip lights (click to clear), the short-term loudness in LUFS, a correlation line that turns amber when parts of the sound would cancel in mono, and a ⚠ while the safety limiter is working.
 - **Presets**:
   - 12 built-in presets, plus Init, which resets every control.

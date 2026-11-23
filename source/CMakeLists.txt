@@ -169,6 +169,10 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/theme/ThunderPaint.h
     plugin/ui/theme/ThunderTheme.h
     plugin/ui/visualiser/FilterResponse.h
+    plugin/ui/visualiser/Lightning.cpp
+    plugin/ui/visualiser/Lightning.h
+    plugin/ui/visualiser/LightningView.cpp
+    plugin/ui/visualiser/LightningView.h
     plugin/ui/visualiser/MeterModel.cpp
     plugin/ui/visualiser/MeterModel.h
     plugin/ui/visualiser/SpectrumAnalyser.cpp

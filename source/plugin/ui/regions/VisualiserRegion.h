@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plugin/ui/components/Controls.h"
+#include "plugin/ui/visualiser/LightningView.h"
 #include "plugin/ui/visualiser/SpectrumView.h"
 #include "plugin/ui/visualiser/VisualModel.h"
 #include "plugin/ui/visualiser/WaveformView.h"
@@ -67,6 +68,7 @@ public:
 
     WaveformView& getWaveform() noexcept { return waveform; }
     SpectrumView& getSpectrum() noexcept { return spectrum; }
+    LightningView& getLightning() noexcept { return lightning; }
     SegmentedControl& getViewToggle() noexcept { return toggle; }
 
 private:
@@ -77,6 +79,7 @@ private:
     VisualModel& model;
     WaveformView waveform;
     SpectrumView spectrum;
+    LightningView lightning; // over both views (UI.md §12.1)
     SegmentedControl toggle;
     std::unique_ptr<HoverFade> hoverFade;
     Options options;

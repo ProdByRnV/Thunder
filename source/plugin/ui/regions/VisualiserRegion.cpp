@@ -41,6 +41,7 @@ VisualiserRegion::VisualiserRegion (VisualModel& m, juce::AudioProcessorValueTre
 
     addAndMakeVisible (waveform);
     addChildComponent (spectrum);
+    addAndMakeVisible (lightning);
     addAndMakeVisible (toggle);
     hoverFade = std::make_unique<HoverFade> (toggle);
     setView (View::wave);
@@ -54,8 +55,10 @@ void VisualiserRegion::resized()
     const auto inner = getLocalBounds().reduced (static_cast<int> (border::width));
     waveform.setBounds (inner);
     spectrum.setBounds (inner);
+    lightning.setBounds (inner);
     toggle.setBounds (
         inner.reduced (space::s2).removeFromBottom (size::viewToggleHeight).removeFromRight (size::viewToggleWidth));
+    lightning.setKeepClear (toggle.getBounds() - lightning.getPosition());
 }
 
 void VisualiserRegion::mouseDown (const juce::MouseEvent& e)
@@ -120,6 +123,15 @@ void VisualiserRegion::refresh (const VisualModel::Changes& changes, double seco
     else if (changes.spectrum)
     {
         spectrum.repaint();
+    }
+
+    // Lightning (UI.md §12.3): a transient strikes a bolt as bright as the
+    // output is loud; the strikes fade on their own.
+    lightning.advance (seconds);
+    if (changes.strike)
+    {
+        const auto& strikes = model.getStrikes();
+        lightning.strike (strikes.getStrikePeak(), strikes.getBrightness());
     }
 }
 

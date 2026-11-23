@@ -173,6 +173,26 @@ TEST_CASE ("Visualiser frame cost and the audio thread's share", "[.][uimeasure]
     e.selectModule (8);
     measureView ("Duck meter", dynamic_cast<ui::DuckPanel&> (e.getModulePanel (8)).getMeter());
 
+    // Lightning: three bolts at full brightness over the waveform. The first
+    // paint of each bolt blurs its glow; later frames draw the cached image.
+    {
+        auto& bolts = e.getVisualiser().getLightning();
+        const juce::SoftwareImageType software;
+        for (const auto scale : {1.0f, 2.0f})
+        {
+            for (int i = 0; i < 3; ++i)
+                bolts.strike (0.5f, 1.0f);
+            const auto start = juce::Time::getMillisecondCounterHiRes();
+            averagePaintMs (bolts, software, scale, 1);
+            const auto firstMs = juce::Time::getMillisecondCounterHiRes() - start;
+            const auto frameMs = averagePaintMs (bolts, software, scale, frames) +
+                                 averagePaintMs (e.getVisualiser().getWaveform(), software, scale, frames);
+            std::cout << "Lightning (3 bolts) over the waveform, software, " << juce::roundToInt (scale * 100.0f)
+                      << "%: first paint " << juce::String (firstMs, 2) << " ms (glow blur), then "
+                      << juce::String (frameMs, 2) << " ms per frame\n";
+        }
+    }
+
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
     editor.reset();

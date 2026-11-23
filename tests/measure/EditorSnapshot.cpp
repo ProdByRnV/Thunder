@@ -153,3 +153,39 @@ TEST_CASE ("Editor snapshot of the module panels' live displays", "[.][editorsho
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
 }
+
+TEST_CASE ("Editor snapshot of lightning", "[.][editorshot]")
+{
+    constexpr double rate = 48000.0;
+    ThunderProcessor processor;
+    processor.setSettingsFile (
+        juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Thunder-editorshot-settings.xml"));
+    processor.prepareToPlay (rate, 512);
+    test::TestPlayHead head;
+    processor.setPlayHead (&head);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+    auto& lightning = e.getVisualiser().getLightning();
+
+    // Play until a few bolts have struck, saving the moment just after each
+    // of the first three strikes (full brightness).
+    int saved = 0;
+    auto seen = lightning.getStrikeCount();
+    const auto frame = [&]
+    {
+        e.updateVisuals (true, 512.0 / rate);
+        if (lightning.getStrikeCount() != seen && saved < 3)
+        {
+            seen = lightning.getStrikeCount();
+            if (seen > 2)
+                save (e, "lightning-" + juce::String (++saved), 1.0f);
+        }
+    };
+    e.updateVisuals (true, 0.0);
+    test::playMelody (processor, head, 6.0, rate, 512, frame);
+    std::cout << "strikes: " << lightning.getStrikeCount() << "\n";
+
+    processor.setPlayHead (nullptr);
+    processor.editorBeingDeleted (editor.get());
+}
