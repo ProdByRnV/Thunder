@@ -31,6 +31,7 @@ struct SessionState
     juce::String presetName;
     bool presetModified = false;
     juce::String presetKey; // the loaded preset in the library (PRD FR-PRESET-014); empty = Init
+    int presetProgram = 0;  // the host program last set or reported (FR-PRESET-015); 0 = Init
     int captureBars = 4;    // 1, 2, 4, 8 or 16
     CaptureSource captureSource = CaptureSource::Layer;
     bool captureTail = false;  // Include Tail (PRD FR-CAPT-004)
@@ -49,10 +50,11 @@ struct SessionState
     bool operator== (const SessionState& other) const noexcept
     {
         return presetName == other.presetName && presetModified == other.presetModified &&
-               presetKey == other.presetKey && captureBars == other.captureBars &&
-               captureSource == other.captureSource && juce::exactlyEqual (uiScale, other.uiScale) &&
-               uiView == other.uiView && quality == other.quality && captureTail == other.captureTail &&
-               captureLoop == other.captureLoop && keyAutoDetect == other.keyAutoDetect;
+               presetKey == other.presetKey && presetProgram == other.presetProgram &&
+               captureBars == other.captureBars && captureSource == other.captureSource &&
+               juce::exactlyEqual (uiScale, other.uiScale) && uiView == other.uiView && quality == other.quality &&
+               captureTail == other.captureTail && captureLoop == other.captureLoop &&
+               keyAutoDetect == other.keyAutoDetect;
     }
 };
 

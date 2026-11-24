@@ -12,12 +12,14 @@
 namespace thunder::ui
 {
 
-// C-SAVEFORM, v0.5 (UI.md §9.16): Name, Author, Category and Description over a
+// C-SAVEFORM (UI.md §9.16): Name, Author, Category, Bank, Tags and Description over a
 // dimmed editor.
 //
 // - Save prefills the loaded preset's details; Save as starts with an empty name.
-// - If a user preset with that name exists, Save becomes an inline "already
-//   exists" prompt with Replace it; editing the name removes the prompt.
+// - Category and Bank suggest what the library already uses; Bank is a
+//   sub-folder of the preset folder ("" = the top level).
+// - If a user preset with that name exists in that bank, Save becomes an inline "already
+//   exists" prompt with Replace it; editing the name or bank removes the prompt.
 // - Refusals show here, where the user is looking.
 // - Enter saves, Esc cancels.
 class SaveForm final : public juce::Component
@@ -40,6 +42,8 @@ public:
     juce::TextEditor& getNameField() noexcept { return name; }
     juce::TextEditor& getAuthorField() noexcept { return author; }
     juce::ComboBox& getCategoryField() noexcept { return category; }
+    juce::ComboBox& getBankField() noexcept { return bank; }
+    juce::TextEditor& getTagsField() noexcept { return tags; }
     juce::TextEditor& getDescriptionField() noexcept { return description; }
     juce::String getMessage() const { return message; }
     // True while the form asks to replace the preset named in the Name field.
@@ -54,9 +58,9 @@ private:
 
     PresetManager& presets;
     juce::Label title;
-    juce::Label nameLabel, authorLabel, categoryLabel, descriptionLabel;
-    juce::TextEditor name, author, description;
-    juce::ComboBox category;
+    juce::Label nameLabel, authorLabel, categoryLabel, bankLabel, tagsLabel, descriptionLabel;
+    juce::TextEditor name, author, tags, description;
+    juce::ComboBox category, bank;
     ThunderButton cancelButton{"Cancel"};
     ThunderButton saveButton{"Save", ThunderButton::Variant::primary};
     ThunderButton replaceButton{"Replace it", ThunderButton::Variant::danger};
@@ -64,6 +68,9 @@ private:
     bool messageIsError = false;
     bool askingToReplace = false;
     juce::String replaceName; // the name the prompt is about
+    juce::String replaceBank; // ... and its bank
+
+    juce::String chosenBank() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SaveForm)
 };

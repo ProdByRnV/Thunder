@@ -43,4 +43,11 @@ inline const juce::Identifier sourceTimeSigNumerator{"timeSigNumerator"};
 inline const juce::Identifier sourceTimeSigDenominator{"timeSigDenominator"};
 inline const juce::Identifier sourceEmbedded{"embedded"}; // FLAC, base64
 
+// Morph's sound B (PRD §9.12 morphSoundB, FR-PLAY-002): a child of Session
+// holding one ThunderPreset document (perform::SoundB).
+inline const juce::Identifier morphSoundB{"MorphB"};
+
+// The host program last set or reported (PRD §9.12, FR-PRESET-015).
+inline const juce::Identifier presetProgram{"presetProgram"};
+
 } // namespace thunder::state::ids

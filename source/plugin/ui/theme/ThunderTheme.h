@@ -204,15 +204,24 @@ inline constexpr int checkboxRowWidth = 180;
 inline constexpr int iconButton = 28;
 inline constexpr int icon = 16;
 inline constexpr float iconStroke = 1.5f;
-inline constexpr int presetBarWidth = 340;
+inline constexpr int presetBarWidth = 320;  // ◄ name ► ☆ Save ⋯ (narrowed for Morph, §9.17)
 inline constexpr int tooltipMaxWidth = 260; // §9.14
-inline constexpr int keyRootWidth = 64;
+inline constexpr int keyRootWidth = 56;
 inline constexpr int keyScaleWidth = 148;
-inline constexpr int keyBadgeWidth = 64; // the detected key: dot and confidence (§9.13)
+inline constexpr int keyBadgeWidth = 56; // the detected key: dot and confidence (§9.13)
 inline constexpr int labelHeight = 16;
 inline constexpr int valueHeight = 18;
 inline constexpr int bolt = 18; // logo glyph height
-inline constexpr int wordmarkWidth = 140;
+inline constexpr int wordmarkWidth = 112;
+
+// Morph in the top bar (§9.17): "A ──●── B"
+inline constexpr int morphWidth = 128;
+inline constexpr int morphEnd = 12; // the A and B labels
+inline constexpr int morphThumb = 10;
+inline constexpr float morphTrack = 2.0f;
+// Knobs show the value Morph sends as a thin second ring (§9.17).
+inline constexpr float knobMorphRing = 1.5f;
+inline constexpr float knobMorphRingGap = 3.0f;
 inline constexpr float menuSelectedBar = 2.0f;
 
 // Output panel (§8.5 as laid out in the 4A mockup)
@@ -284,7 +293,24 @@ inline constexpr int settingsWidth = 380;
 inline constexpr int settingsRowHeight = 36;
 inline constexpr int settingsLabelWidth = 180;
 inline constexpr int aboutWidth = 420;
-inline constexpr int aboutHeight = 196;
+inline constexpr int aboutHeight = 232;
+inline constexpr int aboutCopyWidth = 120; // "Copy details"
+
+// The preset browser (§9.12): a popover under the preset bar
+inline constexpr int browserWidth = 640;
+inline constexpr int browserHeight = 440;
+inline constexpr int browserSidebarWidth = 148;
+inline constexpr int browserRowHeight = 22;
+inline constexpr int browserDetailHeight = 112;
+inline constexpr int browserSearchWidth = 240;
+inline constexpr int browserButtonWidth = 92;
+inline constexpr int browserActionWidth = 84;
+inline constexpr int browserColumnName = 152;
+inline constexpr int browserColumnCategory = 84;
+inline constexpr int browserColumnBank = 80;
+inline constexpr int browserColumnAuthor = 96;
+inline constexpr int browserColumnStar = 28;
+inline constexpr int saveFormTagsHint = 160; // the Tags field's "comma, separated" hint width
 inline constexpr int aboutBolt = 30;
 } // namespace size
 

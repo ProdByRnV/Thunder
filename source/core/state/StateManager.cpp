@@ -62,7 +62,8 @@ std::span<const Migration> stateMigrations() noexcept
 }
 
 juce::ValueTree createState (const juce::ValueTree& parameters, const SessionState& session,
-                             const juce::String& pluginVersion, const juce::ValueTree& source)
+                             const juce::String& pluginVersion, const juce::ValueTree& source,
+                             const juce::ValueTree& morphSoundB)
 {
     juce::ValueTree root{ids::root};
     root.setProperty (ids::stateVersion, kCurrentStateVersion, nullptr);
@@ -71,6 +72,8 @@ juce::ValueTree createState (const juce::ValueTree& parameters, const SessionSta
     auto sessionTree = session.toValueTree();
     if (source.isValid())
         sessionTree.appendChild (source.createCopy(), nullptr);
+    if (morphSoundB.isValid())
+        sessionTree.appendChild (morphSoundB.createCopy(), nullptr);
     root.appendChild (sessionTree, nullptr);
     return root;
 }
@@ -120,6 +123,7 @@ std::optional<LoadedState> loadState (const juce::ValueTree& saved)
     const auto sessionTree = current.getChildWithName (ids::session);
     loaded.session = SessionState::fromValueTree (sessionTree);
     loaded.source = sessionTree.getChildWithName (ids::source).createCopy();
+    loaded.morphSoundB = sessionTree.getChildWithName (ids::morphSoundB).createCopy();
     return loaded;
 }
 

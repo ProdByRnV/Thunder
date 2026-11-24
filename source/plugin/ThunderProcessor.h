@@ -6,6 +6,7 @@
 #include "core/capture/CaptureWriter.h"
 #include "core/engine/ThunderEngine.h"
 #include "core/params/ParamSnapshot.h"
+#include "core/perform/SoundB.h"
 #include "core/state/SessionState.h"
 #include "presets/PresetManager.h"
 
@@ -18,11 +19,13 @@ namespace thunder
 
 // Host-facing audio processor: adapts the host (buses, play head, parameters,
 // saved state) to ThunderEngine, which does the processing.
-class ThunderProcessor final : public juce::AudioProcessor
+class ThunderProcessor final
+    : public juce::AudioProcessor
+    , private juce::AsyncUpdater
 {
 public:
     ThunderProcessor();
-    ~ThunderProcessor() override = default;
+    ~ThunderProcessor() override;
 
     // [NRT] Called by the host before playback starts or when settings change.
     void prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock) override;
@@ -102,6 +105,16 @@ public:
     // [MSG] Presets (PRD FR-PRESET-*).
     PresetManager& getPresetManager() noexcept { return presetManager; }
 
+    // [MSG] Morph's sound B (PRD FR-PLAY-002): set from the current sound or a
+    // preset, cleared, saved with the project. The audio thread gets it as one
+    // complete snapshot, swapped in without locks.
+    void setSoundB (std::optional<perform::SoundB> b);
+    std::optional<perform::SoundB> getSoundB() const;
+
+    // [MSG] The values Morph is sending to the modules now (for the knobs'
+    // second ring): nullopt unless Morph is between A and a B.
+    std::optional<params::ParamSnapshot> getMorphedValues() const;
+
     // [MSG] The visualiser's data (ARCHITECTURE §6.4).
     UiBridge& getUiBridge() noexcept { return uiBridge; }
 
@@ -125,6 +138,12 @@ private:
         settingsFile};
 
     void applyQuality (params::Quality quality);
+    void handleAsyncUpdate() override; // a program change that arrived off the message thread
+    void programLoaded (const juce::String& key);
+
+    mutable juce::CriticalSection soundBLock; // never taken on the audio thread
+    std::optional<perform::SoundB> soundB;
+    std::atomic<int> pendingProgram{-1};
 
     double preparedSampleRate = 0.0; // 0 until prepareToPlay
 

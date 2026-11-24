@@ -84,6 +84,22 @@ void ThunderKnob::Dial::paint (juce::Graphics& g)
         g.strokePath (arc, arcStroke (size::knobTrack));
     }
 
+    // Morph's value: a thin ring just outside the track, from the arc's start to
+    // where Morph has moved the value (UI.md §9.17).
+    if (owner.morphed && enabled)
+    {
+        const auto morphedProportion = valueToProportionOfLength (static_cast<double> (*owner.morphed));
+        const auto morphedAngle = start + static_cast<float> (morphedProportion) * (end - start);
+        const auto ringRadius = radius + size::knobTrack * 0.5f + size::knobMorphRingGap;
+        juce::Path ring;
+        ring.addCentredArc (centre.x, centre.y, ringRadius, ringRadius, 0.0f, std::min (from, morphedAngle),
+                            std::max (from, morphedAngle), true);
+        g.setColour (colour::accentSecondary);
+        g.strokePath (ring, arcStroke (size::knobMorphRing));
+        g.fillEllipse (juce::Rectangle<float> (size::knobMorphRing * 2.0f, size::knobMorphRing * 2.0f)
+                           .withCentre (centre.getPointOnCircumference (ringRadius, morphedAngle)));
+    }
+
     // Face: a raised disc with a faint top highlight.
     const auto face = juce::Rectangle<float> (diameter * size::knobFace, diameter * size::knobFace).withCentre (centre);
     g.setGradientFill (
@@ -296,6 +312,14 @@ void ThunderKnob::setValueFormatter (std::function<juce::String (double)> format
 {
     formatter = std::move (format);
     updateValueText();
+}
+
+void ThunderKnob::setMorphedValue (std::optional<float> newValue)
+{
+    if (newValue.has_value() == morphed.has_value() && (!newValue || juce::exactlyEqual (*newValue, *morphed)))
+        return;
+    morphed = newValue;
+    dial.repaint();
 }
 
 void ThunderKnob::showValueEditor()

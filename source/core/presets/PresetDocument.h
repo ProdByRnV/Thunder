@@ -54,6 +54,14 @@ struct Metadata
     bool operator== (const Metadata&) const = default;
 };
 
+// Whether presets carry a parameter: every sound control, but not Morph's
+// amount, which only means something with the project's sound B (PRD
+// FR-PLAY-002). A preset that names it anyway is read without it.
+constexpr bool isPresetParameter (params::ParamId id) noexcept
+{
+    return id != params::ParamId::morphAmount;
+}
+
 // Every field trimmed and cut to its limit.
 Metadata sanitise (const Metadata& metadata);
 

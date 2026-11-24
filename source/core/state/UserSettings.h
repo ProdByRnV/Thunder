@@ -33,6 +33,10 @@ struct UserSettings
     bool reduceMotionChosen = false;
     int frameRate = 60; // 60 or 30 animation updates a second (UI.md §10.3, PRD UI-FX-004)
 
+    // Favourite presets (PRD FR-PRESET-004), by their library key.
+    static constexpr int kMaxFavourites = 10000;
+    juce::StringArray favouritePresets;
+
     // `<user documents>/Thunder/Captures`.
     static juce::File defaultCapturesFolder();
 
@@ -55,7 +59,8 @@ struct UserSettings
                juce::exactlyEqual (uiScale, other.uiScale) && showTooltips == other.showTooltips &&
                spectrumByDefault == other.spectrumByDefault && visualiserBars == other.visualiserBars &&
                showDry == other.showDry && showGrains == other.showGrains && reduceMotion == other.reduceMotion &&
-               reduceMotionChosen == other.reduceMotionChosen && frameRate == other.frameRate;
+               reduceMotionChosen == other.reduceMotionChosen && frameRate == other.frameRate &&
+               favouritePresets == other.favouritePresets;
     }
 };
 

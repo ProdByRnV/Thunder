@@ -123,18 +123,34 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
         const params::ParamSnapshot* settings;
         params::Quality quality;
         bool keyDetection;
+        bool morph = false; // Morph at 50% towards a B
     };
     for (const auto& c :
          {EngineCase{"Whole engine (defaults)", &defaults, params::Quality::Standard, false},
           EngineCase{"Whole engine (defaults, key detection feed)", &defaults, params::Quality::Standard, true},
           EngineCase{"Whole engine (defaults, Eco)", &defaults, params::Quality::Eco, false},
           EngineCase{"Whole engine (defaults, High)", &defaults, params::Quality::High, false},
+          EngineCase{"Whole engine (defaults, Morph 50% to a B)", &defaults, params::Quality::Standard, false, true},
           EngineCase{"Whole engine + Time, Static (all), Shape", &rhythm, params::Quality::Standard, false},
           EngineCase{"Whole engine, every module on", &everything, params::Quality::Standard, false}})
     {
         const auto* settings = c.settings;
         ThunderEngine engine;
         engine.prepare (kRate, c.quality);
+        auto snapshot = *settings;
+        if (c.morph)
+        {
+            perform::MorphSound b;
+            b.present = true;
+            auto bValues = defaults; // the same modules, other values: the stage's own cost
+            bValues.set (ParamId::grainAmount, 90.0f);
+            bValues.set (ParamId::lpFreq, 3000.0f);
+            bValues.set (ParamId::spaceMix, 60.0f);
+            b.values = bValues.values;
+            engine.getPerformance().setMorphSound (b);
+            snapshot.set (ParamId::morphAmount, 50.0f);
+            settings = &snapshot;
+        }
         if (c.keyDetection)
         {
             engine.getAnalysisTap().allocate();
@@ -183,4 +199,53 @@ TEST_CASE ("Chain CPU and reset times", "[.][measure][chainmeasure]")
     }
     std::printf ("  (one 256-sample chunk at 48 kHz lasts 5.33 ms)\n");
     SUCCEED();
+}
+
+TEST_CASE ("Morph's own cost, measured against the same engine without it", "[.][measure][chainmeasure][morphmeasure]")
+{
+    // Alternating runs on two engines, so background load and clock changes
+    // hit both alike; the best of each is reported.
+    using namespace thunder::test;
+    const auto input =
+        tone ([] (double t) { return 57.0 + 2.0 * std::floor (std::fmod (t * 4.0, 6.0)); }, kRate, 4.0, 8);
+    const auto defaults = params::ParamSnapshot::defaults();
+
+    perform::MorphSound b;
+    b.present = true;
+    auto bValues = defaults;
+    bValues.set (ParamId::grainAmount, 90.0f);
+    bValues.set (ParamId::lpFreq, 3000.0f);
+    bValues.set (ParamId::spaceMix, 60.0f);
+    b.values = bValues.values;
+    auto morphing = defaults;
+    morphing.set (ParamId::morphAmount, 50.0f);
+
+    ThunderEngine plain, morphed;
+    plain.prepare (kRate);
+    morphed.prepare (kRate);
+    morphed.getPerformance().setMorphSound (b);
+
+    const auto timeOf = [&input] (ThunderEngine& engine, const params::ParamSnapshot& s)
+    {
+        std::vector<float> left = input, right = input;
+        const auto start = juce::Time::getMillisecondCounterHiRes();
+        for (std::size_t i = 0; i < left.size(); i += 256)
+        {
+            const auto n = std::min<std::size_t> (256, left.size() - i);
+            float* channels[] = {left.data() + i, right.data() + i};
+            engine.process (channels, static_cast<int> (n), {}, s);
+        }
+        return (juce::Time::getMillisecondCounterHiRes() - start) /
+               (static_cast<double> (input.size()) / kRate * 1000.0) * 100.0;
+    };
+
+    double bestPlain = 1.0e9, bestMorphed = 1.0e9;
+    for (int round = 0; round < 8; ++round)
+    {
+        bestPlain = std::min (bestPlain, timeOf (plain, defaults));
+        bestMorphed = std::min (bestMorphed, timeOf (morphed, morphing));
+    }
+    std::printf ("\nMorph (best of 8, alternating):\n");
+    std::printf ("  %-40s %5.2f%%\n", "Whole engine (defaults)", bestPlain);
+    std::printf ("  %-40s %5.2f%%\n", "Whole engine (defaults, Morph 50% to a B)", bestMorphed);
 }

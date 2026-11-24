@@ -60,6 +60,11 @@ public:
     void setValueFormatter (std::function<juce::String (double)> format);
     void refreshValueText() { updateValueText(); }
 
+    // [MSG] The value Morph sends to the sound (real units), shown as a thin
+    // second ring outside the arc (UI.md §9.17); nullopt hides it.
+    void setMorphedValue (std::optional<float> value);
+    std::optional<float> getMorphedValue() const noexcept { return morphed; }
+
     // The knob position (0–1) after dragging `pixels` upwards from `proportion`;
     // `fine` (Shift) moves ten times less. Clamped to the range.
     static double dragged (double proportion, double pixels, bool fine) noexcept;
@@ -115,6 +120,7 @@ private:
     Value value;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
     std::function<juce::String (double)> formatter;
+    std::optional<float> morphed;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderKnob)
 };

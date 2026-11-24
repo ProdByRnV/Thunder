@@ -152,7 +152,8 @@ Preset Preset::complete (const Metadata& meta, const std::array<float, params::k
     Preset p;
     p.meta = sanitise (meta);
     for (std::size_t i = 0; i < params::kNumParams; ++i)
-        p.values[i] = current[i];
+        if (isPresetParameter (params::kParamDefs[i].param))
+            p.values[i] = current[i];
     return p;
 }
 
@@ -229,6 +230,9 @@ ReadReport read (const juce::String& text, Preset& out)
                 ++report.unknownParameters; // a newer or misspelled parameter: ignored
                 continue;
             }
+
+            if (!isPresetParameter (*param))
+                continue; // known, but not part of a sound
 
             if (!p->hasAttribute (kValue))
                 return refused (ReadResult::badValue);

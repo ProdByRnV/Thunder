@@ -41,10 +41,15 @@ SaveForm::SaveForm (PresetManager& manager, bool saveAs)
     styleLabel (nameLabel, "Name");
     styleLabel (authorLabel, "Author");
     styleLabel (categoryLabel, "Category");
+    styleLabel (bankLabel, "Bank");
+    styleLabel (tagsLabel, "Tags");
     styleLabel (descriptionLabel, "Description");
 
     styleField (name, size::maxTextLength);
     styleField (author, size::maxTextLength);
+    styleField (tags, size::maxTextLength);
+    tags.setTitle ("Tags");
+    tags.setTextToShowWhenEmpty ("dark, trap, wide", colour::textDisabled);
     styleField (description, size::maxDescriptionLength);
     description.setMultiLine (true, true);
     description.setReturnKeyStartsNewLine (true);
@@ -56,23 +61,31 @@ SaveForm::SaveForm (PresetManager& manager, bool saveAs)
     // Category: free text, suggesting the categories already in use (one spelling each).
     category.setEditableText (true);
     category.setTitle ("Category");
-    std::set<juce::String> categories;
-    for (const auto& entry : presets.getListing().entries)
-        if (entry.category.isNotEmpty())
-            categories.insert (entry.category);
     int id = 1;
-    for (const auto& c : categories)
+    for (const auto& c : presets::categoriesIn (presets.getListing()))
         category.addItem (c, id++);
 
-    // Prefill: Save keeps the loaded preset's details; Save as starts afresh.
+    // Bank: a sub-folder of the preset folder; empty = the top level.
+    bank.setEditableText (true);
+    bank.setTitle ("Bank");
+    bank.setTextWhenNothingSelected ("(top level)");
+    id = 1;
+    for (const auto& b : presets::bankIdsIn (presets.getListing()))
+        if (b.startsWith ("user:") && b.length() > 5)
+            bank.addItem (b.fromFirstOccurrenceOf ("user:", false, false), id++);
+
+    // Prefill: Save keeps the loaded preset's details; Save as starts afresh
+    // (in the loaded preset's bank).
     const auto& loaded = presets.getLoadedMetadata();
     const auto current = presets.getCurrent();
     author.setText (current.isUser() && loaded.author.isNotEmpty() ? loaded.author : presets.getRememberedAuthor(),
                     false);
+    bank.setText (presets.getLoadedBank(), juce::dontSendNotification);
     if (!saveAs)
     {
         name.setText (current.name, false);
         category.setText (loaded.category, juce::dontSendNotification);
+        tags.setText (loaded.tags, false);
         description.setText (loaded.description, false);
     }
 
@@ -81,18 +94,24 @@ SaveForm::SaveForm (PresetManager& manager, bool saveAs)
         setAskingToReplace (false);
         setMessage ({}, false);
     };
+    bank.onChange = [this]
+    {
+        setAskingToReplace (false);
+        setMessage ({}, false);
+    };
     name.onReturnKey = [this] { submit(); };
-    for (auto* field : {&name, &author, &description})
+    for (auto* field : {&name, &author, &tags, &description})
         field->onEscapeKey = [this] { cancel(); };
     author.onReturnKey = [this] { submit(); };
+    tags.onReturnKey = [this] { submit(); };
 
     cancelButton.onClick = [this] { cancel(); };
     saveButton.onClick = [this] { submit(); };
     replaceButton.onClick = [this] { confirmReplace(); };
 
-    for (auto* c :
-         std::initializer_list<juce::Component*>{&nameLabel, &name, &authorLabel, &author, &categoryLabel, &category,
-                                                 &descriptionLabel, &description, &cancelButton, &saveButton})
+    for (auto* c : std::initializer_list<juce::Component*>{&nameLabel, &name, &authorLabel, &author, &categoryLabel,
+                                                           &category, &bankLabel, &bank, &tagsLabel, &tags,
+                                                           &descriptionLabel, &description, &cancelButton, &saveButton})
         addAndMakeVisible (c);
     addChildComponent (replaceButton);
 }
@@ -101,7 +120,7 @@ SaveForm::~SaveForm() = default;
 
 juce::Rectangle<int> SaveForm::panelBounds() const
 {
-    const auto height = space::s4 + size::controlHeight + space::s2 + 3 * (size::controlHeight + space::s2) +
+    const auto height = space::s4 + size::controlHeight + space::s2 + 5 * (size::controlHeight + space::s2) +
                         size::saveFormDescriptionHeight + space::s3 + size::labelHeight + space::s2 +
                         size::controlHeight + space::s4;
     return getLocalBounds().withSizeKeepingCentre (size::saveFormWidth, height);
@@ -148,6 +167,8 @@ void SaveForm::resized()
     row (nameLabel, name, size::controlHeight);
     row (authorLabel, author, size::controlHeight);
     row (categoryLabel, category, size::controlHeight);
+    row (bankLabel, bank, size::controlHeight);
+    row (tagsLabel, tags, size::controlHeight);
     row (descriptionLabel, description, size::saveFormDescriptionHeight);
 
     area.removeFromTop (space::s1 + size::labelHeight); // the message line
@@ -180,24 +201,37 @@ presets::Metadata SaveForm::collect() const
     m.author = author.getText();
     m.category = category.getText();
     m.description = description.getText();
+
+    // Tags: trimmed, one spelling each, joined the way the file keeps them.
+    auto list = juce::StringArray::fromTokens (tags.getText(), ",", "");
+    list.trim();
+    list.removeEmptyStrings();
+    list.removeDuplicates (true);
+    m.tags = list.joinIntoString (",");
     return presets::sanitise (m);
+}
+
+juce::String SaveForm::chosenBank() const
+{
+    return bank.getText().trim();
 }
 
 void SaveForm::submit()
 {
     const auto meta = collect();
-    if (meta.name.isEmpty() || !presets.fileForName (meta.name))
+    if (meta.name.isEmpty() || !presets.fileForName (meta.name, chosenBank()))
     {
         setMessage (presets::describe (presets::SaveResult::invalidName), true);
         return;
     }
 
-    if (presets.wouldReplace (meta.name))
+    if (presets.wouldReplace (meta.name, chosenBank()))
     {
         setMessage (juce::String::fromUTF8 ("\xe2\x80\x9c") + meta.name + juce::String::fromUTF8 ("\xe2\x80\x9d") +
                         " already exists.",
                     true);
         replaceName = meta.name;
+        replaceBank = chosenBank();
         setAskingToReplace (true);
         return;
     }
@@ -216,12 +250,12 @@ void SaveForm::confirmReplace()
 
 bool SaveForm::isAskingToReplace() const
 {
-    return askingToReplace && collect().name == replaceName;
+    return askingToReplace && collect().name == replaceName && chosenBank() == replaceBank;
 }
 
 void SaveForm::save()
 {
-    const auto result = presets.saveAs (collect());
+    const auto result = presets.saveAs (collect(), chosenBank());
     if (result != presets::SaveResult::ok)
     {
         setAskingToReplace (false);

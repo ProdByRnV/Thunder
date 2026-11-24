@@ -572,3 +572,47 @@ TEST_CASE ("Feeding the visualiser does not allocate or block", "[realtime][visu
     CHECK (total.deallocations == 0);
     bridge.setWanted (0);
 }
+
+TEST_CASE ("Morphing does not allocate or block, while sweeping or when sound B changes", "[realtime][perform]")
+{
+    // PRD FR-PLAY-002: sound B reaches the audio thread as one complete
+    // snapshot, swapped in without locks; the stage only copies and blends.
+    ThunderEngine engine;
+    engine.prepare (48000.0);
+
+    perform::MorphSound b;
+    b.present = true;
+    auto bValues = params::ParamSnapshot::defaults();
+    bValues.set (ParamId::grainAmount, 90.0f);
+    bValues.set (ParamId::lpFreq, 2000.0f);
+    bValues.set (ParamId::toneOn, 1.0f);
+    bValues.set (ParamId::pitchOctave, 0.0f);
+    b.values = bValues.values;
+    engine.getPerformance().setMorphSound (b);
+
+    std::vector<float> left (512, 0.1f), right (512, 0.1f);
+    float* channels[] = {left.data(), right.data()};
+    auto snapshot = params::ParamSnapshot::defaults();
+    const TransportState transport;
+
+    test::RealtimeReport total;
+    for (int round = 0; round < 8; ++round)
+    {
+        // The message thread sets a new B between rounds.
+        b.values[params::toIndex (ParamId::grainAmount)] = static_cast<float> (10 * round);
+        engine.getPerformance().setMorphSound (round == 5 ? perform::MorphSound{} : b);
+
+        accumulate (total, test::runInRealtimeSection (
+                               [&]
+                               {
+                                   for (int block = 0; block < 20; ++block)
+                                   {
+                                       snapshot.set (ParamId::morphAmount, static_cast<float> (block * 5));
+                                       engine.process (channels, 512, transport, snapshot);
+                                   }
+                               }));
+    }
+
+    CHECK (total.allocations == 0);
+    CHECK (total.deallocations == 0);
+}

@@ -7,6 +7,8 @@
 #include "core/state/UserSettings.h"
 #include "params/ParameterLayout.h"
 
+#include <cmath>
+
 namespace thunder
 {
 
@@ -34,6 +36,14 @@ ThunderProcessor::ThunderProcessor()
             analysisWorker.loadCapture (file,
                                         {start.bpm, start.bars, start.timeSigNumerator, start.timeSigDenominator});
     };
+
+    // The host's preset menu follows presets loaded in Thunder (FR-PRESET-015).
+    presetManager.onLoaded = [this] (const juce::String& key) { programLoaded (key); };
+}
+
+ThunderProcessor::~ThunderProcessor()
+{
+    cancelPendingUpdate();
 }
 
 void ThunderProcessor::prepareToPlay (double sampleRate, int)
@@ -123,22 +133,67 @@ double ThunderProcessor::getTailLengthSeconds() const
     return engine.getTailSeconds();
 }
 
+// Host programs (PRD FR-PRESET-015): Init and the factory presets, in the DAW's
+// own preset menu, loaded through the same path as the browser.
 int ThunderProcessor::getNumPrograms()
 {
-    // Some hosts misbehave when a plugin reports zero programs.
-    return 1;
+    return PresetManager::numPrograms();
 }
 
 int ThunderProcessor::getCurrentProgram()
 {
-    return 0;
+    return juce::jlimit (0, getNumPrograms() - 1, getSessionState().presetProgram);
 }
 
-void ThunderProcessor::setCurrentProgram (int) {}
-
-const juce::String ThunderProcessor::getProgramName (int)
+void ThunderProcessor::setCurrentProgram (int index)
 {
-    return {};
+    if (index < 0 || index >= getNumPrograms())
+        return;
+
+    // A host sending the program it last set or was told (many do when a
+    // project reopens) must never load over the project's own, perhaps
+    // edited, sound.
+    if (index == getSessionState().presetProgram)
+        return;
+
+    // Loading writes parameters and the session: on the message thread only.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+    {
+        presetManager.loadProgram (index);
+        return;
+    }
+
+    pendingProgram.store (index);
+    triggerAsyncUpdate();
+}
+
+void ThunderProcessor::handleAsyncUpdate()
+{
+    const auto index = pendingProgram.exchange (-1);
+    if (index >= 0 && index < getNumPrograms() && index != getSessionState().presetProgram)
+        presetManager.loadProgram (index);
+}
+
+void ThunderProcessor::programLoaded (const juce::String& key)
+{
+    // Init and factory presets are programs: the host's menu shows them. Other
+    // presets leave the host's program as it was.
+    const auto program = PresetManager::programForKey (key);
+    if (program < 0)
+        return;
+
+    auto s = getSessionState();
+    if (s.presetProgram == program)
+        return;
+
+    s.presetProgram = program;
+    setSessionState (s);
+    updateHostDisplay (ChangeDetails().withProgramChanged (true));
+}
+
+const juce::String ThunderProcessor::getProgramName (int index)
+{
+    return PresetManager::programName (index);
 }
 
 void ThunderProcessor::changeProgramName (int, const juce::String&) {}
@@ -147,8 +202,10 @@ void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto current = getSessionState();
     current.presetModified = presetManager.isModified();
+    const auto b = getSoundB();
     const auto tree = state::createState (apvts.copyState(), current, THUNDER_VERSION_STRING,
-                                          analysisWorker.getSourceRef().toValueTree());
+                                          analysisWorker.getSourceRef().toValueTree(),
+                                          b ? b->toValueTree (THUNDER_VERSION_STRING) : juce::ValueTree());
 
     if (const auto xml = tree.createXml())
         copyXmlToBinary (*xml, destData);
@@ -166,9 +223,30 @@ void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
         return;
 
     apvts.replaceState (loaded->parameters);
+
+    // A host can leave a switch or choice holding an in-between raw value (a
+    // switch at 0.67 reads as on). The parameter tree then counts a saved "on"
+    // as no change and skips it, so the raw value would outlive the restore and
+    // the host would read it back. Every stepped parameter ends on a legal value.
+    for (auto* parameter : getParameters())
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter);
+            ranged != nullptr && ranged->isDiscrete())
+        {
+            const auto raw = ranged->getValue();
+            const auto legal = ranged->convertTo0to1 (ranged->convertFrom0to1 (raw));
+            if (std::abs (legal - raw) > 1.0e-6f)
+            {
+                ranged->setValue (legal);
+                ranged->sendValueChangedMessageToListeners (legal);
+            }
+        }
+
     setSessionState (loaded->session);
     presetManager.rememberLoadedSound (loaded->session);
     loadedNewerState.store (loaded->fromNewerVersion);
+
+    // Morph's sound B is the project's: restored with it, or none.
+    setSoundB (perform::SoundB::fromValueTree (loaded->morphSoundB));
 
     // The project's source loads in the background; a missing file is reported
     // by the editor, never here (PRD FR-INPUT-005).
@@ -248,6 +326,35 @@ void ThunderProcessor::loadSourceFile (const juce::File& file)
 {
     analysisWorker.start();
     analysisWorker.loadFile (file);
+}
+
+void ThunderProcessor::setSoundB (std::optional<perform::SoundB> b)
+{
+    // One writer at a time: the UI and a host restoring state may both set it.
+    const juce::ScopedLock lock (soundBLock);
+    soundB = std::move (b);
+    engine.getPerformance().setMorphSound (soundB ? soundB->toMorphSound() : perform::MorphSound{});
+}
+
+std::optional<perform::SoundB> ThunderProcessor::getSoundB() const
+{
+    const juce::ScopedLock lock (soundBLock);
+    return soundB;
+}
+
+std::optional<params::ParamSnapshot> ThunderProcessor::getMorphedValues() const
+{
+    params::ParamSnapshot a;
+    a.readFrom (parameterRefs);
+    const auto t = juce::jlimit (0.0f, 1.0f, a.get (params::ParamId::morphAmount) / 100.0f);
+
+    const auto b = getSoundB();
+    if (!b || t <= 0.0f)
+        return std::nullopt;
+
+    params::ParamSnapshot morphed;
+    perform::applyMorph (a, b->toMorphSound(), t, morphed);
+    return morphed;
 }
 
 capture::CaptureStatus ThunderProcessor::getCaptureStatus() const

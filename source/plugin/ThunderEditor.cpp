@@ -115,7 +115,7 @@ void ThunderEditor::Content::resized()
         m->setBounds (area);
 
     for (auto* overlay : std::initializer_list<juce::Component*>{owner.saveForm.get(), owner.settingsPanel.get(),
-                                                                 owner.aboutPanel.get()})
+                                                                 owner.aboutPanel.get(), owner.presetBrowser.get()})
         if (overlay != nullptr)
             overlay->setBounds (getLocalBounds());
 }
@@ -192,7 +192,27 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
 
     chain.onSelect = [this] (int index) { selectModule (index); };
     topBar.getPresetBar().onSave = [this] (bool saveAs) { openSaveForm (saveAs); };
+    topBar.getPresetBar().onOpenBrowser = [this] { openPresetBrowser(); };
     topBar.getPresetBar().onError = [this] (const juce::String& text) { showMessage (text, true); };
+    topBar.getPresetBar().onInfo = [this] (const juce::String& text) { showMessage (text, false); };
+
+    // Morph's sound B (UI.md §9.17) is the project's.
+    auto& morph = topBar.getMorph();
+    morph.getSoundBName = [this]() -> std::optional<juce::String>
+    {
+        if (const auto b = thunderProcessor.getSoundB())
+            return b->name;
+        return std::nullopt;
+    };
+    morph.setBFromCurrent = [this] { setSoundBFromCurrent(); };
+    morph.setBFromPreset = [this] (const presets::Entry& entry) { setSoundBFromPreset (entry); };
+    morph.clearB = [this] { clearSoundB(); };
+    morph.getPresets = [this]
+    {
+        const auto& entries = thunderProcessor.getPresetManager().getListing().entries;
+        return std::vector<presets::Entry> (entries.begin(), entries.end());
+    };
+    morph.refresh();
     topBar.onSettings = [this] { openSettings(); };
     topBar.onAbout = [this] { openAbout(); };
     tonePanel->onOpenSpectrum = [this] { showSpectrum(); };
@@ -224,6 +244,19 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
 
     content.setSize (size::baseWidth, size::baseHeight);
     selectModule (0);
+
+    // Every knob, so Morph can show what it sends (they live as long as the editor).
+    std::function<void (juce::Component&)> collectKnobs = [this, &collectKnobs] (juce::Component& parent)
+    {
+        for (auto* child : parent.getChildren())
+        {
+            if (auto* knob = dynamic_cast<ui::ThunderKnob*> (child))
+                knobs.push_back (knob);
+            else
+                collectKnobs (*child);
+        }
+    };
+    collectKnobs (content);
 
     const auto settings = state::UserSettings::load (p.getSettingsFile());
     showTooltips (settings.showTooltips);
@@ -386,6 +419,88 @@ void ThunderEditor::openSaveForm (bool saveAs)
     saveForm->getNameField().grabKeyboardFocus();
 }
 
+void ThunderEditor::openPresetBrowser()
+{
+    if (presetBrowser != nullptr)
+        return;
+
+    auto& presets = thunderProcessor.getPresetManager();
+    presets.rescan(); // the library may have changed on disk
+    presetBrowser = std::make_unique<ui::PresetBrowser> (presets);
+    presetBrowser->onClose = [this] { closeLater (*this, presetBrowser, [this] { topBar.getPresetBar().refresh(); }); };
+    presetBrowser->onSaveAs = [this] { closeLater (*this, presetBrowser, [this] { openSaveForm (true); }); };
+    presetBrowser->onMessage = [this] (const juce::String& text, bool isError) { showMessage (text, isError); };
+
+    content.addAndMakeVisible (*presetBrowser);
+    presetBrowser->setBounds (content.getLocalBounds());
+
+    // Under the preset bar (UI.md §9.12).
+    const auto bar = content.getLocalArea (&topBar.getPresetBar(), topBar.getPresetBar().getLocalBounds());
+    presetBrowser->setAnchor ({bar.getX(), size::topBarHeight});
+    presetBrowser->grabKeyboardFocus();
+    presetBrowser->getSearchField().grabKeyboardFocus();
+}
+
+void ThunderEditor::setSoundBFromCurrent()
+{
+    auto b = perform::SoundB::defaults ("Current sound");
+    auto& apvts = thunderProcessor.getValueTreeState();
+    for (const auto& def : params::kParamDefs)
+        if (const auto* raw = apvts.getRawParameterValue (ui::paramIdString (def.param)))
+            b.values[params::toIndex (def.param)] = raw->load();
+
+    // Named after the preset it came from.
+    const auto current = thunderProcessor.getPresetManager().getCurrent();
+    b.name = current.name + (current.modified ? " *" : "");
+    thunderProcessor.setSoundB (b);
+    updateMorph();
+}
+
+void ThunderEditor::setSoundBFromPreset (const presets::Entry& entry)
+{
+    const auto preset = thunderProcessor.getPresetManager().readEntry (entry);
+    if (!preset)
+    {
+        showMessage (presets::describe (presets::ReadResult::unreadable), true);
+        return;
+    }
+
+    auto b = perform::SoundB::defaults (preset->meta.name);
+    for (const auto& def : params::kParamDefs)
+        b.values[params::toIndex (def.param)] = preset->valueOr (def.param);
+    thunderProcessor.setSoundB (b);
+    updateMorph();
+}
+
+void ThunderEditor::clearSoundB()
+{
+    thunderProcessor.setSoundB (std::nullopt);
+    updateMorph();
+}
+
+void ThunderEditor::updateMorph()
+{
+    topBar.getMorph().refresh();
+
+    // The second ring: only while Morph moves something.
+    const auto morphed = thunderProcessor.getMorphedValues();
+    const auto same =
+        morphed.has_value() == shownMorph.has_value() &&
+        (!morphed || std::equal (morphed->values.begin(), morphed->values.end(), shownMorph->values.begin(),
+                                 [] (float a, float b) { return juce::exactlyEqual (a, b); }));
+    if (same)
+        return;
+
+    shownMorph = morphed;
+    for (auto* knob : knobs)
+    {
+        if (morphed && perform::isMorphed (knob->getParamId()))
+            knob->setMorphedValue (morphed->get (knob->getParamId()));
+        else
+            knob->setMorphedValue (std::nullopt);
+    }
+}
+
 int ThunderEditor::frameRate() const noexcept
 {
     // 30 a second when chosen in Settings, and always at Eco (UI.md §10.3, §12.6).
@@ -443,7 +558,14 @@ void ThunderEditor::openAbout()
     if (aboutPanel != nullptr)
         return;
 
-    aboutPanel = std::make_unique<ui::AboutPanel>();
+    ui::AboutPanel::Build build;
+    build.format = juce::AudioProcessor::getWrapperTypeDescription (thunderProcessor.wrapperType);
+    if (build.format == "Undefined")
+        build.format = {};
+    const juce::PluginHostType host;
+    if (host.type != juce::PluginHostType::UnknownHost)
+        build.host = host.getHostDescription();
+    aboutPanel = std::make_unique<ui::AboutPanel> (build);
     aboutPanel->onClose = [this] { closeLater (*this, aboutPanel); };
     content.addAndMakeVisible (*aboutPanel);
     aboutPanel->setBounds (content.getLocalBounds());
@@ -475,6 +597,8 @@ void ThunderEditor::timerCallback()
 
     updateVisuals (showing, seconds);
     refreshSource();
+    if (showing)
+        updateMorph();
 }
 
 void ThunderEditor::updateVisuals (bool showing, double seconds)

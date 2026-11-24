@@ -125,6 +125,15 @@ TEST_CASE ("A preset survives writing and reading back", "[unit][presets]")
     for (const auto& def : params::kParamDefs)
     {
         INFO (def.id);
+
+        // Morph's amount belongs to the project's sound B, not to a preset.
+        if (!isPresetParameter (def.param))
+        {
+            CHECK_FALSE (back.values[params::toIndex (def.param)].has_value());
+            CHECK_FALSE (text.contains (juce::String (std::string (def.id))));
+            continue;
+        }
+
         REQUIRE (back.values[params::toIndex (def.param)].has_value());
         CHECK_THAT (*back.values[params::toIndex (def.param)],
                     WithinAbs (values[params::toIndex (def.param)], 1.0e-4 * (def.max - def.min)));
@@ -466,7 +475,7 @@ TEST_CASE ("Save as writes a user preset that loads back exactly", "[unit][prese
     CHECK_FALSE (current.modified);
 
     // It is listed after the factory presets.
-    plugin.presets().refresh();
+    plugin.presets().rescanNow();
     const auto& entries = plugin.presets().getListing().entries;
     REQUIRE_FALSE (entries.empty());
     CHECK (entries.back().name == "My Sound");
@@ -534,7 +543,7 @@ TEST_CASE ("The preset arrows step through the list and wrap", "[unit][presets][
     TestPlugin plugin;
     REQUIRE (plugin.presets().saveAs (Metadata{"Zz Last", {}, {}, {}, {}}) == SaveResult::ok);
     plugin.presets().loadInit();
-    plugin.presets().refresh();
+    plugin.presets().rescanNow();
     const auto& entries = plugin.presets().getListing().entries;
 
     // From Init (not in the list): ► goes to the first, ◄ to the last.

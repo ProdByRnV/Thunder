@@ -9,24 +9,84 @@ namespace thunder::ui
 
 using namespace theme;
 
-AboutPanel::AboutPanel()
+namespace
+{
+const juce::String dot = juce::String::fromUTF8 (" \xc2\xb7 ");
+
+juce::String buildDate()
+{
+    // __DATE__ is "Mmm dd yyyy" (day padded with a space); shown as "dd Mmm yyyy".
+    const auto date = juce::StringArray::fromTokens (__DATE__, " ", "");
+    return date.size() == 3 ? date[1] + " " + date[0] + " " + date[2] : juce::String (__DATE__);
+}
+
+juce::String systemName()
+{
+#if JUCE_WINDOWS
+    juce::String os = "Windows";
+#elif JUCE_MAC
+    juce::String os = "macOS";
+#elif JUCE_LINUX || JUCE_BSD
+    juce::String os = "Linux";
+#else
+    juce::String os = "Unknown system";
+#endif
+
+#if JUCE_ARM
+    os << " ARM";
+#endif
+    return os + (juce::SystemStats::isOperatingSystem64Bit() ? " 64-bit" : " 32-bit");
+}
+} // namespace
+
+AboutPanel::AboutPanel (Build b)
+    : build (std::move (b))
 {
     setTitle ("About Thunder");
     setWantsKeyboardFocus (true);
 
+    copyButton.setTooltip ("Copies the version and build, for an issue report");
+    copyButton.onClick = [this] { copyDetails(); };
     reportButton.setTooltip ("Opens Thunder's issue page in your browser");
     reportButton.onClick = [] { juce::URL (issuesUrl).launchInDefaultBrowser(); };
     closeButton.onClick = [this] { close(); };
+    addAndMakeVisible (copyButton);
     addAndMakeVisible (reportButton);
     addAndMakeVisible (closeButton);
 }
 
 juce::String AboutPanel::versionLine()
 {
-    // __DATE__ is "Mmm dd yyyy"; shown as "dd Mmm yyyy".
-    const auto date = juce::StringArray::fromTokens (__DATE__, " ", "");
-    const auto built = date.size() == 3 ? date[1] + " " + date[0] + " " + date[2] : juce::String (__DATE__);
-    return "Version " + juce::String (THUNDER_VERSION_STRING) + juce::String::fromUTF8 (" \xc2\xb7 built ") + built;
+    return "Version " + juce::String (THUNDER_VERSION_STRING) + dot + "built " + buildDate();
+}
+
+juce::String AboutPanel::buildLine() const
+{
+    juce::StringArray parts;
+    if (build.format.isNotEmpty())
+        parts.add (build.format);
+    parts.add (systemName());
+    if (build.host.isNotEmpty())
+        parts.add (build.host);
+    return parts.joinIntoString (dot);
+}
+
+juce::String AboutPanel::detailsText() const
+{
+    juce::StringArray lines;
+    lines.add ("Thunder " + juce::String (THUNDER_VERSION_STRING) + " (built " + buildDate() + ")");
+    if (build.format.isNotEmpty())
+        lines.add ("Format: " + build.format);
+    lines.add ("System: " + systemName() + " (" + juce::SystemStats::getOperatingSystemName() + ")");
+    if (build.host.isNotEmpty())
+        lines.add ("Host: " + build.host);
+    return lines.joinIntoString ("\n");
+}
+
+void AboutPanel::copyDetails()
+{
+    juce::SystemClipboard::copyTextToClipboard (detailsText());
+    copyButton.setButtonText ("Copied");
 }
 
 juce::Rectangle<int> AboutPanel::dialogBounds() const
@@ -59,6 +119,7 @@ void AboutPanel::paint (juce::Graphics& g)
     g.setColour (colour::textSecondary);
     g.setFont (fonts::mono (type::value));
     g.drawText (versionLine(), area.removeFromTop (size::valueHeight), juce::Justification::centredLeft);
+    g.drawText (buildLine(), area.removeFromTop (size::valueHeight), juce::Justification::centredLeft, true);
 
     area.removeFromTop (space::s2);
     g.setFont (fonts::ui (type::body));
@@ -72,6 +133,7 @@ void AboutPanel::resized()
     closeButton.setBounds (buttons.removeFromRight (size::dialogButtonWidth));
     buttons.removeFromRight (space::s2);
     reportButton.setBounds (buttons.removeFromRight (size::dialogButtonWidth + space::s7));
+    copyButton.setBounds (buttons.removeFromLeft (size::aboutCopyWidth));
 }
 
 void AboutPanel::mouseUp (const juce::MouseEvent& e)

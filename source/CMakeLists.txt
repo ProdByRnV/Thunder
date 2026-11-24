@@ -89,9 +89,15 @@ target_sources(ThunderCore INTERFACE
     core/params/ParamSnapshot.h
     core/params/ParamText.cpp
     core/params/ParamText.h
+    core/perform/PerformanceStage.cpp
+    core/perform/PerformanceStage.h
+    core/perform/SoundB.cpp
+    core/perform/SoundB.h
     core/presets/PresetDocument.cpp
     core/presets/PresetDocument.h
     core/presets/PresetLibrary.cpp
+    core/presets/PresetFilter.cpp
+    core/presets/PresetFilter.h
     core/presets/PresetLibrary.h
     core/state/SessionState.cpp
     core/state/SessionState.h
@@ -106,6 +112,7 @@ target_sources(ThunderCore INTERFACE
     core/util/Rng.h
     core/util/Smoother.h
     core/util/SpscFifo.h
+    core/util/TripleBuffer.h
     core/visual/VisualFrames.h
     core/visual/VisualTap.cpp
     core/visual/VisualTap.h)
@@ -157,6 +164,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/components/Meters.h
     plugin/ui/components/KeyBadge.cpp
     plugin/ui/components/KeyBadge.h
+    plugin/ui/components/MorphControl.cpp
+    plugin/ui/components/MorphControl.h
     plugin/ui/components/ModuleDisplays.cpp
     plugin/ui/components/ModuleDisplays.h
     plugin/ui/components/Controls.cpp
@@ -166,6 +175,8 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/overlays/AboutPanel.cpp
     plugin/ui/overlays/AboutPanel.h
     plugin/ui/overlays/SaveForm.cpp
+    plugin/ui/overlays/PresetBrowser.cpp
+    plugin/ui/overlays/PresetBrowser.h
     plugin/ui/overlays/SaveForm.h
     plugin/ui/overlays/SettingsPanel.cpp
     plugin/ui/overlays/SettingsPanel.h

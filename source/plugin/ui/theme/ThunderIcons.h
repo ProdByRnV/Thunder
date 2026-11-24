@@ -139,6 +139,38 @@ inline juce::Path warning()
     return p;
 }
 
+// Favourite: a five-pointed star, outlined (☆) or filled (★).
+inline Icon star (bool filled)
+{
+    juce::Path p;
+    constexpr float outer = 0.46f, inner = 0.19f, cx = 0.5f, cy = 0.53f;
+    for (int i = 0; i < 10; ++i)
+    {
+        const auto angle = juce::MathConstants<float>::pi * static_cast<float> (i) / 5.0f;
+        const auto r = (i % 2 == 0) ? outer : inner;
+        const juce::Point<float> point (cx + r * std::sin (angle), cy - r * std::cos (angle));
+        if (i == 0)
+            p.startNewSubPath (point);
+        else
+            p.lineTo (point);
+    }
+    p.closeSubPath();
+
+    Icon icon;
+    (filled ? icon.fill : icon.stroke) = p;
+    return icon;
+}
+
+// Search: a lens and its handle.
+inline Icon search()
+{
+    Icon icon;
+    icon.stroke.addEllipse (0.14f, 0.14f, 0.52f, 0.52f);
+    icon.stroke.startNewSubPath (0.59f, 0.59f);
+    icon.stroke.lineTo (0.86f, 0.86f);
+    return icon;
+}
+
 inline Icon fromPath (const juce::Path& filled)
 {
     Icon icon;

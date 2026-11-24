@@ -3,6 +3,7 @@
 #include "core/state/UserSettings.h"
 #include "ui/components/CaptureWidget.h"
 #include "ui/overlays/AboutPanel.h"
+#include "ui/overlays/PresetBrowser.h"
 #include "ui/overlays/SaveForm.h"
 #include "ui/overlays/SettingsPanel.h"
 #include "ui/regions/ChainRail.h"
@@ -69,6 +70,7 @@ public:
     ui::TonePanel& getTonePanel() noexcept { return *tonePanel; }
     ui::CaptureWidget& getCaptureWidget() noexcept { return captureWidget; }
     ui::SaveForm* getSaveForm() noexcept { return saveForm.get(); }
+    ui::PresetBrowser* getPresetBrowser() noexcept { return presetBrowser.get(); }
     ui::SettingsPanel* getSettingsPanel() noexcept { return settingsPanel.get(); }
     int getFrameRate() const noexcept { return frameRate(); } // animation updates a second
     ui::AboutPanel* getAboutPanel() noexcept { return aboutPanel.get(); }
@@ -76,6 +78,7 @@ public:
     juce::Component& getContent() noexcept { return content; }
 
     void openSaveForm (bool saveAs);
+    void openPresetBrowser();
     void openSettings();
     void openAbout();
     void showMessage (const juce::String& text, bool isError);
@@ -103,6 +106,16 @@ public:
     // showing, nothing is read and the audio thread skips the visual work. The
     // frame timer calls it 60 times a second; tests call it directly.
     void updateVisuals (bool showing, double seconds);
+
+    // [MSG] Morph (UI.md §9.17): whether there is a sound B, and the second
+    // ring on every knob showing what Morph sends. The timer calls it; tests too.
+    void updateMorph();
+
+    // [MSG] Sound B from the current sound, from a preset, or none.
+    void setSoundBFromCurrent();
+    void setSoundBFromPreset (const presets::Entry& entry);
+    void clearSoundB();
+    const std::vector<ui::ThunderKnob*>& getKnobs() const noexcept { return knobs; }
 
     // [MSG] The window at `scale` (snapped to 5%, 75–200%), remembered for the
     // project and for new ones.
@@ -177,6 +190,7 @@ private:
     juce::Label status;
     ui::Toast toast;
     std::unique_ptr<ui::SaveForm> saveForm;
+    std::unique_ptr<ui::PresetBrowser> presetBrowser;
     std::unique_ptr<ui::SettingsPanel> settingsPanel;
     std::unique_ptr<ui::AboutPanel> aboutPanel;
     std::unique_ptr<juce::TooltipWindow> tooltips;
@@ -187,6 +201,8 @@ private:
     bool constructed = false;
     std::uint32_t seenSourceVersion = 0;
     std::unique_ptr<juce::FileChooser> sourceChooser;
+    std::vector<ui::ThunderKnob*> knobs; // every knob, for Morph's second ring
+    std::optional<params::ParamSnapshot> shownMorph;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderEditor)
 };

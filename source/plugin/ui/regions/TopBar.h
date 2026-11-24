@@ -4,16 +4,18 @@
 #include "plugin/ui/components/Buttons.h"
 #include "plugin/ui/components/Controls.h"
 #include "plugin/ui/components/KeyBadge.h"
+#include "plugin/ui/components/MorphControl.h"
 
 #include <functional>
 
 namespace thunder::ui
 {
 
-// C-PRESETBAR (UI.md §9.11): ◄ name ► Save ⋯. The name opens the list of
-// factory and user presets; a modified sound shows "*". Save stores a user
-// preset (factory presets and Init open Save as); the ⋯ menu has Init and
-// Save as….
+// C-PRESETBAR (UI.md §9.11): ◄ name ► ☆ Save ⋯. The name opens the preset
+// browser; a modified sound shows "*". ◄ ► step through the list as the
+// browser filters it. ☆ marks the loaded preset as a favourite. Save stores a
+// user preset (factory presets and Init open Save as); the ⋯ menu has Init,
+// Save as…, Import…, Export… and Open preset folder.
 class PresetBar final
     : public juce::Component
     , private juce::Timer
@@ -24,17 +26,29 @@ public:
 
     void resized() override;
 
-    // The editor opens the save form (true = Save as) and shows messages.
+    // The editor opens the save form (true = Save as) and the browser, and shows messages.
     std::function<void (bool saveAs)> onSave;
+    std::function<void()> onOpenBrowser;
     std::function<void (const juce::String& message)> onError;
+    std::function<void (const juce::String& message)> onInfo;
 
     // [MSG] What the buttons do.
     void stepPreset (int direction);
-    void showPresetList();
     void showMoreMenu();
     void requestSave();
+    void toggleFavourite();
+
+    // The ⋯ menu's items (for tests too).
+    static constexpr int kMenuInit = 1;
+    static constexpr int kMenuSaveAs = 2;
+    static constexpr int kMenuImport = 3;
+    static constexpr int kMenuExport = 4;
+    static constexpr int kMenuOpenFolder = 5;
+    juce::PopupMenu buildMoreMenu() const;
+    void chooseMoreMenuItem (int itemId);
 
     juce::String getDisplayedName() const { return nameField.getButtonText(); }
+    bool showsFavourite() const { return favourite.getToggleState(); }
     void refresh();
 
 private:
@@ -48,14 +62,17 @@ private:
 
     void timerCallback() override;
     void report (const juce::String& message);
+    void launchImport();
+    void launchExport();
 
     PresetManager& presets;
-    IconButton previous, next, save, more;
+    IconButton previous, next, favourite, save, more;
     NameField nameField;
+    std::unique_ptr<juce::FileChooser> chooser;
 };
 
-// R-TOPBAR (UI.md §8.1): logo, preset bar, key (C-KEYSELECT with the detected
-// key's badge), Settings and About. Clicking the logo also opens About.
+// R-TOPBAR (UI.md §8.1, §9.17): logo, preset bar, Morph, key (C-KEYSELECT with
+// the detected key's badge), Settings and About. Clicking the logo also opens About.
 //
 // The key menu (the badge's click, UI.md §9.13): what was detected and from
 // what, "Use <key>", "Keep <key>", and Auto Detect. Only "Use" changes the key
@@ -70,6 +87,7 @@ public:
     void mouseUp (const juce::MouseEvent& e) override;
 
     PresetBar& getPresetBar() noexcept { return presetBar; }
+    MorphControl& getMorph() noexcept { return morph; }
     IconButton& getSettingsButton() noexcept { return settingsButton; }
     IconButton& getAboutButton() noexcept { return aboutButton; }
 
@@ -98,6 +116,7 @@ private:
     juce::Rectangle<int> logoBounds() const;
 
     PresetBar presetBar;
+    MorphControl morph;
     ParamDropdown keyRoot;
     ParamDropdown keyScale;
     KeyBadge keyBadge;

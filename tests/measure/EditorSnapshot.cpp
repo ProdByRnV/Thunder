@@ -267,3 +267,64 @@ TEST_CASE ("Editor snapshot of the source and key detection", "[.][editorshot]")
     processor.setPlayHead (nullptr);
     processor.editorBeingDeleted (editor.get());
 }
+
+TEST_CASE ("Editor snapshot of the preset browser and Morph", "[.][editorshot]")
+{
+    const auto temp =
+        juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Thunder-editorshot-library");
+    temp.deleteRecursively();
+    const auto library = temp.getChildFile ("Presets");
+
+    // A small library: two banks, tags and descriptions.
+    const auto add = [] (const juce::File& folder, const char* name, const char* category, const char* tags,
+                         const char* author, const char* description)
+    {
+        presets::Preset p;
+        p.meta = {name, author, category, tags, description};
+        p.values[params::toIndex (params::ParamId::grainAmount)] = 70.0f;
+        presets::writePresetFile (folder.getChildFile (juce::String (name) + presets::kFileExtension), p, "0.9.0");
+    };
+    add (library, "Late Haze", "Atmos", "dark,trap,wide", "Mira", "Slow grains under a cloud reverb.");
+    add (library.getChildFile ("Trap"), "Night Bounce", "Rhythmic", "trap,bounce", "Mira", "");
+    add (library.getChildFile ("Lo-Fi"), "Tape Dust", "Lo-Fi", "warm", "Abe", "Halftime and a dark tone.");
+
+    ThunderProcessor processor;
+    processor.setSettingsFile (temp.getChildFile ("settings.xml"));
+    processor.getPresetManager().setUserFolder (library);
+    processor.getPresetManager().rescanNow();
+    processor.getPresetManager().setFavourite (presets::factoryKey ("Night Static"), true);
+    processor.getPresetManager().loadProgram (7);
+    processor.prepareToPlay (48000.0, 512);
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+
+    e.openPresetBrowser();
+    processor.getPresetManager().waitForScan();
+    e.getPresetBrowser()->refreshList();
+    save (e, "browser", 1.0f);
+
+    e.getPresetBrowser()->setCategory ("Atmos");
+    e.getPresetBrowser()->highlightRow (e.getPresetBrowser()->getNumRows() - 1);
+    e.getPresetBrowser()->startRename();
+    save (e, "browser-rename", 1.0f);
+    e.getPresetBrowser()->cancelPrompt();
+    e.getPresetBrowser()->setCategory ({});
+    e.getPresetBrowser()->close();
+    e.getPresetBrowser()->setVisible (false);
+
+    // Morph: no B, then B from a preset at 40%, with the Grains panel's rings.
+    e.selectModule (2);
+    e.updateMorph();
+    save (e, "morph-none", 1.0f);
+    e.setSoundBFromPreset (*processor.getPresetManager().findEntry (presets::factoryKey ("Glass Choir")));
+    e.getTopBar().getMorph().getSlider().setValue (40.0, juce::sendNotificationSync);
+    e.updateMorph();
+    save (e, "morph", 1.0f);
+    save (e, "morph-200", 2.0f);
+
+    e.openSaveForm (false);
+    save (e, "saveform-banks", 1.0f);
+
+    processor.editorBeingDeleted (editor.get());
+    temp.deleteRecursively();
+}

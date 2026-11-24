@@ -98,9 +98,13 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
         return;
     }
 
-    const auto inputDb = snapshot.get (ParamId::inputGain);
-    const auto layerDb = snapshot.get (ParamId::layerLevel);
-    const auto outputDb = snapshot.get (ParamId::outputGain);
+    // The performance controls move the host's values (Morph towards sound B);
+    // with none active this is `snapshot` itself (ARCHITECTURE §5.10).
+    const auto& performed = performance.apply (snapshot);
+
+    const auto inputDb = performed.get (ParamId::inputGain);
+    const auto layerDb = performed.get (ParamId::layerLevel);
+    const auto outputDb = performed.get (ParamId::outputGain);
 
     if (firstBlock)
     {
@@ -129,7 +133,7 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
 
     // While Static moves anything, chunks also end on its control grid, so its
     // values change at the same samples whatever the host's block size.
-    const auto staticActive = staticModulator.isActive (snapshot);
+    const auto staticActive = staticModulator.isActive (performed);
 
     for (int offset = 0; offset < numSamples;)
     {
@@ -141,7 +145,7 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
         }
         float* chunkChannels[kNumChannels] = {channels[0] + offset, channels[1] + offset};
 
-        processChunk (chunkChannels, chunk, ProcessContext{transport, snapshot});
+        processChunk (chunkChannels, chunk, ProcessContext{transport, performed});
 
         offset += chunk;
         samplesProcessed += chunk;
@@ -177,7 +181,7 @@ void ThunderEngine::processChunk (float* const* channels, int numSamples, const 
         juce::FloatVectorOperations::copy (dryChannels[ch], channels[ch], numSamples);
     dryDelay.process (dryChannels, kNumChannels, numSamples);
 
-    // Static moves its targets' values for this chunk. Everything it touches
+    // context.params is the performed snapshot. Static moves its targets' values for this chunk. Everything it touches
     // comes after the chain's latency (only Pitch has any), so it follows the
     // position of the chain's output.
     const auto& staticFrame =

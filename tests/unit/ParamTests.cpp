@@ -40,17 +40,17 @@ bool parsesTo (ParamId id, const juce::String& typed, float expected)
 
 TEST_CASE ("The parameter table holds every parameter, each with its release", "[unit][params]")
 {
-    // v0.5's 39 and v1.0's 29 (PRD §9.3–§9.11). `timeReverse` stays reserved
+    // v0.5's 39 and v1.0's 30 (PRD §9.3–§9.11, §9.14). `timeReverse` stays reserved
     // and `quality`/`keyAutoDetect` aren't host parameters (DEC-050).
-    CHECK (kNumParams == 68u);
+    CHECK (kNumParams == 69u);
 
-    const std::array<std::string_view, 29> v1_0{
+    const std::array<std::string_view, 30> v1_0{
         "timeOn",           "halftimeSpeed",   "halftimeSmooth",    "grainScaleLock", "grainSync",
         "grainFreeze",      "staticOn",        "staticAmount",      "staticRate",     "staticSync",
         "staticRateSynced", "staticCharacter", "staticTgtPosition", "staticTgtPitch", "staticTgtFilter",
         "staticTgtPan",     "staticTgtLevel",  "autopanOn",         "autopanRate",    "autopanDepth",
         "shapeOn",          "shapeType",       "shapeRate",         "shapeDepth",     "shapeSmooth",
-        "duckOn",           "duckAmount",      "duckRelease",       "duckMode"};
+        "duckOn",           "duckAmount",      "duckRelease",       "duckMode",       "morphAmount"};
 
     for (const auto& def : kParamDefs)
     {

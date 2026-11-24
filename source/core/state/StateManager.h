@@ -36,15 +36,18 @@ using Migration = juce::ValueTree (*) (juce::ValueTree);
 std::span<const Migration> stateMigrations() noexcept;
 
 // [MSG/NRT] Builds the state tree for saving. `source` (the session's Source,
-// source::SourceRef) goes inside Session when valid.
+// source::SourceRef) and `morphSoundB` (Morph's sound B, perform::SoundB) go
+// inside Session when valid.
 juce::ValueTree createState (const juce::ValueTree& parameters, const SessionState& session,
-                             const juce::String& pluginVersion, const juce::ValueTree& source = {});
+                             const juce::String& pluginVersion, const juce::ValueTree& source = {},
+                             const juce::ValueTree& morphSoundB = {});
 
 struct LoadedState
 {
     juce::ValueTree parameters; // type PARAMETERS, ready for APVTS::replaceState
     SessionState session;
-    juce::ValueTree source; // the session's Source child; invalid if there is none
+    juce::ValueTree source;      // the session's Source child; invalid if there is none
+    juce::ValueTree morphSoundB; // Morph's sound B (MorphB); invalid if there is none
     int savedVersion = 0;
     bool fromNewerVersion = false; // saved by a newer Thunder: known data loaded, the rest ignored
 };

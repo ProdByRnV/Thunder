@@ -18,6 +18,7 @@
 #include "core/dsp/width/WidthModule.h"
 #include "core/host/TransportState.h"
 #include "core/params/ParamSnapshot.h"
+#include "core/perform/PerformanceStage.h"
 #include "core/util/LatencyDelay.h"
 #include "core/util/Smoother.h"
 #include "core/visual/VisualTap.h"
@@ -117,6 +118,10 @@ public:
     // Live key detection's feed (PRD FR-KEY-002): analysis::AnalysisWorker reads it.
     analysis::AnalysisTap& getAnalysisTap() noexcept { return analysisTap; }
 
+    // The effective-parameter stage (Morph and, later, the other performance
+    // controls): sound B is set through it from the message thread.
+    perform::PerformanceStage& getPerformance() noexcept { return performance; }
+
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }
     const dsp::TimeModule& getTime() const noexcept { return time.get(); }
@@ -179,8 +184,9 @@ private:
 
     dsp::StaticModulator staticModulator;
     dsp::StaticStage staticStage;
-    dsp::DuckModule duck;            // after Auto Gain; switches itself (duckOn)
-    params::ParamSnapshot effective; // the host's values with Static's movement
+    dsp::DuckModule duck;                  // after Auto Gain; switches itself (duckOn)
+    perform::PerformanceStage performance; // the host's values as the performance controls move them
+    params::ParamSnapshot effective;       // ... plus Static's movement
 
     util::LatencyDelay dryDelay;
     std::array<std::vector<float>, kNumChannels> dry;

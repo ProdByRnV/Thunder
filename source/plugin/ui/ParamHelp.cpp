@@ -168,6 +168,10 @@ juce::String describe (ParamId id)
             return "How quickly the layer comes back up after your melody.";
         case ParamId::duckMode:
             return "How the layer makes room for your melody.";
+
+        // Performance
+        case ParamId::morphAmount:
+            return "Moves the sound from A (your settings) towards sound B.";
     }
 
     // Only an ID outside the table gets here (every parameter has a case above).

@@ -20,6 +20,7 @@ constexpr const char* kShowDryKey = "visualiserShowDry";
 constexpr const char* kShowGrainsKey = "visualiserShowGrains";
 constexpr const char* kReduceMotionKey = "reduceMotion";
 constexpr const char* kFrameRateKey = "frameRate";
+constexpr const char* kFavouritePresetsKey = "favouritePresets";
 
 constexpr const char* kFormat24 = "int24";
 constexpr const char* kFormat32f = "float32";
@@ -98,6 +99,14 @@ UserSettings UserSettings::load (const juce::File& file)
     if (properties.getIntValue (kFrameRateKey, 60) == 30)
         settings.frameRate = 30;
 
+    // One preset key per line (PresetLibrary keys), limited so a damaged file
+    // can't grow without bound.
+    settings.favouritePresets = juce::StringArray::fromLines (properties.getValue (kFavouritePresetsKey));
+    settings.favouritePresets.removeEmptyStrings();
+    settings.favouritePresets.removeDuplicates (false);
+    if (settings.favouritePresets.size() > kMaxFavourites)
+        settings.favouritePresets.removeRange (kMaxFavourites, settings.favouritePresets.size());
+
     return settings;
 }
 
@@ -122,6 +131,7 @@ bool UserSettings::save (const juce::File& file) const
     if (reduceMotionChosen)
         properties.setValue (kReduceMotionKey, reduceMotion);
     properties.setValue (kFrameRateKey, frameRate == 30 ? 30 : 60);
+    properties.setValue (kFavouritePresetsKey, favouritePresets.joinIntoString ("\n"));
     return properties.save();
 }
 

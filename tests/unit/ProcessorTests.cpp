@@ -545,3 +545,34 @@ TEST_CASE ("A reverb tail fades to silence without denormals", "[unit][plugin][s
     const auto lastSecond = static_cast<int> (19.0 * rate);
     CHECK (out.getMagnitude (lastSecond, out.getNumSamples() - lastSecond) < 1.0e-10f); // below −200 dB
 }
+
+TEST_CASE ("Restoring state puts back switches a host left between on and off", "[unit][plugin][state]")
+{
+    // What pluginval's "Plugin state restoration" does through a VST3 host:
+    // one switch gets a raw value between 0 and 1 (0.67 reads as on), then the
+    // saved state (on) is restored and the raw value read back.
+    ThunderProcessor processor;
+    auto& apvts = processor.getValueTreeState();
+    juce::MemoryBlock saved;
+    processor.getStateInformation (saved);
+
+    for (const auto* id : {"pitchOn", "toneOn", "timeOn", "autoGain"})
+    {
+        INFO (id);
+        auto* p = apvts.getParameter (id);
+        const auto original = p->getValue();
+        const auto between = original > 0.5f ? 0.67f : 0.27f; // the same side as the saved value
+
+        p->setValue (between); // as the VST3 wrapper passes a host's value on
+        p->sendValueChangedMessageToListeners (between);
+        processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+        CHECK_THAT (p->getValue(), WithinAbs (original, 1e-6));
+    }
+
+    // The other side is restored too.
+    auto* p = apvts.getParameter ("pitchOn");
+    p->setValue (0.2f);
+    p->sendValueChangedMessageToListeners (0.2f);
+    processor.setStateInformation (saved.getData(), static_cast<int> (saved.getSize()));
+    CHECK_THAT (p->getValue(), WithinAbs (1.0, 1e-6));
+}

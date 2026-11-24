@@ -31,12 +31,14 @@ target_sources(ThunderTests PRIVATE
     unit/IntervalFollowerTests.cpp
     unit/KeyDetectionTests.cpp
     unit/ModuleSlotTests.cpp
+    unit/MorphTests.cpp
     unit/ModuleExtrasTests.cpp
     unit/ModuleDisplayTests.cpp
     unit/LightningTests.cpp
     unit/MotionTests.cpp
     unit/MusicTheoryTests.cpp
     unit/ParamTests.cpp
+    unit/PresetLibraryTests.cpp
     unit/PresetTests.cpp
     unit/PitchModuleTests.cpp
     unit/PitchTrackerTests.cpp

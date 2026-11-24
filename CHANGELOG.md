@@ -16,7 +16,7 @@ Each release's notes on GitHub are taken from its section below.
   - Hover over any control to see what it does, with its value and range.
   - Resize the window from its corner in 5% steps, from 75% to 200%, or pick a size in Settings. Each project remembers its size, and a window that wouldn't fit your screen opens smaller.
   - **Settings** (the gear): window size, the visualiser view new projects open with, the project's **Quality** (Eco uses the least CPU; High has the steadiest pitch on low notes and adds 40 ms of latency), **Reduce motion** (no lightning, flashes or other animation; the waveform, spectrum and meters keep moving; on Windows it starts out following the system's animation setting), the **frame rate** (60 or 30 updates a second; Eco always uses 30), tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
-  - **About** (ⓘ or the logo) shows the version and a link for reporting an issue.
+  - **About** (ⓘ or the logo) shows the version, the plugin format, your system and DAW, and a link for reporting an issue. **Copy details** copies them for your report.
   - Every control gives screen readers its name, what it does and its value.
 - **Visualiser**, live while your song plays:
   - **Wave**: your melody (dim) and the layer (glowing) scroll by in time with your song, with its bar numbers and beat lines. Right-click to show 1, 2 or 4 bars, freeze the display, or hide the dry signal.
@@ -28,10 +28,16 @@ Each release's notes on GitHub are taken from its section below.
 - **Meters** in the Output panel: the level of each channel with peak hold and clip lights (click to clear), the short-term loudness in LUFS, a correlation line that turns amber when parts of the sound would cancel in mono, and a ⚠ while the safety limiter is working.
 - **Presets**:
   - 12 built-in presets, plus Init, which resets every control.
-  - ◄ and ► step through the presets; click the name for the full list. A `*` shows when you've changed the sound.
-  - Save your own presets, with a name, author, category and description, to `Documents/Thunder/Presets`. Thunder asks before replacing one, and a save never leaves a preset half-written.
+  - Click the preset name to open the **browser**: search by name, author, category, bank or tag; filter by category, bank, tag or favourites; sort by any column. Click a preset to hear it, press Enter or double-click to keep it, or Esc to go back to the sound you had. The arrow keys move through the list without loading. Each preset's tags and description are shown.
+  - ◄ and ► step through the list as the browser filters it, so you can audition one category. A `*` shows when you've changed the sound.
+  - ☆ marks a preset as a favourite.
+  - Save your own presets, with a name, author, category, **bank** (a sub-folder), **tags** and description, to `Documents/Thunder/Presets`. Thunder asks before replacing one, and a save never leaves a preset half-written.
+  - Rename and delete your presets in the browser. **Import…** adds presets someone sent you without ever replacing one of yours (a different preset with the same name is saved as "Name (2)"); **Export…** saves the current sound as a preset file anywhere. **Open preset folder** and **Rescan** are in the browser too.
+  - Files that can't be read are counted, never loaded.
+  - The built-in presets also appear in your DAW's own preset menu for Thunder. Reopening a project never loads a preset over your sound.
   - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in Settings), and switches smoothly while playing.
   - Your project remembers which preset it was on.
+- **Morph** (next to the presets): set a sound B, from the current sound or any preset, and the slider moves from your settings (A) to B. Knobs glide in their own way, switches and modes change halfway, and Key, Scale and Output Mode stay put. While it morphs, each knob shows where Morph has moved it as a thin second ring. Sound B is saved with your project, Morph can be automated, and both ends sound exactly like A and B.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).
   - **Semitone:** −24 to +24 semitones, plus Fine (±100 cents).

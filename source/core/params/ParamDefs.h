@@ -64,7 +64,8 @@ enum class Group
     Tone,
     Width,
     Shape,
-    Duck
+    Duck,
+    Perform
 };
 
 struct GroupDef
@@ -74,7 +75,7 @@ struct GroupDef
     std::string_view name;
 };
 
-inline constexpr std::array<GroupDef, 11> kGroupDefs{{
+inline constexpr std::array<GroupDef, 12> kGroupDefs{{
     {Group::Output, "output", "Output"},
     {Group::Key, "key", "Key"},
     {Group::Pitch, "pitch", "Pitch"},
@@ -86,6 +87,7 @@ inline constexpr std::array<GroupDef, 11> kGroupDefs{{
     {Group::Width, "width", "Width"},
     {Group::Shape, "shape", "Shape"},
     {Group::Duck, "duck", "Duck"},
+    {Group::Perform, "perform", "Perform"},
 }};
 
 // JUCE parameter version hint for a Thunder release: v0.5 → 5, v1.0 → 100,
@@ -182,9 +184,11 @@ enum class ParamId : int
     duckAmount,
     duckRelease,
     duckMode,
+    // Performance (§9.14)
+    morphAmount,
 };
 
-inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::duckMode) + 1;
+inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::morphAmount) + 1;
 
 constexpr std::size_t toIndex (ParamId id) noexcept
 {
@@ -368,6 +372,9 @@ inline constexpr std::array<ParamDef, kNumParams> kParamDefs {{
     detail::v1_0 (detail::floatParam  (ParamId::duckAmount,  "duckAmount",  "Duck Amount",  Group::Duck, 0.0f, 100.0f, 40.0f, Unit::Percent)),
     detail::v1_0 (detail::floatParam  (ParamId::duckRelease, "duckRelease", "Duck Release", Group::Duck, 10.0f, 1000.0f, 150.0f, Unit::Milliseconds, Taper::Log)),
     detail::v1_0 (detail::choiceParam (ParamId::duckMode,    "duckMode",    "Duck Mode",    Group::Duck, kDuckModeNames, DuckMode::Envelope)),
+
+    // ---- Performance (§9.14) ---------------------------------------------------------------------------------------
+    detail::v1_0 (detail::floatParam  (ParamId::morphAmount, "morphAmount", "Morph",        Group::Perform, 0.0f, 100.0f, 0.0f, Unit::Percent)),
 }};
 // clang-format on
 
