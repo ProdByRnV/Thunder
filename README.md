@@ -23,28 +23,66 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 | macOS 11+ (Apple silicon + Intel) | VST3, AU, CLAP |
 | Linux x86_64 and ARM64 (Ubuntu 22.04+ or another distribution with glibc 2.35+) | VST3, CLAP |
 
-Each download includes `How to install.txt` with the steps for your system.
+## Setting up Thunder
 
-## Building from source
+### 1. Download
 
-Requirements:
+Open the [Releases](https://github.com/ProdByRnV/Thunder/releases) page and, under the newest release, download the file for your computer:
 
-- CMake 3.24 or newer
-- A C++20 compiler: Visual Studio 2022/2026 (Windows), Xcode 14+ (macOS), or GCC 12+/Clang 14+ (Linux)
-- Git
-- On Linux, the JUCE dependencies (ALSA, FreeType, X11 and friends) — see [JUCE's Linux dependencies](https://github.com/juce-framework/JUCE/blob/master/docs/Linux%20Dependencies.md)
+| Your computer | Download |
+|---|---|
+| Windows | `Thunder-<version>-windows-x86_64.zip` |
+| Mac (Apple silicon or Intel) | `Thunder-<version>-macos-universal.zip` |
+| Linux (64-bit PC) | `Thunder-<version>-linux-x86_64.zip` |
+| Linux (64-bit ARM) | `Thunder-<version>-linux-arm64.zip` |
 
-```bash
-git clone https://github.com/ProdByRnV/Thunder.git
-cd Thunder
-git submodule update --init --recursive --depth 1
+Unzip it (on Windows: right-click → **Extract All**; on a Mac: double-click). The folder has the plugins and `How to install.txt`, the same steps as below.
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
+### 2. Copy the plugins into your plugin folders
+
+**Windows**
+
+| Copy | Into |
+|---|---|
+| the `Thunder.vst3` folder (inside `VST3`) | `C:\Program Files\Common Files\VST3` |
+| `Thunder.clap` (inside `CLAP`) | `C:\Program Files\Common Files\CLAP` |
+
+Create the CLAP folder if it isn't there. Windows asks for administrator permission to copy into these folders.
+
+**macOS**
+
+In Finder, choose **Go → Go to Folder…** and enter each folder below. Create a folder if it isn't there.
+
+| Copy | Into |
+|---|---|
+| `Thunder.component` (AU, for Logic Pro and GarageBand) | `~/Library/Audio/Plug-Ins/Components` |
+| `Thunder.vst3` | `~/Library/Audio/Plug-Ins/VST3` |
+| `Thunder.clap` | `~/Library/Audio/Plug-Ins/CLAP` |
+
+Then allow Thunder to open, because macOS holds back plugins downloaded from the internet. Open **Terminal** (Applications → Utilities), paste this line and press Return:
+
+```
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Thunder.component ~/Library/Audio/Plug-Ins/VST3/Thunder.vst3 ~/Library/Audio/Plug-Ins/CLAP/Thunder.clap
 ```
 
-On Windows, if the submodule step fails with "Filename too long", enable long paths once with `git config --global core.longpaths true` and run it again (or clone into a shorter folder such as `C:\src`).
+It changes nothing but these three plugins. If your DAW still says Thunder can't be opened, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the message about Thunder.
 
-Presets are available too, e.g. `cmake --preset vs2026` then `cmake --build --preset vs2026-release` on Windows.
+**Linux**
 
-The built plugins are in `build/source/Thunder_artefacts/Release/`: `VST3/Thunder.vst3`, `CLAP/Thunder.clap`, and `AU/Thunder.component` on macOS. Copy them to your system plugin folders; configuring with `-DTHUNDER_COPY_AFTER_BUILD=ON` copies the VST3 and AU for you.
+| Copy | Into |
+|---|---|
+| `Thunder.vst3` (inside `VST3`) | `~/.vst3` |
+| `Thunder.clap` (inside `CLAP`) | `~/.clap` |
+
+### 3. Open your DAW
+
+Rescan your plugins, then add Thunder as an effect on the track with your melody.
+
+- **FL Studio:** Options → Manage plugins → **Find installed plugins**.
+- **Logic Pro or GarageBand:** if Thunder isn't listed, restart your Mac.
+
+Your presets and captures are saved in `Documents/Thunder`.
+
+### Uninstalling
+
+Delete the Thunder files you copied from your plugin folders.
