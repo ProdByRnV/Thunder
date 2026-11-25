@@ -19,9 +19,15 @@ using params::ParamId;
 
 namespace
 {
+// The visualiser region holds the well and, at its right, the PERFORM panel (UI.md §9.17).
+juce::Rectangle<int> performArea (juce::Rectangle<int> area)
+{
+    return area.reduced (space::s4, space::s3).removeFromRight (size::performWidth);
+}
+
 juce::Rectangle<int> visualiserWell (juce::Rectangle<int> area)
 {
-    return area.reduced (space::s4, space::s3);
+    return area.reduced (space::s4, space::s3).withTrimmedRight (size::performWidth + space::s3);
 }
 
 // The work area of the main display, or nothing when there is no display.
@@ -99,7 +105,9 @@ void ThunderEditor::Content::resized()
     auto area = getLocalBounds();
     owner.topBar.setBounds (area.removeFromTop (size::topBarHeight));
 
-    const auto well = visualiserWell (area.removeFromTop (size::visualiserHeight));
+    const auto region = area.removeFromTop (size::visualiserHeight);
+    const auto well = visualiserWell (region);
+    owner.performPanel.setBounds (performArea (region));
     owner.visualiser.setBounds (well);
     owner.toast.setBounds (
         well.reduced (space::s3).removeFromTop (owner.toast.getPreferredHeight()).removeFromRight (size::toastWidth));
@@ -114,7 +122,7 @@ void ThunderEditor::Content::resized()
     for (auto& m : owner.modules)
         m->setBounds (area);
 
-    for (auto* overlay : std::initializer_list<juce::Component*>{owner.saveForm.get(), owner.settingsPanel.get(),
+    for (auto* overlay : std::initializer_list<juce::Component*>{owner.saveForm.get(), owner.settingsPanel.get(), owner.captureTray.get(),
                                                                  owner.aboutPanel.get(), owner.presetBrowser.get()})
         if (overlay != nullptr)
             overlay->setBounds (getLocalBounds());
@@ -160,6 +168,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
                                      {"Duck", ParamId::duckOn}})
     , output (p.getValueTreeState(), visuals.getMeters())
     , captureWidget (p)
+    , performPanel (p)
 {
     setLookAndFeel (&lookAndFeel);
     setTitle ("Thunder");
@@ -181,6 +190,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     // Children in reading order, which is also the keyboard order (UI.md §14).
     content.addAndMakeVisible (topBar);
     content.addAndMakeVisible (visualiser);
+    content.addAndMakeVisible (performPanel);
     content.addAndMakeVisible (chain);
     for (auto& m : modules)
         content.addChildComponent (*m);
@@ -193,6 +203,7 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
     chain.onSelect = [this] (int index) { selectModule (index); };
     topBar.getPresetBar().onSave = [this] (bool saveAs) { openSaveForm (saveAs); };
     topBar.getPresetBar().onOpenBrowser = [this] { openPresetBrowser(); };
+    captureWidget.onOpenTray = [this] { openCaptureTray(); };
     topBar.getPresetBar().onError = [this] (const juce::String& text) { showMessage (text, true); };
     topBar.getPresetBar().onInfo = [this] (const juce::String& text) { showMessage (text, false); };
 
@@ -419,6 +430,22 @@ void ThunderEditor::openSaveForm (bool saveAs)
     saveForm->getNameField().grabKeyboardFocus();
 }
 
+void ThunderEditor::openCaptureTray()
+{
+    if (captureTray != nullptr)
+        return;
+
+    captureTray = std::make_unique<ui::CaptureTrayView> (thunderProcessor);
+    captureTray->onClose = [this] { closeLater (*this, captureTray, [this] { captureWidget.refreshTray(); }); };
+    content.addAndMakeVisible (*captureTray);
+    captureTray->setBounds (content.getLocalBounds());
+
+    // Above the "+N" button (UI.md §9.18).
+    captureTray->setAnchor (content.getLocalArea (&captureWidget.getTrayButton(),
+                                                  captureWidget.getTrayButton().getLocalBounds()));
+    captureTray->grabKeyboardFocus();
+}
+
 void ThunderEditor::openPresetBrowser()
 {
     if (presetBrowser != nullptr)
@@ -482,20 +509,39 @@ void ThunderEditor::updateMorph()
 {
     topBar.getMorph().refresh();
 
-    // The second ring: only while Morph moves something.
-    const auto morphed = thunderProcessor.getMorphedValues();
+    // The second ring: where the performance controls (Morph, Storm, the
+    // strikes, the Riser, Variation) send each control, as the audio thread
+    // last did; while no audio runs, where Morph would send it.
+    std::optional<params::ParamSnapshot> fresh;
+    if (thunderProcessor.readPerformedValues (fresh))
+    {
+        lastPerformed = fresh;
+        framesSincePerformed = 0;
+    }
+    else if (framesSincePerformed < kPerformedStaleFrames)
+    {
+        ++framesSincePerformed;
+    }
+    const auto moved =
+        framesSincePerformed < kPerformedStaleFrames ? lastPerformed : thunderProcessor.getMorphedValues();
+
     const auto same =
-        morphed.has_value() == shownMorph.has_value() &&
-        (!morphed || std::equal (morphed->values.begin(), morphed->values.end(), shownMorph->values.begin(),
-                                 [] (float a, float b) { return juce::exactlyEqual (a, b); }));
+        moved.has_value() == shownMorph.has_value() &&
+        (!moved || std::equal (moved->values.begin(), moved->values.end(), shownMorph->values.begin(),
+                               [] (float a, float b) { return juce::exactlyEqual (a, b); }));
     if (same)
         return;
 
-    shownMorph = morphed;
+    shownMorph = moved;
+    auto& apvts = thunderProcessor.getValueTreeState();
     for (auto* knob : knobs)
     {
-        if (morphed && perform::isMorphed (knob->getParamId()))
-            knob->setMorphedValue (morphed->get (knob->getParamId()));
+        const auto id = knob->getParamId();
+        const auto own = apvts.getRawParameterValue (ui::paramIdString (id))->load();
+        if (moved && !juce::approximatelyEqual (moved->get (id), own))
+            knob->setMorphedValue (moved->get (id));
+        else if (moved && perform::isMorphed (id) && moved->get (ParamId::morphAmount) > 0.0f)
+            knob->setMorphedValue (moved->get (id)); // Morph's ring shows whenever Morph is above 0%
         else
             knob->setMorphedValue (std::nullopt);
     }

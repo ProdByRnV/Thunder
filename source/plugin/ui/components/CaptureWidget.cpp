@@ -140,6 +140,15 @@ CaptureWidget::CaptureWidget (ThunderProcessor& p)
     folderButton.onClick = [this] { openCapturesFolder(); };
     addAndMakeVisible (folderButton);
 
+    trayButton.setTitle ("Capture tray");
+    trayButton.setTooltip ("Your last captures in this project: drag any of them into your DAW");
+    trayButton.onClick = [this]
+    {
+        if (onOpenTray)
+            onOpenTray();
+    };
+    addChildComponent (trayButton);
+
     // Show the session's choices, and the last capture if there is one.
     const auto session = processor.getSessionState();
     barsBox.setSelectedId (session.captureBars, juce::dontSendNotification);
@@ -190,6 +199,8 @@ void CaptureWidget::resized()
 
     folderButton.setBounds (row.removeFromRight (theme::size::iconButton));
     row.removeFromRight (theme::space::s2);
+    trayButton.setBounds (row.removeFromRight (theme::size::trayButtonWidth));
+    row.removeFromRight (theme::space::s2);
     row.removeFromLeft (theme::space::s3);
     chip->setBounds (row);
 }
@@ -202,6 +213,9 @@ void CaptureWidget::timerCallback()
 void CaptureWidget::refresh()
 {
     status = processor.getCaptureStatus();
+
+    if (--framesUntilTrayCheck <= 0)
+        refreshTray();
 
     if (const auto completed = processor.getCaptureWriter().getCompletedCount(); completed != seenCompleted)
     {
@@ -405,6 +419,20 @@ void CaptureWidget::openCapturesFolder()
     const auto folder = processor.getCapturesFolder();
     if (folder.createDirectory())
         folder.startAsProcess();
+}
+
+void CaptureWidget::refreshTray()
+{
+    framesUntilTrayCheck = theme::timing::uiRefreshHz;
+
+    // Every finished capture is in the tray; the button counts them.
+    const auto count = processor.getCaptureTray().size();
+    if (count != trayCount || trayButton.isVisible() != (count > 0))
+    {
+        trayCount = count;
+        trayButton.setButtonText ("+" + juce::String (count));
+        trayButton.setVisible (count > 0);
+    }
 }
 
 } // namespace thunder::ui

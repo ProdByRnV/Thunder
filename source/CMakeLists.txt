@@ -39,6 +39,7 @@ target_sources(ThunderCore INTERFACE
     core/capture/CaptureStatus.cpp
     core/capture/CaptureStatus.h
     core/capture/CaptureTypes.h
+    core/capture/CaptureTray.cpp
     core/capture/CaptureWriter.cpp
     core/capture/CaptureWriter.h
     core/dsp/duck/DuckModule.cpp
@@ -89,6 +90,7 @@ target_sources(ThunderCore INTERFACE
     core/params/ParamSnapshot.h
     core/params/ParamText.cpp
     core/params/ParamText.h
+    core/perform/PerformControls.cpp
     core/perform/PerformanceStage.cpp
     core/perform/PerformanceStage.h
     core/perform/SoundB.cpp
@@ -173,6 +175,7 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/components/ThunderKnob.cpp
     plugin/ui/components/ThunderKnob.h
     plugin/ui/overlays/AboutPanel.cpp
+    plugin/ui/overlays/CaptureTrayView.cpp
     plugin/ui/overlays/AboutPanel.h
     plugin/ui/overlays/SaveForm.cpp
     plugin/ui/overlays/PresetBrowser.cpp
@@ -185,6 +188,7 @@ target_sources(ThunderPluginCode INTERFACE
     plugin/ui/regions/ModulePanels.cpp
     plugin/ui/regions/ModulePanels.h
     plugin/ui/regions/OutputPanel.cpp
+    plugin/ui/regions/PerformPanel.cpp
     plugin/ui/regions/OutputPanel.h
     plugin/ui/regions/TopBar.cpp
     plugin/ui/regions/TopBar.h

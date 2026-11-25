@@ -255,6 +255,17 @@ enum class DuckMode
 inline constexpr std::array<std::string_view, 2> kDuckModeNames{"Envelope", "Spectral"};
 static_assert (kDuckModeNames.size() == enumIndex (DuckMode::Spectral) + 1);
 
+// The Riser's length (PRD §9.14, FR-PLAY-004).
+enum class RiserBars
+{
+    Bar1,
+    Bars2,
+    Bars4,
+    Bars8
+};
+inline constexpr std::array<std::string_view, 4> kRiserBarsNames{"1 bar", "2 bars", "4 bars", "8 bars"};
+static_assert (kRiserBarsNames.size() == enumIndex (RiserBars::Bars8) + 1);
+
 // Quality (PRD §9.1, FR-CORE-013): not a host parameter but a setting saved
 // with the session (`quality`), because it can change the latency. Stored by
 // name.

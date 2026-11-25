@@ -616,3 +616,41 @@ TEST_CASE ("Morphing does not allocate or block, while sweeping or when sound B 
     CHECK (total.allocations == 0);
     CHECK (total.deallocations == 0);
 }
+
+TEST_CASE ("Storm, the strikes, a rise and Variation do not allocate or block", "[realtime][perform]")
+{
+    // PRD FR-PLAY-001, 003, 004, 005: the stage keeps glides and a rise, no audio.
+    ThunderEngine engine;
+    engine.prepare (48000.0);
+
+    std::vector<float> left (512, 0.1f), right (512, 0.1f);
+    float* channels[] = {left.data(), right.data()};
+    auto snapshot = params::ParamSnapshot::defaults();
+    snapshot.set (ParamId::variationAmount, 80.0f);
+    snapshot.set (ParamId::riserBars, 0.0f); // 1 bar
+
+    TransportState transport;
+    transport.isPlaying = true;
+    transport.hasHostInfo = true;
+    transport.bpm = 120.0;
+
+    test::RealtimeReport total;
+    for (int round = 0; round < 8; ++round)
+        accumulate (total, test::runInRealtimeSection (
+                               [&]
+                               {
+                                   for (int block = 0; block < 40; ++block)
+                                   {
+                                       snapshot.set (ParamId::stormAmount, static_cast<float> ((block * 7) % 100));
+                                       snapshot.set (ParamId::strikeClap, block % 10 < 4 ? 1.0f : 0.0f);
+                                       snapshot.set (ParamId::strikeScatter, block % 7 < 3 ? 1.0f : 0.0f);
+                                       snapshot.set (ParamId::riserGo, block == 3 ? 1.0f : 0.0f);
+                                       engine.process (channels, 512, transport, snapshot);
+                                       transport = transport.advancedBy (512, 48000.0);
+                                   }
+                                   engine.getPerformance().triggerRiser();
+                               }));
+
+    CHECK (total.allocations == 0);
+    CHECK (total.deallocations == 0);
+}

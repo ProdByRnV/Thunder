@@ -10,6 +10,7 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 - **Grains, space and tone** — granular texture, lush reverb, filtering and stereo width.
 - **Rhythm and movement** — halftime, tempo-synced volume shapes, and random "static" movement locked to your song.
 - **Mix-safe by default** — automatic level matching, a high-pass on the layer, and a safety limiter.
+- **Perform** — one Storm knob that builds the whole sound, hold-to-play strikes, a Riser that peaks on the bar line, and Morph between two sounds.
 - **Capture and drag** — record a few bars of the layer to WAV and drag it straight into your DAW.
 - **Electric Storm UI** — an audio-reactive lightning theme (with a Reduce Motion option).
 

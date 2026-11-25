@@ -56,10 +56,14 @@ struct Metadata
 
 // Whether presets carry a parameter: every sound control, but not Morph's
 // amount, which only means something with the project's sound B (PRD
-// FR-PLAY-002). A preset that names it anyway is read without it.
+// FR-PLAY-002), nor the momentary performance switches (the strikes and the
+// Riser's Go), which a preset must never leave pressed. A preset that names
+// one anyway is read without it.
 constexpr bool isPresetParameter (params::ParamId id) noexcept
 {
-    return id != params::ParamId::morphAmount;
+    using params::ParamId;
+    return id != ParamId::morphAmount && id != ParamId::strikeClap && id != ParamId::strikeScatter &&
+           id != ParamId::riserGo;
 }
 
 // Every field trimmed and cut to its limit.

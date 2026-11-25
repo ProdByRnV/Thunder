@@ -121,6 +121,7 @@ public:
     // The effective-parameter stage (Morph and, later, the other performance
     // controls): sound B is set through it from the message thread.
     perform::PerformanceStage& getPerformance() noexcept { return performance; }
+    const perform::PerformanceStage& getPerformance() const noexcept { return performance; }
 
     // The grain module, for tests and diagnostics.
     const dsp::GrainModule& getGrains() const noexcept { return grains.get(); }

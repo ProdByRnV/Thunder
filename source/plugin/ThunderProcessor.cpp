@@ -37,6 +37,10 @@ ThunderProcessor::ThunderProcessor()
         if (start.source == capture::CaptureSource::Input)
             analysisWorker.loadCapture (file,
                                         {start.bpm, start.bars, start.timeSigNumerator, start.timeSigDenominator});
+
+        // Every finished capture goes into the tray (PRD FR-CAPT-011).
+        const juce::ScopedLock lock (trayLock);
+        captureTray.add ({file, start.bars, start.source, start.tail, start.loop});
     };
 
     // The host's preset menu follows presets loaded in Thunder (FR-PRESET-015).
@@ -278,9 +282,14 @@ void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
     auto current = getSessionState();
     current.presetModified = presetManager.isModified();
     const auto b = getSoundB();
+    juce::ValueTree tray;
+    {
+        const juce::ScopedLock lock (trayLock);
+        tray = captureTray.toValueTree();
+    }
     const auto tree = state::createState (apvts.copyState(), current, THUNDER_VERSION_STRING,
                                           analysisWorker.getSourceRef().toValueTree(),
-                                          b ? b->toValueTree (THUNDER_VERSION_STRING) : juce::ValueTree());
+                                          b ? b->toValueTree (THUNDER_VERSION_STRING) : juce::ValueTree(), tray);
 
     if (const auto xml = tree.createXml())
         copyXmlToBinary (*xml, destData);
@@ -322,6 +331,12 @@ void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     // Morph's sound B is the project's: restored with it, or none.
     setSoundB (perform::SoundB::fromValueTree (loaded->morphSoundB));
+
+    // So is the capture tray.
+    {
+        const juce::ScopedLock lock (trayLock);
+        captureTray = capture::CaptureTray::fromValueTree (loaded->captureTray);
+    }
 
     // The project's source loads in the background; a missing file is reported
     // by the editor, never here (PRD FR-INPUT-005).
@@ -431,6 +446,29 @@ std::optional<params::ParamSnapshot> ThunderProcessor::getMorphedValues() const
     params::ParamSnapshot morphed;
     perform::applyMorph (a, b->toMorphSound(), t, morphed);
     return morphed;
+}
+
+bool ThunderProcessor::readPerformedValues (std::optional<params::ParamSnapshot>& out)
+{
+    perform::PerformedValues v;
+    if (!engine.getPerformance().readPublished (v))
+        return false;
+    out = v.moved ? std::optional<params::ParamSnapshot> (v.values) : std::nullopt;
+    return true;
+}
+
+capture::CaptureTray ThunderProcessor::getCaptureTray()
+{
+    // Checking a handful of files is cheap; the editor asks about once a second.
+    const juce::ScopedLock lock (trayLock);
+    captureTray.dropMissing();
+    return captureTray;
+}
+
+void ThunderProcessor::removeFromCaptureTray (const juce::File& file)
+{
+    const juce::ScopedLock lock (trayLock);
+    captureTray.remove (file);
 }
 
 capture::CaptureStatus ThunderProcessor::getCaptureStatus() const

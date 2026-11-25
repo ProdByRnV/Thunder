@@ -186,9 +186,15 @@ enum class ParamId : int
     duckMode,
     // Performance (§9.14)
     morphAmount,
+    stormAmount,
+    strikeClap,
+    strikeScatter,
+    riserBars,
+    riserGo,
+    variationAmount,
 };
 
-inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::morphAmount) + 1;
+inline constexpr std::size_t kNumParams = static_cast<std::size_t> (ParamId::variationAmount) + 1;
 
 constexpr std::size_t toIndex (ParamId id) noexcept
 {
@@ -375,6 +381,12 @@ inline constexpr std::array<ParamDef, kNumParams> kParamDefs {{
 
     // ---- Performance (§9.14) ---------------------------------------------------------------------------------------
     detail::v1_0 (detail::floatParam  (ParamId::morphAmount, "morphAmount", "Morph",        Group::Perform, 0.0f, 100.0f, 0.0f, Unit::Percent)),
+    detail::v1_0 (detail::floatParam  (ParamId::stormAmount,     "stormAmount",     "Storm",          Group::Perform, 0.0f, 100.0f, 0.0f, Unit::Percent)),
+    detail::v1_0 (detail::boolParam   (ParamId::strikeClap,      "strikeClap",      "Thunderclap",    Group::Perform, false)),
+    detail::v1_0 (detail::boolParam   (ParamId::strikeScatter,   "strikeScatter",   "Scatter",        Group::Perform, false)),
+    detail::v1_0 (detail::choiceParam (ParamId::riserBars,       "riserBars",       "Riser Length",   Group::Perform, kRiserBarsNames, RiserBars::Bars4)),
+    detail::v1_0 (detail::boolParam   (ParamId::riserGo,         "riserGo",         "Riser Go",       Group::Perform, false)),
+    detail::v1_0 (detail::floatParam  (ParamId::variationAmount, "variationAmount", "Variation",      Group::Perform, 0.0f, 100.0f, 0.0f, Unit::Percent)),
 }};
 // clang-format on
 

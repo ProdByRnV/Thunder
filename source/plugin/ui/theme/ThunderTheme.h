@@ -219,6 +219,16 @@ inline constexpr int morphWidth = 128;
 inline constexpr int morphEnd = 12; // the A and B labels
 inline constexpr int morphThumb = 10;
 inline constexpr float morphTrack = 2.0f;
+// The PERFORM panel beside the visualiser (§9.17): 200 × 208.
+inline constexpr int performWidth = 200;
+inline constexpr int strikePadHeight = 36;
+inline constexpr int riserHeight = 22;
+
+// The capture tray (§9.18).
+inline constexpr int trayButtonWidth = 40; // "+N"
+inline constexpr int trayWidth = 440;
+inline constexpr int trayDescribeWidth = 128; // "4 bars +tail · Mix"
+
 // Knobs show the value Morph sends as a thin second ring (§9.17).
 inline constexpr float knobMorphRing = 1.5f;
 inline constexpr float knobMorphRingGap = 3.0f;

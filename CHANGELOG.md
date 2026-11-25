@@ -39,6 +39,12 @@ Each release's notes on GitHub are taken from its section below.
   - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in Settings), and switches smoothly while playing.
   - Your project remembers which preset it was on.
 - **Morph** (next to the presets): set a sound B, from the current sound or any preset, and the slider moves from your settings (A) to B. Knobs glide in their own way, switches and modes change halfway, and Key, Scale, Output Mode and the safety limiter stay put. While it morphs, each knob shows where Morph has moved it as a thin second ring. Sound B is saved with your project, Morph can be automated, and both ends sound exactly like A and B.
+- **Perform**, beside the visualiser:
+  - **Storm** builds the whole sound with one knob: denser, wider grains, a bigger reverb, a brighter and slightly louder layer and more Static. At 0% the sound is exactly your settings.
+  - **FREEZE**, **CLAP** and **SCATTER** act while you hold them: Freeze holds the grains, Thunderclap dives the layer an octave as the reverb swells, Scatter throws the grains as wide as they go. Each glides in and out without a click. Shift-click keeps one on until your next click. Each is a switch your DAW can automate.
+  - **Riser**: choose 1, 2, 4 or 8 bars and press RISE. Storm climbs to 100%, peaks exactly on the bar line, then drops back. The rise counts from the bar line nearest your press, so pressing just before or after the one both work.
+  - **Variation** changes the grains a little on every bar. The same bar always changes the same way, so loops repeat and a bounce sounds like playback.
+  - Knobs show where Storm, the strikes, a rise and Variation take them as their thin second ring.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).
   - **Semitone:** −24 to +24 semitones, plus Fine (±100 cents).
@@ -79,6 +85,7 @@ Each release's notes on GitHub are taken from its section below.
   - Thunder on several tracks can capture at the same time; each capture gets its own file.
   - **Include tail** (in the length menu) keeps recording after the last bar until the reverb and grains have died away, for up to 10 s. Stopping playback doesn't cut the tail short; pressing Stop ends it and keeps the capture.
   - **Loop** folds that tail back onto the start, so the file is exactly the bars you chose and loops seamlessly. If your DAW looped and played the melody again, the start isn't doubled.
+  - **+N** next to the capture opens your last 8 captures in this project, newest first. Drag any of them into your DAW like a new one, or right-click for Show in folder and Remove from tray. Captures whose files are gone drop out.
 - **Key detection**: Thunder listens to your melody and shows the key it hears next to the Key controls, with how sure it is (cyan when confident, amber when unsure). Click it to use the detected key or keep yours; Thunder never changes your key by itself. Turn listening off for a project in the same menu.
 - **Source**: drop a WAV, AIFF, FLAC, MP3 or OGG file (up to 5 minutes) anywhere on Thunder, or capture your input, to load it as the source. It appears across the top of the visualiser with its waveform, bar lines and key, and the key badge shows its key. ✕ removes it.
   - Your project remembers the source. Sources up to about half a minute are also saved inside the project, so they come back even if the file moves; if a file can't be found, Thunder says so and offers Locate….

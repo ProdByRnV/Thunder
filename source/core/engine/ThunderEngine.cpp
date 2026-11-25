@@ -29,6 +29,7 @@ void ThunderEngine::prepare (double newSampleRate, params::Quality newQuality)
     }
     dryDelay.prepare (kNumChannels, chainLatency);
     staticModulator.prepare (sampleRate);
+    performance.prepare (sampleRate);
     staticStage.prepare (sampleRate);
     duck.prepare (spec);
 
@@ -72,6 +73,7 @@ void ThunderEngine::reset() noexcept
             module->reset();
         dryDelay.reset();
         staticModulator.reset();
+        performance.reset();
         staticStage.reset();
         duck.reset();
         autoGain.reset();
@@ -98,27 +100,11 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
         return;
     }
 
-    // The performance controls move the host's values (Morph towards sound B);
-    // with none active this is `snapshot` itself (ARCHITECTURE §5.10).
-    const auto& performed = performance.apply (snapshot);
-
-    const auto inputDb = performed.get (ParamId::inputGain);
-    const auto layerDb = performed.get (ParamId::layerLevel);
-    const auto outputDb = performed.get (ParamId::outputGain);
-
-    if (firstBlock)
-    {
-        inputGain.snapToDecibels (inputDb);
-        layerLevel.snapToDecibels (layerDb);
-        outputGain.snapToDecibels (outputDb);
-        firstBlock = false;
-    }
-    else
-    {
-        inputGain.setTargetDecibels (inputDb);
-        layerLevel.setTargetDecibels (layerDb);
-        outputGain.setTargetDecibels (outputDb);
-    }
+    // The performance controls move the host's values (ARCHITECTURE §5.10):
+    // Morph once per block; Storm, the strikes, the Riser and Variation per
+    // chunk below. With none active the modules get `snapshot` itself.
+    const auto& morphed = performance.apply (snapshot);
+    performance.beginBlock (morphed);
 
     transport = hostTransport;
 
@@ -131,20 +117,49 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
     layerTapActive = capture.wantsLayer();
     visual.beginBlock();
 
-    // While Static moves anything, chunks also end on its control grid, so its
-    // values change at the same samples whatever the host's block size.
-    const auto staticActive = staticModulator.isActive (performed);
+    // While Static or a performance control moves anything, chunks also end on
+    // the control grid, so values change at the same samples whatever the
+    // host's block size.
+    const auto performing = performance.isActive (morphed);
+    const auto onGrid = performing || staticModulator.isActive (morphed);
+    static_assert (dsp::StaticModulator::kControlInterval == perform::PerformanceStage::kControlInterval);
 
+    const params::ParamSnapshot* last = &morphed;
     for (int offset = 0; offset < numSamples;)
     {
         auto chunk = std::min (kMaxChunkSize, numSamples - offset);
-        if (staticActive)
+        if (onGrid)
         {
             const auto interval = dsp::StaticModulator::kControlInterval;
             chunk = std::min (chunk, interval - static_cast<int> (samplesProcessed % interval));
         }
-        float* chunkChannels[kNumChannels] = {channels[0] + offset, channels[1] + offset};
+        if (performing)
+            chunk = performance.limitChunk (samplesProcessed, chunk);
 
+        const auto& performed =
+            performing ? performance.process (morphed, transport.delayedBy (chainLatency, sampleRate), samplesProcessed,
+                                              chunk)
+                       : morphed;
+        last = &performed;
+
+        const auto inputDb = performed.get (ParamId::inputGain);
+        const auto layerDb = performed.get (ParamId::layerLevel);
+        const auto outputDb = performed.get (ParamId::outputGain);
+        if (firstBlock)
+        {
+            inputGain.snapToDecibels (inputDb);
+            layerLevel.snapToDecibels (layerDb);
+            outputGain.snapToDecibels (outputDb);
+            firstBlock = false;
+        }
+        else
+        {
+            inputGain.setTargetDecibels (inputDb);
+            layerLevel.setTargetDecibels (layerDb);
+            outputGain.setTargetDecibels (outputDb);
+        }
+
+        float* chunkChannels[kNumChannels] = {channels[0] + offset, channels[1] + offset};
         processChunk (chunkChannels, chunk, ProcessContext{transport, performed});
 
         offset += chunk;
@@ -152,6 +167,8 @@ void ThunderEngine::process (float* const* channels, int numSamples, const Trans
         if (offset < numSamples)
             transport = transport.advancedBy (chunk, sampleRate);
     }
+
+    performance.publish (*last, last != &snapshot);
 }
 
 void ThunderEngine::processChunk (float* const* channels, int numSamples, const ProcessContext& context) noexcept

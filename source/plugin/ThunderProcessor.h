@@ -3,6 +3,7 @@
 #include "bridge/UiBridge.h"
 #include "core/analysis/AnalysisWorker.h"
 #include "core/capture/CaptureStatus.h"
+#include "core/capture/CaptureTray.h"
 #include "core/capture/CaptureWriter.h"
 #include "core/engine/ThunderEngine.h"
 #include "core/params/ParamSnapshot.h"
@@ -122,6 +123,21 @@ public:
     // second ring): nullopt unless Morph is between A and a B.
     std::optional<params::ParamSnapshot> getMorphedValues() const;
 
+    // [MSG] What the performance controls (Morph, Storm, strikes, Riser,
+    // Variation) sent to the modules in the latest block, when anything moved
+    // them; nullopt when nothing did. False when no block has run since the last call.
+    bool readPerformedValues (std::optional<params::ParamSnapshot>& out);
+
+    // [any thread] The Riser (PRD FR-PLAY-004): RISE in the editor, and how far
+    // the current rise is (0–1, or −1 when none runs).
+    void triggerRiser() noexcept { engine.getPerformance().triggerRiser(); }
+    float getRiserProgress() const noexcept { return engine.getPerformance().getRiserProgress(); }
+
+    // [MSG] The capture tray (PRD FR-CAPT-011): the project's last captures,
+    // newest first; files that are gone drop out when it is read.
+    capture::CaptureTray getCaptureTray();
+    void removeFromCaptureTray (const juce::File& file);
+
     // [MSG] The visualiser's data (ARCHITECTURE §6.4).
     UiBridge& getUiBridge() noexcept { return uiBridge; }
 
@@ -166,6 +182,9 @@ private:
     mutable juce::CriticalSection soundBLock; // never taken on the audio thread
     std::optional<perform::SoundB> soundB;
     std::atomic<int> pendingProgram{-1};
+
+    mutable juce::CriticalSection trayLock; // never taken on the audio thread
+    capture::CaptureTray captureTray;
 
     double preparedSampleRate = 0.0; // 0 until prepareToPlay
 

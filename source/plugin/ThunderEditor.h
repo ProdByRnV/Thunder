@@ -3,12 +3,14 @@
 #include "core/state/UserSettings.h"
 #include "ui/components/CaptureWidget.h"
 #include "ui/overlays/AboutPanel.h"
+#include "ui/overlays/CaptureTrayView.h"
 #include "ui/overlays/PresetBrowser.h"
 #include "ui/overlays/SaveForm.h"
 #include "ui/overlays/SettingsPanel.h"
 #include "ui/regions/ChainRail.h"
 #include "ui/regions/ModulePanels.h"
 #include "ui/regions/OutputPanel.h"
+#include "ui/regions/PerformPanel.h"
 #include "ui/regions/TopBar.h"
 #include "ui/regions/VisualiserRegion.h"
 #include "ui/theme/ThunderLookAndFeel.h"
@@ -69,6 +71,8 @@ public:
     ui::VisualModel& getVisualModel() noexcept { return visuals; }
     ui::TonePanel& getTonePanel() noexcept { return *tonePanel; }
     ui::CaptureWidget& getCaptureWidget() noexcept { return captureWidget; }
+    ui::PerformPanel& getPerformPanel() noexcept { return performPanel; }
+    ui::CaptureTrayView* getCaptureTray() noexcept { return captureTray.get(); }
     ui::SaveForm* getSaveForm() noexcept { return saveForm.get(); }
     ui::PresetBrowser* getPresetBrowser() noexcept { return presetBrowser.get(); }
     ui::SettingsPanel* getSettingsPanel() noexcept { return settingsPanel.get(); }
@@ -79,6 +83,7 @@ public:
 
     void openSaveForm (bool saveAs);
     void openPresetBrowser();
+    void openCaptureTray();
     void openSettings();
     void openAbout();
     void showMessage (const juce::String& text, bool isError);
@@ -187,6 +192,8 @@ private:
     std::vector<std::unique_ptr<ui::ModulePanel>> modules;
     ui::OutputPanel output;
     ui::CaptureWidget captureWidget;
+    ui::PerformPanel performPanel;
+    std::unique_ptr<ui::CaptureTrayView> captureTray;
     juce::Label status;
     ui::Toast toast;
     std::unique_ptr<ui::SaveForm> saveForm;
@@ -203,6 +210,9 @@ private:
     std::unique_ptr<juce::FileChooser> sourceChooser;
     std::vector<ui::ThunderKnob*> knobs; // every knob, for Morph's second ring
     std::optional<params::ParamSnapshot> shownMorph;
+    std::optional<params::ParamSnapshot> lastPerformed; // the audio thread's latest, for the second rings
+    static constexpr int kPerformedStaleFrames = 15;    // after this many frames without audio, Morph alone
+    int framesSincePerformed = kPerformedStaleFrames;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ThunderEditor)
 };

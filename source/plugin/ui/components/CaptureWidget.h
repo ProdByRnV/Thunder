@@ -69,6 +69,12 @@ public:
     juce::String getLengthText() const { return barsBox.getText(); }
     void chooseSource (state::CaptureSource source);
 
+    // The capture tray (UI.md §9.18): "+N" opens it; hidden while it is empty.
+    std::function<void()> onOpenTray;
+    juce::Button& getTrayButton() noexcept { return trayButton; }
+    int getTrayCount() const noexcept { return trayCount; }
+    void refreshTray(); // [MSG] rereads the tray (the timer calls it about once a second)
+
 private:
     class Chip;
     class LengthBox final : public juce::ComboBox
@@ -100,6 +106,9 @@ private:
     ThunderButton armButton;
     std::unique_ptr<Chip> chip;
     IconButton folderButton;
+    ThunderButton trayButton{"+0", ThunderButton::Variant::ghost};
+    int trayCount = 0;
+    int framesUntilTrayCheck = 0;
     std::unique_ptr<juce::FileChooser> chooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CaptureWidget)

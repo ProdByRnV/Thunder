@@ -172,6 +172,20 @@ juce::String describe (ParamId id)
         // Performance
         case ParamId::morphAmount:
             return "Moves the sound from A (your settings) towards sound B.";
+        case ParamId::stormAmount:
+            return "Builds the storm: denser, wider grains, a bigger reverb, a brighter and louder layer and more "
+                   "Static, all at once. At 0% the sound is just your settings.";
+        case ParamId::strikeClap:
+            return "While held, the layer's pitch dives an octave and the reverb swells.";
+        case ParamId::strikeScatter:
+            return "While held, the grains scatter: position, pitch and pan spread go to their maximum.";
+        case ParamId::riserBars:
+            return "How many bars a rise lasts.";
+        case ParamId::riserGo:
+            return "Starts a rise: Storm climbs to 100% and drops back on a bar line, the chosen number of bars "
+                   "from the nearest one.";
+        case ParamId::variationAmount:
+            return "Changes the grains a little on every bar, the same way each time the same bar plays.";
     }
 
     // Only an ID outside the table gets here (every parameter has a case above).

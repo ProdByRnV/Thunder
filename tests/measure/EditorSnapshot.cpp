@@ -3,6 +3,7 @@
 
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
+#include "plugin/ui/ParamUi.h"
 #include "support/TestHost.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -324,6 +325,81 @@ TEST_CASE ("Editor snapshot of the preset browser and Morph", "[.][editorshot]")
 
     e.openSaveForm (false);
     save (e, "saveform-banks", 1.0f);
+
+    processor.editorBeingDeleted (editor.get());
+    temp.deleteRecursively();
+}
+
+TEST_CASE ("Editor snapshot of PERFORM and the capture tray", "[.][editorshot]")
+{
+    const auto temp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Thunder-editorshot-perform");
+    temp.deleteRecursively();
+    temp.createDirectory();
+
+    ThunderProcessor processor;
+    processor.setSettingsFile (temp.getChildFile ("settings.xml"));
+    processor.prepareToPlay (48000.0, 512);
+
+    // Three captures in the tray.
+    const char* names[] = {"Thunder_Night-Static_A-min_140bpm_4bars_20261126-101500.wav",
+                           "Thunder_Night-Static_A-min_140bpm_8bars_20261126-101830.wav",
+                           "Thunder_Input_A-min_140bpm_2bars_20261126-102210.wav"};
+    const int bars[] = {4, 8, 2};
+    const state::CaptureSource sources[] = {state::CaptureSource::Layer, state::CaptureSource::FullMix,
+                                            state::CaptureSource::Input};
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto file = temp.getChildFile (names[i]);
+        file.replaceWithText ("x");
+        capture::CaptureStart start;
+        start.bars = bars[i];
+        start.source = sources[i];
+        start.tail = i == 1;
+        processor.getCaptureWriter().onCaptureFinished (file, start);
+    }
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditorAndMakeActive());
+    auto& e = dynamic_cast<ThunderEditor&> (*editor);
+    e.selectModule (2);
+
+    // Storm at 62%, Variation 20%, FREEZE held, 4 bars.
+    auto& apvts = processor.getValueTreeState();
+    auto set = [&] (params::ParamId id, float v)
+    {
+        auto& p = ui::parameter (apvts, id);
+        p.setValueNotifyingHost (p.convertTo0to1 (v));
+    };
+    set (params::ParamId::stormAmount, 62.0f);
+    set (params::ParamId::variationAmount, 20.0f);
+    e.getPerformPanel().getFreeze().press();
+
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+    for (int i = 0; i < 20; ++i)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+    e.getCaptureWidget().refreshTray();
+    e.updateMorph();
+    e.getPerformPanel().refresh();
+    save (e, "perform", 1.0f);
+
+    // A rise under way.
+    e.getPerformPanel().getFreeze().release();
+    e.getPerformPanel().getRise().rise();
+    for (int i = 0; i < 120; ++i)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+    }
+    e.updateMorph();
+    e.getPerformPanel().refresh();
+    save (e, "perform-rise", 1.0f);
+    save (e, "perform-200", 2.0f);
+
+    e.openCaptureTray();
+    save (e, "tray", 1.0f);
 
     processor.editorBeingDeleted (editor.get());
     temp.deleteRecursively();

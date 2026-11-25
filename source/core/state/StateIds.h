@@ -47,6 +47,10 @@ inline const juce::Identifier sourceEmbedded{"embedded"}; // FLAC, base64
 // holding one ThunderPreset document (perform::SoundB).
 inline const juce::Identifier morphSoundB{"MorphB"};
 
+// The capture tray (PRD §9.12 captureTray, FR-CAPT-011): a child of Session
+// (capture::CaptureTray).
+inline const juce::Identifier captureTray{"CaptureTray"};
+
 // The host program last set or reported (PRD §9.12, FR-PRESET-015).
 inline const juce::Identifier presetProgram{"presetProgram"};
 

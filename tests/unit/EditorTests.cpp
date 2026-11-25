@@ -390,3 +390,154 @@ TEST_CASE ("Shape's picker shows each curve and chooses the shape", "[unit][ui][
             lit += image.getPixelAt (x, y).getAlpha() > 0 ? 1 : 0;
     CHECK (lit > 20);
 }
+
+// ---- PERFORM and the capture tray (UI.md §9.17, §9.18; T-0.9-14…18) ------------------------------------------------
+
+TEST_CASE ("The PERFORM panel sits beside the visualiser", "[unit][ui][perform]")
+{
+    Fixture f;
+    auto& panel = f.editor->getPerformPanel();
+    CHECK (panel.isVisible());
+    CHECK (panel.getWidth() == ui::theme::size::performWidth);
+    CHECK (panel.getX() == f.editor->getVisualiser().getRight() + ui::theme::space::s3);
+    CHECK (panel.getY() == f.editor->getVisualiser().getY());
+    CHECK (panel.getStorm().getSlider().getWidth() > panel.getVariation().getSlider().getWidth()); // the biggest knob
+}
+
+TEST_CASE ("A strike pad holds its switch only while pressed, or latched with Shift", "[unit][ui][perform]")
+{
+    Fixture f;
+    auto& panel = f.editor->getPerformPanel();
+    auto& clap = panel.getClap();
+
+    clap.press();
+    CHECK_THAT (f.value (ParamId::strikeClap), WithinAbs (1.0, 1e-6));
+    clap.release();
+    CHECK_THAT (f.value (ParamId::strikeClap), WithinAbs (0.0, 1e-6));
+
+    clap.press (true); // Shift-click
+    clap.release();
+    CHECK_THAT (f.value (ParamId::strikeClap), WithinAbs (1.0, 1e-6));
+    CHECK (clap.isLatched());
+    clap.press(); // the next click lets go
+    clap.release();
+    CHECK_THAT (f.value (ParamId::strikeClap), WithinAbs (0.0, 1e-6));
+
+    // FREEZE is the grains' Freeze.
+    panel.getFreeze().press();
+    CHECK_THAT (f.value (ParamId::grainFreeze), WithinAbs (1.0, 1e-6));
+    panel.getFreeze().release();
+    CHECK_THAT (f.value (ParamId::grainFreeze), WithinAbs (0.0, 1e-6));
+
+    // Automation lights a pad too.
+    f.set (ParamId::strikeScatter, 1.0f);
+    CHECK (panel.getScatter().isOn());
+}
+
+TEST_CASE ("RISE starts a rise the engine follows", "[unit][ui][perform]")
+{
+    Fixture f;
+    auto& panel = f.editor->getPerformPanel();
+    CHECK (f.processor.getRiserProgress() < 0.0f);
+
+    panel.getRise().rise();
+    juce::AudioBuffer<float> buffer (2, 512);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    f.processor.processBlock (buffer, midi);
+    CHECK (f.processor.getRiserProgress() >= 0.0f);
+    panel.refresh();
+
+    // Storm's knob shows the rise as its second ring.
+    for (int i = 0; i < 100; ++i)
+        f.processor.processBlock (buffer, midi);
+    f.editor->updateMorph();
+    REQUIRE (panel.getStorm().getMorphedValue().has_value());
+    CHECK (*panel.getStorm().getMorphedValue() > 0.0f);
+}
+
+TEST_CASE ("The capture tray keeps the project's last 8 captures, newest first", "[unit][capture]")
+{
+    TempFolder temp;
+    std::vector<juce::File> files;
+    for (int i = 0; i < 10; ++i)
+    {
+        files.push_back (temp.folder.getChildFile ("capture" + juce::String (i) + ".wav"));
+        files.back().replaceWithText ("x");
+    }
+
+    capture::CaptureTray tray;
+    CHECK_FALSE (tray.toValueTree().isValid());
+    for (int i = 0; i < 10; ++i)
+        tray.add ({files[static_cast<std::size_t> (i)], 4, state::CaptureSource::Layer, i == 9, false});
+
+    REQUIRE (tray.size() == capture::CaptureTray::kMaxEntries);
+    CHECK (tray.getEntries().front().file == files[9]);
+    CHECK (tray.getEntries().back().file == files[2]);
+    CHECK (tray.getEntries().front().describe() == juce::String::fromUTF8 ("4 bars +tail \xc2\xb7 Layer"));
+
+    // Saved and read back with the project.
+    CHECK (capture::CaptureTray::fromValueTree (tray.toValueTree()) == tray);
+
+    // Gone files drop out; Remove from tray takes one out.
+    files[9].deleteFile();
+    CHECK (tray.dropMissing());
+    CHECK (tray.getEntries().front().file == files[8]);
+    tray.remove (files[8]);
+    CHECK (tray.size() == 6);
+
+    // The same file again moves to the front.
+    tray.add ({files[3], 2, state::CaptureSource::FullMix, false, true});
+    CHECK (tray.size() == 6);
+    CHECK (tray.getEntries().front().describe() == juce::String::fromUTF8 ("2 bars loop \xc2\xb7 Mix"));
+}
+
+TEST_CASE ("Finished captures go into the tray, which is saved with the project", "[unit][capture][state]")
+{
+    TempFolder temp;
+    const auto file = temp.folder.getChildFile ("Thunder_capture.wav");
+    file.replaceWithText ("x");
+
+    ThunderProcessor processor;
+    capture::CaptureStart start;
+    start.bars = 8;
+    start.source = state::CaptureSource::FullMix;
+    processor.getCaptureWriter().onCaptureFinished (file, start);
+    REQUIRE (processor.getCaptureTray().size() == 1);
+
+    juce::MemoryBlock data;
+    processor.getStateInformation (data);
+    ThunderProcessor reopened;
+    reopened.setStateInformation (data.getData(), static_cast<int> (data.getSize()));
+    REQUIRE (reopened.getCaptureTray().size() == 1);
+    CHECK (reopened.getCaptureTray().getEntries().front().file == file);
+    CHECK (reopened.getCaptureTray().getEntries().front().bars == 8);
+}
+
+TEST_CASE ("+N opens the tray, whose captures can be removed", "[unit][ui][capture]")
+{
+    Fixture f;
+    auto& widget = f.editor->getCaptureWidget();
+    widget.refreshTray();
+    CHECK_FALSE (widget.getTrayButton().isVisible());
+
+    const auto file = f.temp.folder.getChildFile ("Thunder_capture.wav");
+    file.replaceWithText ("x");
+    capture::CaptureStart start;
+    start.bars = 4;
+    f.processor.getCaptureWriter().onCaptureFinished (file, start);
+
+    widget.refreshTray();
+    CHECK (widget.getTrayButton().isVisible());
+    CHECK (widget.getTrayButton().getButtonText() == "+1");
+
+    f.editor->openCaptureTray();
+    auto* tray = f.editor->getCaptureTray();
+    REQUIRE (tray != nullptr);
+    REQUIRE (tray->getNumRows() == 1);
+    CHECK (tray->getEntry (0).file == file);
+
+    tray->chooseMenuItem (0, ui::CaptureTrayView::kMenuRemove);
+    CHECK (f.processor.getCaptureTray().isEmpty());
+    file.deleteFile();
+}
