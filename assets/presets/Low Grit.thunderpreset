@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Low Grit" author="Thunder" category="Grit" tags="dark,heavy,808"
+        description="Two octaves down and grainy: a rumbling growl under the melody."/>
+  <Params>
+    <P id="pitchOctave" v="-2"/>
+    <P id="grainAmount" v="60"/>
+    <P id="grainSize" v="30"/>
+    <P id="grainDensity" v="35"/>
+    <P id="hpFreq" v="60"/>
+    <P id="lpFreq" v="4000"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="20"/>
+  </Params>
+</ThunderPreset>

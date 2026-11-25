@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Fracture" author="Thunder" category="Grit" tags="choppy,glitch,drill"
+        description="The layer chopped into sixteenth notes with stepped, jumpy movement."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Chop"/>
+    <P id="shapeRate" v="1/16"/>
+    <P id="shapeDepth" v="80"/>
+    <P id="grainSize" v="35"/>
+    <P id="grainDensity" v="40"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="40"/>
+    <P id="staticCharacter" v="Stepped"/>
+  </Params>
+</ThunderPreset>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Broken Signal" author="Thunder" category="Grit" tags="glitch,gritty,dark"
+        description="Sparks of pitch and level that come and go, like a radio losing its signal."/>
+  <Params>
+    <P id="grainSize" v="30"/>
+    <P id="grainDensity" v="45"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="70"/>
+    <P id="staticRate" v="4"/>
+    <P id="staticCharacter" v="Spark"/>
+    <P id="staticTgtPitch" v="1"/>
+    <P id="staticTgtLevel" v="1"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="20"/>
+  </Params>
+</ThunderPreset>

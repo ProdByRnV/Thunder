@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Starlight" author="Thunder" category="Shimmer" tags="bright,thin,moving"
+        description="A thin, bright sparkle two octaves up, twinkling from side to side."/>
+  <Params>
+    <P id="pitchOctave" v="+2"/>
+    <P id="grainOn" v="0"/>
+    <P id="layerLevel" v="-3"/>
+    <P id="hpFreq" v="800"/>
+    <P id="autopanOn" v="1"/>
+    <P id="autopanRate" v="1/8"/>
+    <P id="autopanDepth" v="40"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="45"/>
+    <P id="spaceDecay" v="60"/>
+  </Params>
+</ThunderPreset>

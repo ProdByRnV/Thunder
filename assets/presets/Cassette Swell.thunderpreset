@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Cassette Swell" author="Thunder" category="Lo-Fi" tags="lofi,swell,warm"
+        description="Swells on every half bar with half the grains reversed, dark and warm."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Swell"/>
+    <P id="shapeRate" v="1/2"/>
+    <P id="grainReverse" v="40"/>
+    <P id="lpFreq" v="4500"/>
+    <P id="lpSlope" v="24 dB/oct"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="30"/>
+  </Params>
+</ThunderPreset>

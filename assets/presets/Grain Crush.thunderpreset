@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Grain Crush" author="Thunder" category="Grit" tags="gritty,buzz,texture"
+        description="Tiny, dense grains that turn the melody into a buzzing, gritty texture."/>
+  <Params>
+    <P id="grainAmount" v="75"/>
+    <P id="grainSize" v="15"/>
+    <P id="grainDensity" v="90"/>
+    <P id="grainPosSpread" v="10"/>
+    <P id="grainPanSpread" v="70"/>
+    <P id="hpFreq" v="400"/>
+    <P id="lpFreq" v="7000"/>
+    <P id="spaceMix" v="15"/>
+  </Params>
+</ThunderPreset>

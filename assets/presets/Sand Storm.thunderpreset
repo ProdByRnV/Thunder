@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Sand Storm" author="Thunder" category="Grit" tags="gritty,wide,chaos"
+        description="Gritty grains blown wide with Storm well up. Hold Scatter for chaos."/>
+  <Params>
+    <P id="stormAmount" v="60"/>
+    <P id="grainSize" v="25"/>
+    <P id="grainDensity" v="70"/>
+    <P id="grainPanSpread" v="90"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="50"/>
+    <P id="staticRate" v="6"/>
+    <P id="staticCharacter" v="Stepped"/>
+    <P id="lpFreq" v="10000"/>
+  </Params>
+</ThunderPreset>

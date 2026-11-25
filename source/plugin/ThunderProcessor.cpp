@@ -215,7 +215,11 @@ int ThunderProcessor::getNumPrograms()
 
 int ThunderProcessor::getCurrentProgram()
 {
-    return juce::jlimit (0, getNumPrograms() - 1, getSessionState().presetProgram);
+    // The loaded preset itself when it is a program (so the menu follows it
+    // whatever number a project saved), else the program last set.
+    const auto s = getSessionState();
+    const auto byKey = PresetManager::programForKey (s.presetKey);
+    return juce::jlimit (0, getNumPrograms() - 1, byKey >= 0 ? byKey : s.presetProgram);
 }
 
 void ThunderProcessor::setCurrentProgram (int index)

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Rust Burst" author="Thunder" category="Grit" tags="gritty,choppy,drill"
+        description="Short, choppy grains that jump every eighth note, rough and dry."/>
+  <Params>
+    <P id="grainAmount" v="70"/>
+    <P id="grainSize" v="25"/>
+    <P id="grainDensity" v="60"/>
+    <P id="grainPosSpread" v="40"/>
+    <P id="grainReverse" v="30"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="60"/>
+    <P id="staticSync" v="1"/>
+    <P id="staticRateSynced" v="1/8"/>
+    <P id="staticCharacter" v="Stepped"/>
+    <P id="staticTgtLevel" v="1"/>
+    <P id="hpFreq" v="300"/>
+    <P id="lpFreq" v="9000"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="25"/>
+  </Params>
+</ThunderPreset>

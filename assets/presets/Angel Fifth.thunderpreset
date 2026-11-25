@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Angel Fifth" author="Thunder" category="Shimmer" tags="harmony,bright,uplifting"
+        description="A fifth above in your key, lifted by the Shimmer reverb."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchInterval" v="5th"/>
+    <P id="grainAmount" v="35"/>
+    <P id="hpFreq" v="300"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="50"/>
+    <P id="spaceDecay" v="70"/>
+    <P id="widthAmount" v="140"/>
+  </Params>
+</ThunderPreset>

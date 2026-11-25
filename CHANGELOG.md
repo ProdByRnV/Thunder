@@ -28,14 +28,14 @@ Each release's notes on GitHub are taken from its section below.
   - **Lightning** strikes from the top of the visualiser onto the layer on its stronger attacks, brighter the louder the output. It adapts to the music: a layer with soft attacks strikes on softer notes, a punchy one only on its bigger hits. **Static's Amount** sets how readily it strikes; with Static off, only strong attacks strike. Never more than three flashes a second, and only the visualiser lights up.
 - **Meters** in the Output panel: the level of each channel with peak hold and clip lights (click to clear), the short-term loudness in LUFS, a correlation line that turns amber when parts of the sound would cancel in mono, and a ⚠ while the safety limiter is working.
 - **Presets**:
-  - 12 built-in presets, plus Init, which resets every control.
+  - 56 built-in presets in seven categories (Atmos, Harmony, Grit, Shimmer, Rhythmic, Lo-Fi, Experimental), each tagged and described, plus Init, which resets every control.
   - Click the preset name to open the **browser**: search by name, author, category, bank or tag; filter by category, bank, tag or favourites; sort by any column. Click a preset to hear it, press Enter or double-click to keep it, or Esc to go back to the sound you had. The arrow keys move through the list without loading. Each preset's tags and description are shown.
   - ◄ and ► step through the list as the browser filters it, so you can audition one category. A `*` shows when you've changed the sound.
   - ☆ marks a preset as a favourite.
   - Save your own presets, with a name, author, category, **bank** (a sub-folder), **tags** and description, to `Documents/Thunder/Presets`. Thunder asks before replacing one, and a save never leaves a preset half-written.
   - Rename and delete your presets in the browser. **Import…** adds presets someone sent you without ever replacing one of yours (a different preset with the same name is saved as "Name (2)"); **Export…** saves the current sound as a preset file anywhere. **Open preset folder** and **Rescan** are in the browser too.
   - Files that can't be read are counted, never loaded.
-  - The built-in presets also appear in your DAW's own preset menu for Thunder. Reopening a project never loads a preset over your sound.
+  - The built-in presets also appear in your DAW's own preset menu for Thunder, grouped by category. Reopening a project never loads a preset over your sound.
   - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in Settings), and switches smoothly while playing.
   - Your project remembers which preset it was on.
 - **Morph** (next to the presets): set a sound B, from the current sound or any preset, and the slider moves from your settings (A) to B. Knobs glide in their own way, switches and modes change halfway, and Key, Scale, Output Mode and the safety limiter stay put. While it morphs, each knob shows where Morph has moved it as a thin second ring. Sound B is saved with your project, Morph can be automated, and both ends sound exactly like A and B.

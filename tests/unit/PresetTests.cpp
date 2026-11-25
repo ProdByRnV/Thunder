@@ -5,6 +5,7 @@
 #include "support/TestSignals.h"
 
 #include "core/engine/ThunderEngine.h"
+#include "core/presets/FactoryOrder.h"
 #include "core/presets/PresetDocument.h"
 #include "core/presets/PresetLibrary.h"
 #include "core/state/UserSettings.h"
@@ -14,6 +15,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <cmath>
+#include <algorithm>
+#include <map>
 #include <set>
 
 using namespace thunder;
@@ -290,6 +293,52 @@ TEST_CASE ("Factory presets name only real parameters and choices", "[unit][pres
     // Sorted by name.
     for (std::size_t i = 1; i < factory.size(); ++i)
         CHECK (factory[i - 1].preset.meta.name.compareNatural (factory[i].preset.meta.name) < 0);
+}
+
+TEST_CASE ("The factory library covers every category with tagged presets", "[unit][presets]")
+{
+    const auto& factory = factoryPresets();
+    CHECK (factory.size() >= 50); // PRD FR-PRESET-001: 50–70 at v1.0
+    CHECK (factory.size() <= 70);
+
+    std::map<juce::String, int> perCategory;
+    for (const auto& f : factory)
+    {
+        INFO (f.preset.meta.name);
+        CHECK (f.preset.meta.tags.isNotEmpty());
+        CHECK (f.preset.meta.author == "Thunder");
+        ++perCategory[f.preset.meta.category];
+    }
+
+    // The initial categories (FR-PRESET-003), each well filled, and no others.
+    for (const auto* category : {"Atmos", "Harmony", "Grit", "Shimmer", "Rhythmic", "Lo-Fi", "Experimental"})
+    {
+        INFO (category);
+        CHECK (perCategory[category] >= 6);
+    }
+    CHECK (perCategory.size() == 7);
+}
+
+TEST_CASE ("Every factory preset has its fixed place in the DAW's preset menu", "[unit][presets]")
+{
+    // Projects remember programs by number: the order is a list that only
+    // grows at the end (FactoryOrder.h). Every file is in it once, and every
+    // name in it is a file.
+    std::set<juce::String> listed;
+    for (const auto name : kFactoryProgramOrder)
+    {
+        const auto n = juce::String (std::string (name));
+        INFO (n);
+        CHECK (listed.insert (n).second);
+        const auto found = std::any_of (factoryPresets().begin(), factoryPresets().end(),
+                                        [&] (const FactoryPreset& f) { return f.preset.meta.name == n; });
+        CHECK (found);
+    }
+    CHECK (listed.size() == factoryPresets().size());
+
+    for (std::size_t i = 0; i < kFactoryProgramOrder.size(); ++i)
+        CHECK (PresetManager::programName (static_cast<int> (i) + 1) ==
+               juce::String (std::string (kFactoryProgramOrder[i])));
 }
 
 TEST_CASE ("Init is every parameter at its default", "[unit][presets]")

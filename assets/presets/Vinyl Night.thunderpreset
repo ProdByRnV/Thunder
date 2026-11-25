@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Vinyl Night" author="Thunder" category="Lo-Fi" tags="lofi,dark,warble"
+        description="An octave down through a narrow, muffled filter, with a slow warble."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="20"/>
+    <P id="staticRate" v="0.2"/>
+    <P id="staticTgtPitch" v="1"/>
+    <P id="hpFreq" v="300"/>
+    <P id="lpFreq" v="3500"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="30"/>
+    <P id="widthAmount" v="70"/>
+  </Params>
+</ThunderPreset>

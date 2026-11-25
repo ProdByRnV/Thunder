@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Deep Space" author="Thunder" category="Experimental" tags="dark,cinematic,huge"
+        description="Two octaves down in an endless cloud, with long, distant grains."/>
+  <Params>
+    <P id="pitchOctave" v="-2"/>
+    <P id="grainSize" v="400"/>
+    <P id="grainDensity" v="5"/>
+    <P id="grainPosSpread" v="100"/>
+    <P id="lpFreq" v="5000"/>
+    <P id="spaceMix" v="75"/>
+    <P id="spaceDecay" v="100"/>
+    <P id="spacePreDelay" v="150"/>
+    <P id="widthAmount" v="200"/>
+  </Params>
+</ThunderPreset>

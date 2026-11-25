@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Wide Octave" author="Thunder" category="Harmony"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Wide Octave" author="Thunder" category="Harmony" tags="octave,clean,wide"
         description="A plain octave up, spread wide, with just a touch of reverb."/>
   <Params>
     <P id="grainOn" v="0"/>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Glitch Garden" author="Thunder" category="Experimental" tags="glitch,chaos,triplet"
+        description="Random sparks, triplet chops and reversed grains: a garden of glitches."/>
+  <Params>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="80"/>
+    <P id="staticRate" v="8"/>
+    <P id="staticCharacter" v="Spark"/>
+    <P id="staticTgtPitch" v="1"/>
+    <P id="staticTgtLevel" v="1"/>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Chop"/>
+    <P id="shapeRate" v="1/16T"/>
+    <P id="grainSize" v="20"/>
+    <P id="grainDensity" v="50"/>
+    <P id="grainReverse" v="50"/>
+  </Params>
+</ThunderPreset>

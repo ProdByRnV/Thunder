@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Phase Shift" author="Thunder" category="Experimental" tags="detuned,spinning,strange"
+        description="Detuned a fourth down and spun quickly between the speakers."/>
+  <Params>
+    <P id="pitchMode" v="Semitone"/>
+    <P id="pitchSemitones" v="-5"/>
+    <P id="pitchFine" v="-30"/>
+    <P id="autopanOn" v="1"/>
+    <P id="autopanRate" v="1/16"/>
+    <P id="autopanDepth" v="80"/>
+    <P id="widthAmount" v="200"/>
+    <P id="spaceMode" v="Room"/>
+  </Params>
+</ThunderPreset>

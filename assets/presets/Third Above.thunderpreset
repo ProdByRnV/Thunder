@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Third Above" author="Thunder" category="Harmony"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Third Above" author="Thunder" category="Harmony" tags="harmony,clean,pop"
         description="A clean third above in your key: a simple harmony line with a little space."/>
   <Params>
     <P id="pitchMode" v="Interval"/>

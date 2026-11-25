@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Dusty Keys" author="Thunder" category="Lo-Fi" tags="lofi,harmony,warm"
+        description="A third above in your key, filtered small and warm like an old sampler."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="grainAmount" v="30"/>
+    <P id="hpFreq" v="350"/>
+    <P id="lpFreq" v="5000"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="35"/>
+    <P id="spaceDecay" v="40"/>
+    <P id="widthAmount" v="90"/>
+  </Params>
+</ThunderPreset>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Slow Bloom" author="Thunder" category="Atmos" tags="ambient,breathing,soft"
+        description="Swells in on every bar like a slow breath, an octave up in a cloud."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Swell"/>
+    <P id="shapeRate" v="1 bar"/>
+    <P id="shapeDepth" v="70"/>
+    <P id="shapeSmooth" v="60"/>
+    <P id="grainAmount" v="60"/>
+    <P id="grainSize" v="200"/>
+    <P id="spaceMix" v="55"/>
+    <P id="spaceDecay" v="75"/>
+  </Params>
+</ThunderPreset>

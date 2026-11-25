@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Third Below" author="Thunder" category="Harmony" tags="harmony,soft,soul"
+        description="A third below in your key, with a few soft grains for movement."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchDirection" v="Down"/>
+    <P id="grainAmount" v="25"/>
+    <P id="spaceMix" v="30"/>
+    <P id="spaceDecay" v="40"/>
+  </Params>
+</ThunderPreset>

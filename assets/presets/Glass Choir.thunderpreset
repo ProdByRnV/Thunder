@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Glass Choir" author="Thunder" category="Shimmer"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Glass Choir" author="Thunder" category="Shimmer" tags="bright,airy,choir"
         description="Two octaves up, airy and wide, with a bright, long tail."/>
   <Params>
     <P id="pitchOctave" v="+2"/>

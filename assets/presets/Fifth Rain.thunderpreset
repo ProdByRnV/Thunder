@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Fifth Rain" author="Thunder" category="Harmony"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Fifth Rain" author="Thunder" category="Harmony" tags="harmony,light,pop"
         description="A fifth above in your key, with light grains and a short room-like tail."/>
   <Params>
     <P id="pitchMode" v="Interval"/>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Choir Fifths" author="Thunder" category="Harmony" tags="harmony,choir,wide"
+        description="A fifth above blended with the melody itself, like a small choir in a plate reverb."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchInterval" v="5th"/>
+    <P id="pitchMix" v="70"/>
+    <P id="grainAmount" v="40"/>
+    <P id="grainSize" v="200"/>
+    <P id="grainDensity" v="12"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="45"/>
+    <P id="spaceDecay" v="60"/>
+    <P id="widthAmount" v="140"/>
+  </Params>
+</ThunderPreset>

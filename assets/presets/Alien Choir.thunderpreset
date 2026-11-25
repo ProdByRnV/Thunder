@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Alien Choir" author="Thunder" category="Experimental" tags="dissonant,strange,choir"
+        description="A tritone up and slightly detuned, with grains wandering off the scale."/>
+  <Params>
+    <P id="pitchMode" v="Semitone"/>
+    <P id="pitchSemitones" v="6"/>
+    <P id="pitchFine" v="15"/>
+    <P id="grainPitchSpread" v="7"/>
+    <P id="grainScaleLock" v="0"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="45"/>
+  </Params>
+</ThunderPreset>

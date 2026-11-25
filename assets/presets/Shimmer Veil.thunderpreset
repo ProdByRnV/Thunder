@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Shimmer Veil" author="Thunder" category="Shimmer" tags="bright,ambient,rising"
+        description="A soft octave-up layer under the Shimmer reverb, which keeps rising in octaves."/>
+  <Params>
+    <P id="grainAmount" v="40"/>
+    <P id="hpFreq" v="400"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="55"/>
+    <P id="spaceDecay" v="75"/>
+    <P id="widthAmount" v="150"/>
+  </Params>
+</ThunderPreset>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Trance Gate" author="Thunder" category="Rhythmic" tags="gate,trance,driving"
+        description="Sixteenth-note gating on a fifth above in your key: a classic driving pattern."/>
+  <Params>
+    <P id="pitchMode" v="Interval"/>
+    <P id="pitchInterval" v="5th"/>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Gate"/>
+    <P id="shapeRate" v="1/16"/>
+    <P id="shapeDepth" v="85"/>
+    <P id="shapeSmooth" v="15"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="30"/>
+  </Params>
+</ThunderPreset>

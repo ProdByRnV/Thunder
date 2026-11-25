@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Ice Halo" author="Thunder" category="Shimmer" tags="bright,sparse,cold"
+        description="Two octaves up, glassy and sparse, with a halo that keeps rising."/>
+  <Params>
+    <P id="pitchOctave" v="+2"/>
+    <P id="pitchMix" v="60"/>
+    <P id="grainSize" v="250"/>
+    <P id="grainDensity" v="10"/>
+    <P id="grainPosSpread" v="70"/>
+    <P id="hpFreq" v="600"/>
+    <P id="lpFreq" v="14000"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="60"/>
+    <P id="spaceDecay" v="85"/>
+    <P id="widthAmount" v="170"/>
+  </Params>
+</ThunderPreset>

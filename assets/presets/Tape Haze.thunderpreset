@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Tape Haze" author="Thunder" category="Lo-Fi" tags="lofi,tape,wobble"
+        description="Dark and slightly wobbly, like a worn tape copy an octave up."/>
+  <Params>
+    <P id="grainSize" v="90"/>
+    <P id="grainReverse" v="20"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="35"/>
+    <P id="staticRate" v="0.3"/>
+    <P id="staticTgtPosition" v="0"/>
+    <P id="staticTgtPitch" v="1"/>
+    <P id="hpFreq" v="250"/>
+    <P id="lpFreq" v="4000"/>
+    <P id="lpSlope" v="24 dB/oct"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="25"/>
+    <P id="spaceDecay" v="35"/>
+    <P id="widthAmount" v="80"/>
+  </Params>
+</ThunderPreset>

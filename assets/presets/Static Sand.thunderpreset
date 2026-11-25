@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Static Sand" author="Thunder" category="Grit"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Static Sand" author="Thunder" category="Grit" tags="gritty,crackle,texture"
         description="Tiny, rapid grains for a crackling, grainy edge over the melody."/>
   <Params>
     <P id="grainAmount" v="75"/>
@@ -10,6 +10,7 @@
     <P id="grainPosSpread" v="15"/>
     <P id="grainPitchSpread" v="0.5"/>
     <P id="grainPanSpread" v="80"/>
+    <P id="grainScaleLock" v="0"/>
     <P id="hpFreq" v="700"/>
     <P id="spaceMix" v="15"/>
     <P id="spaceDecay" v="25"/>

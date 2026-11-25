@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Particle Storm" author="Thunder" category="Experimental" tags="chaos,evolving,texture"
+        description="Storm and Variation nearly full: a swarm of tiny grains that never repeats a bar."/>
+  <Params>
+    <P id="stormAmount" v="80"/>
+    <P id="variationAmount" v="80"/>
+    <P id="grainSize" v="20"/>
+    <P id="grainDensity" v="80"/>
+    <P id="grainPanSpread" v="100"/>
+    <P id="spaceMode" v="Plate"/>
+  </Params>
+</ThunderPreset>

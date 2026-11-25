@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Pump Layer" author="Thunder" category="Rhythmic" tags="pump,sidechain,edm"
+        description="The layer pumps on every beat, like sidechain compression."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeDepth" v="75"/>
+    <P id="grainAmount" v="40"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="25"/>
+    <P id="spaceDecay" v="30"/>
+  </Params>
+</ThunderPreset>

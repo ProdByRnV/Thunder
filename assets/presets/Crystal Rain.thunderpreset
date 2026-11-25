@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Crystal Rain" author="Thunder" category="Shimmer" tags="bright,sparkle,texture"
+        description="Short, bright grains scattered across octaves and fifths in key, like falling crystals."/>
+  <Params>
+    <P id="grainSize" v="40"/>
+    <P id="grainDensity" v="30"/>
+    <P id="grainPosSpread" v="50"/>
+    <P id="grainPitchSpread" v="12"/>
+    <P id="hpFreq" v="500"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="45"/>
+    <P id="spaceDecay" v="55"/>
+  </Params>
+</ThunderPreset>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Storm Front" author="Thunder" category="Atmos" tags="dark,moving,cinematic"
+        description="A restless octave-up cloud with Storm half on and a little Variation. Push Storm for more."/>
+  <Params>
+    <P id="stormAmount" v="45"/>
+    <P id="variationAmount" v="30"/>
+    <P id="grainAmount" v="60"/>
+    <P id="grainDensity" v="26"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="35"/>
+    <P id="spaceMix" v="50"/>
+    <P id="spaceDecay" v="70"/>
+  </Params>
+</ThunderPreset>

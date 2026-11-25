@@ -1,5 +1,6 @@
 #include "PresetManager.h"
 
+#include "core/presets/FactoryOrder.h"
 #include "core/state/UserSettings.h"
 
 #include <cmath>
@@ -113,9 +114,6 @@ PresetManager::PresetManager (juce::AudioProcessorValueTreeState& state, Session
     , userFolder (presets::defaultUserFolder())
     , scanner (std::make_unique<Scanner>())
 {
-    // Until a scan finishes: the factory presets.
-    listing = presets::scanLibrary ({});
-
     // A fresh instance is Init.
     snapshot = currentValues();
 }
@@ -134,6 +132,11 @@ void PresetManager::setUserFolder (const juce::File& folder)
 
 const presets::Listing& PresetManager::getListing()
 {
+    // Until a scan finishes: the factory presets, read when first needed (not
+    // when a host merely creates Thunder to scan it).
+    if (!listed)
+        setListing (presets::scanLibrary ({}));
+
     if (!scanRequested)
         rescan();
     collectScan();
@@ -181,6 +184,7 @@ bool PresetManager::waitForScan (int timeoutMs)
 void PresetManager::setListing (presets::Listing newListing)
 {
     listing = std::move (newListing);
+    listed = true;
     ++listingVersion;
 }
 
@@ -576,7 +580,8 @@ bool PresetManager::openFolder()
 
 int PresetManager::numPrograms()
 {
-    return 1 + static_cast<int> (presets::factoryPresets().size());
+    // Init, then the factory presets in their fixed program order.
+    return 1 + static_cast<int> (presets::kFactoryProgramOrder.size());
 }
 
 juce::String PresetManager::programName (int index)
@@ -584,7 +589,8 @@ juce::String PresetManager::programName (int index)
     if (index == 0)
         return "Init";
     if (index > 0 && index < numPrograms())
-        return presets::factoryPresets()[static_cast<std::size_t> (index - 1)].preset.meta.name;
+        return juce::String::fromUTF8 (presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].data(),
+                                       static_cast<int> (presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].size()));
     return {};
 }
 

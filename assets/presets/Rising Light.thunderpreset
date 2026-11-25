@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Rising Light" author="Thunder" category="Shimmer" tags="bright,evolving,uplifting"
+        description="A shimmering octave-up cloud that changes a little on every bar."/>
+  <Params>
+    <P id="stormAmount" v="30"/>
+    <P id="variationAmount" v="40"/>
+    <P id="grainSize" v="150"/>
+    <P id="grainDensity" v="22"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="55"/>
+    <P id="spaceDecay" v="80"/>
+  </Params>
+</ThunderPreset>

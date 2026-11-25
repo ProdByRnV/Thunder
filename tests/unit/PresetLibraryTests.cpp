@@ -3,6 +3,7 @@
 // and filters, ◄ ► through the filtered list, favourites, rename, delete,
 // import, export, the browser, and the host's preset menu.
 
+#include "core/presets/FactoryOrder.h"
 #include "core/presets/PresetFilter.h"
 #include "core/presets/PresetLibrary.h"
 #include "core/state/UserSettings.h"
@@ -195,7 +196,9 @@ TEST_CASE ("Search and filters combine, and sorting keeps ties in library order"
 
     f = {};
     f.tag = "dark";
-    CHECK (names (filtered (listing, f, {}, none)) == juce::StringArray{"Late Haze"});
+    CHECK (names (filtered (listing, f, {}, none)).contains ("Late Haze"));
+    CHECK (names (filtered (listing, f, {}, none)).contains ("Low Haze")); // factory presets are tagged too
+    CHECK_FALSE (names (filtered (listing, f, {}, none)).contains ("Bright Rain"));
 
     f = {};
     f.category = "Shimmer";
@@ -217,7 +220,11 @@ TEST_CASE ("Search and filters combine, and sorting keeps ties in library order"
     // What the sidebar offers.
     CHECK (categoriesIn (listing).contains ("Rhythmic")); // an initial category, though unused
     CHECK (bankIdsIn (listing) == juce::StringArray{"factory", "user:", "user:Trap"});
-    CHECK (tagsIn (listing) == juce::StringArray{"dark", "trap"});
+    const auto tags = tagsIn (listing); // one spelling each, sorted
+    CHECK (tags.contains ("dark"));
+    CHECK (tags.contains ("trap"));
+    CHECK (tags.contains ("lofi"));
+    CHECK (tags.indexOf ("dark") < tags.indexOf ("trap"));
 }
 
 TEST_CASE ("Previous and next step through the list as it is filtered", "[unit][presets][library]")
@@ -230,7 +237,9 @@ TEST_CASE ("Previous and next step through the list as it is filtered", "[unit][
     f.category = "Harmony";
     presets.setFilter (f);
     const auto harmony = presets.getFilteredEntries();
-    REQUIRE (harmony.size() == 4);
+    REQUIRE (harmony.size() >= 4);
+    for (const auto& e : harmony)
+        CHECK (e.category == "Harmony");
 
     // From Init (not in the list), ► goes to the first, then on, wrapping at the end.
     REQUIRE (presets.step (1).isEmpty());
@@ -447,7 +456,7 @@ TEST_CASE ("The DAW's preset menu lists Init and the factory presets and loads t
 
     CHECK (processor.getNumPrograms() == 1 + static_cast<int> (factoryPresets().size()));
     CHECK (processor.getProgramName (0) == "Init");
-    CHECK (processor.getProgramName (1) == factoryPresets().front().preset.meta.name);
+    CHECK (processor.getProgramName (1) == juce::String (std::string (presets::kFactoryProgramOrder.front())));
     CHECK (processor.getCurrentProgram() == 0);
 
     processor.setCurrentProgram (3);

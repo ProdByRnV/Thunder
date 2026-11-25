@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Duck Under" author="Thunder" category="Rhythmic" tags="ducking,ambient,wide"
+        description="A big octave-up cloud that ducks out of the way whenever the melody plays."/>
+  <Params>
+    <P id="duckOn" v="1"/>
+    <P id="duckAmount" v="70"/>
+    <P id="duckRelease" v="200"/>
+    <P id="grainAmount" v="55"/>
+    <P id="spaceMix" v="55"/>
+    <P id="spaceDecay" v="70"/>
+  </Params>
+</ThunderPreset>

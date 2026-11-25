@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Octave Under" author="Thunder" category="Harmony" tags="octave,clean,thick"
+        description="A clean octave below that thickens the melody from underneath."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainOn" v="0"/>
+    <P id="hpFreq" v="80"/>
+    <P id="lpFreq" v="9000"/>
+    <P id="spaceMix" v="25"/>
+    <P id="spaceDecay" v="35"/>
+  </Params>
+</ThunderPreset>

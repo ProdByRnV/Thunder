@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Bedroom Echo" author="Thunder" category="Lo-Fi" tags="lofi,small,chipmunk"
+        description="A small, boxy octave-up echo, deliberately a bit chipmunky."/>
+  <Params>
+    <P id="pitchFormant" v="0"/>
+    <P id="hpFreq" v="400"/>
+    <P id="lpFreq" v="7000"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="45"/>
+    <P id="spaceDecay" v="30"/>
+    <P id="widthAmount" v="60"/>
+  </Params>
+</ThunderPreset>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Tempo Grains" author="Thunder" category="Rhythmic" tags="synced,texture,pop"
+        description="Grains that start in time with your song, an octave up, for a rhythmic texture."/>
+  <Params>
+    <P id="grainSync" v="1"/>
+    <P id="grainDensity" v="8"/>
+    <P id="grainSize" v="120"/>
+    <P id="grainPosSpread" v="50"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="30"/>
+  </Params>
+</ThunderPreset>

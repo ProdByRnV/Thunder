@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Lazy Afternoon" author="Thunder" category="Lo-Fi" tags="lofi,halftime,chill"
+        description="Halftime and softly filtered, for a slow, sleepy loop."/>
+  <Params>
+    <P id="timeOn" v="1"/>
+    <P id="halftimeSmooth" v="50"/>
+    <P id="lpFreq" v="6000"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="30"/>
+    <P id="spaceDecay" v="45"/>
+  </Params>
+</ThunderPreset>

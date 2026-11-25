@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Mirror World" author="Thunder" category="Experimental" tags="reversed,dark,strange"
+        description="Every grain plays backwards: an octave down, the layer breathes in instead of out."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainAmount" v="70"/>
+    <P id="grainSize" v="250"/>
+    <P id="grainDensity" v="12"/>
+    <P id="grainReverse" v="100"/>
+    <P id="spaceMix" v="50"/>
+    <P id="spaceDecay" v="70"/>
+  </Params>
+</ThunderPreset>

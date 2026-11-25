@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Half Bounce" author="Thunder" category="Rhythmic" tags="halftime,bounce,trap"
+        description="Halftime: each bar replays its first half at half speed, with a gentle pump on the half notes."/>
+  <Params>
+    <P id="timeOn" v="1"/>
+    <P id="halftimeSmooth" v="40"/>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeRate" v="1/2"/>
+    <P id="shapeDepth" v="50"/>
+    <P id="grainAmount" v="35"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="25"/>
+  </Params>
+</ThunderPreset>

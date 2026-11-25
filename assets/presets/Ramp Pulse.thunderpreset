@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Ramp Pulse" author="Thunder" category="Rhythmic" tags="pulse,moving,edm"
+        description="Each beat swells up from silence while the layer bounces from side to side."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Ramp Up"/>
+    <P id="shapeDepth" v="70"/>
+    <P id="autopanOn" v="1"/>
+    <P id="autopanRate" v="1/8"/>
+    <P id="autopanDepth" v="60"/>
+    <P id="grainAmount" v="35"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="30"/>
+  </Params>
+</ThunderPreset>

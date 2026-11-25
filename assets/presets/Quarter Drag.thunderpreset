@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Quarter Drag" author="Thunder" category="Rhythmic" tags="halftime,slow,dark"
+        description="Quarter time: a slow, dragged, octave-down echo of each bar."/>
+  <Params>
+    <P id="timeOn" v="1"/>
+    <P id="halftimeSpeed" v="1/4"/>
+    <P id="halftimeSmooth" v="60"/>
+    <P id="pitchOctave" v="-1"/>
+    <P id="spaceMix" v="35"/>
+  </Params>
+</ThunderPreset>

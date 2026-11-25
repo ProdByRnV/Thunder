@@ -201,6 +201,7 @@ private:
 
     std::unique_ptr<Scanner> scanner;
     presets::Listing listing;
+    bool listed = false; // the listing has been filled (factory presets at least)
     bool scanRequested = false;
     int listingVersion = 0;
     presets::Filter filter;

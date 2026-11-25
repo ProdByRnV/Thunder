@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<ThunderPreset stateVersion="1" createdWith="0.5.0">
-  <Meta name="Reverse Tide" author="Thunder" category="Experimental"
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Reverse Tide" author="Thunder" category="Experimental" tags="reversed,dark,swell"
         description="An octave down, mostly reversed long grains that swell into each note."/>
   <Params>
     <P id="pitchOctave" v="-1"/>

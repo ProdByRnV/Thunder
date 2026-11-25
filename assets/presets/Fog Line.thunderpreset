@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Fog Line" author="Thunder" category="Atmos" tags="dark,ambient,slow"
+        description="An octave down, smeared into a slow, dark fog under a long cloud."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainAmount" v="65"/>
+    <P id="grainSize" v="220"/>
+    <P id="grainDensity" v="14"/>
+    <P id="grainPosSpread" v="60"/>
+    <P id="hpFreq" v="120"/>
+    <P id="lpFreq" v="6000"/>
+    <P id="spaceMix" v="60"/>
+    <P id="spaceDecay" v="80"/>
+  </Params>
+</ThunderPreset>

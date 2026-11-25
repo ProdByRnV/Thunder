@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Gate Eighths" author="Thunder" category="Rhythmic" tags="gate,plucky,pop"
+        description="A tight on-off gate in eighth notes for a rhythmic, plucked feel."/>
+  <Params>
+    <P id="shapeOn" v="1"/>
+    <P id="shapeType" v="Gate"/>
+    <P id="shapeRate" v="1/8"/>
+    <P id="shapeDepth" v="90"/>
+    <P id="shapeSmooth" v="10"/>
+    <P id="grainAmount" v="30"/>
+    <P id="spaceMode" v="Plate"/>
+    <P id="spaceMix" v="20"/>
+  </Params>
+</ThunderPreset>

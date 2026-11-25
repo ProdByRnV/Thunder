@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Halo Pad" author="Thunder" category="Shimmer" tags="pad,ambient,slow"
+        description="Long, slow grains an octave up melting into a vast shimmer."/>
+  <Params>
+    <P id="grainAmount" v="70"/>
+    <P id="grainSize" v="300"/>
+    <P id="grainDensity" v="8"/>
+    <P id="lpFreq" v="12000"/>
+    <P id="spaceMode" v="Shimmer"/>
+    <P id="spaceMix" v="65"/>
+    <P id="spaceDecay" v="90"/>
+    <P id="spacePreDelay" v="80"/>
+  </Params>
+</ThunderPreset>

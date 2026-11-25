@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Wide Horizon" author="Thunder" category="Atmos" tags="ambient,wide,cinematic"
+        description="A huge, wide wash an octave up that sits far behind the melody."/>
+  <Params>
+    <P id="pitchMix" v="70"/>
+    <P id="grainAmount" v="45"/>
+    <P id="spaceMix" v="65"/>
+    <P id="spaceDecay" v="85"/>
+    <P id="spacePreDelay" v="60"/>
+    <P id="lpFreq" v="11000"/>
+    <P id="widthAmount" v="180"/>
+  </Params>
+</ThunderPreset>

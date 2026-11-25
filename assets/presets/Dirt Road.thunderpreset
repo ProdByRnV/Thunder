@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Dirt Road" author="Thunder" category="Grit" tags="dark,gritty,reversed"
+        description="An octave down, rough and reversed in places, dark and close."/>
+  <Params>
+    <P id="pitchOctave" v="-1"/>
+    <P id="grainSize" v="40"/>
+    <P id="grainDensity" v="50"/>
+    <P id="grainReverse" v="50"/>
+    <P id="hpFreq" v="150"/>
+    <P id="lpFreq" v="5000"/>
+    <P id="lpSlope" v="24 dB/oct"/>
+    <P id="spaceMode" v="Room"/>
+    <P id="spaceMix" v="30"/>
+    <P id="spaceDecay" v="30"/>
+  </Params>
+</ThunderPreset>

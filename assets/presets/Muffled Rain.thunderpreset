@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Muffled Rain" author="Thunder" category="Lo-Fi" tags="lofi,soft,rain"
+        description="Soft grains behind a heavy low-pass, like rain heard through a window."/>
+  <Params>
+    <P id="pitchOn" v="0"/>
+    <P id="grainAmount" v="60"/>
+    <P id="grainSize" v="50"/>
+    <P id="grainDensity" v="40"/>
+    <P id="grainPosSpread" v="60"/>
+    <P id="lpFreq" v="2500"/>
+    <P id="spaceMix" v="45"/>
+    <P id="spaceDecay" v="60"/>
+  </Params>
+</ThunderPreset>

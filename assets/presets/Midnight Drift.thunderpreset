@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ThunderPreset stateVersion="2" createdWith="0.6.0">
+  <Meta name="Midnight Drift" author="Thunder" category="Atmos" tags="dark,moving,trap"
+        description="An octave up drifting slowly from side to side, gently moving, under a dark reverb."/>
+  <Params>
+    <P id="grainAmount" v="55"/>
+    <P id="grainSize" v="160"/>
+    <P id="grainDensity" v="16"/>
+    <P id="grainPanSpread" v="80"/>
+    <P id="autopanOn" v="1"/>
+    <P id="autopanRate" v="1 bar"/>
+    <P id="autopanDepth" v="60"/>
+    <P id="staticOn" v="1"/>
+    <P id="staticAmount" v="25"/>
+    <P id="staticRate" v="0.2"/>
+    <P id="lpFreq" v="8000"/>
+    <P id="spaceMix" v="50"/>
+    <P id="spaceDecay" v="70"/>
+  </Params>
+</ThunderPreset>
