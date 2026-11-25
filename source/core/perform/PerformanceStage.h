@@ -28,11 +28,13 @@ struct MorphSound
 };
 
 // Whether Morph moves a parameter. Key, Scale and Output Mode describe the
-// song, not the sound (FR-PRESET-006), and Morph never moves itself.
+// song, not the sound (FR-PRESET-006); the safety limiter protects the output
+// whatever sound B is; and Morph never moves itself.
 constexpr bool isMorphed (params::ParamId id) noexcept
 {
     using params::ParamId;
-    return id != ParamId::keyRoot && id != ParamId::keyScale && id != ParamId::outputMode && id != ParamId::morphAmount;
+    return id != ParamId::keyRoot && id != ParamId::keyScale && id != ParamId::outputMode &&
+           id != ParamId::safetyLimiter && id != ParamId::morphAmount;
 }
 
 // The value `t` (0–1) of the way from `a` to `b`, in the control's own taper:

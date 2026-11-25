@@ -491,6 +491,26 @@ TEST_CASE ("A host sending the project's program again never loads over an edite
     CHECK (reopened.presets().getCurrent().name == reopened.processor.getProgramName (4));
 }
 
+TEST_CASE ("After one of your presets, choosing the DAW's program loads it again", "[unit][presets][programs]")
+{
+    TestPlugin plugin;
+    auto& processor = plugin.processor;
+    const auto mineFile = addPreset (plugin.library, "Mine", "Atmos", {}, 7.0f);
+    plugin.presets().rescanNow();
+
+    processor.setCurrentProgram (2);
+    REQUIRE (plugin.presets().getCurrent().name == processor.getProgramName (2));
+
+    const auto mine = plugin.presets().findEntry (thunder::presets::userKey (mineFile));
+    REQUIRE (mine.has_value());
+    REQUIRE (plugin.presets().load (*mine).isEmpty());
+    REQUIRE (plugin.presets().getCurrent().name == "Mine");
+
+    processor.setCurrentProgram (2);
+    CHECK (plugin.presets().getCurrent().name == processor.getProgramName (2));
+    CHECK_FALSE (plugin.presets().getCurrent().modified);
+}
+
 // ---- The browser (UI.md §9.12) ------------------------------------------------------------------------------------
 
 TEST_CASE ("The browser previews on click, keeps arrows from loading, and Esc goes back", "[unit][presets][ui]")

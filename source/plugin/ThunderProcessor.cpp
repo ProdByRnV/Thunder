@@ -5,8 +5,10 @@
 #include "core/state/StateIds.h"
 #include "core/state/StateManager.h"
 #include "core/state/UserSettings.h"
+#include "core/util/Crossfade.h"
 #include "params/ParameterLayout.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace thunder
@@ -53,6 +55,7 @@ void ThunderProcessor::prepareToPlay (double sampleRate, int)
     preparedSampleRate = sampleRate;
     engine.prepare (sampleRate, getSessionState().quality);
     setLatencySamples (engine.getLatencySamples());
+    prepareBypass();
 
     analysisWorker.setLiveDetection (getSessionState().keyAutoDetect);
     analysisWorker.start();
@@ -79,6 +82,27 @@ bool ThunderProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 
 void ThunderProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
+    process (buffer, false);
+}
+
+void ThunderProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+{
+    process (buffer, true);
+}
+
+void ThunderProcessor::prepareBypass()
+{
+    bypassDelay = engine.getLatencySamples();
+    const auto size = static_cast<int> (juce::nextPowerOfTwo (bypassDelay + kBypassPart));
+    for (auto& line : bypassLine)
+        line.assign (static_cast<std::size_t> (size), 0.0f);
+    bypassMask = size - 1;
+    bypassWrite = 0;
+    bypassStep = static_cast<float> (1.0 / std::max (1.0, util::kBypassFadeSeconds * preparedSampleRate));
+}
+
+void ThunderProcessor::process (juce::AudioBuffer<float>& buffer, bool bypass)
+{
     juce::ScopedNoDenormals noDenormals;
 
     const auto numSamples = buffer.getNumSamples();
@@ -98,9 +122,54 @@ void ThunderProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         buffer.clear (ch, 0, numSamples);
 
     snapshot.readFrom (parameterRefs);
-    const auto transport = TransportState::fromPlayHead (getPlayHead());
+    auto transport = TransportState::fromPlayHead (getPlayHead());
 
-    engine.process (buffer.getArrayOfWritePointers(), numSamples, transport, snapshot);
+    // In parts the bypass line has room for (a multiple of the engine's chunk,
+    // so the output is the same as one call).
+    auto* const* channels = buffer.getArrayOfWritePointers();
+    for (int offset = 0; offset < numSamples;)
+    {
+        const auto part = std::min (kBypassPart, numSamples - offset);
+        float* partChannels[ThunderEngine::kNumChannels] = {channels[0] + offset, channels[1] + offset};
+        processPart (partChannels, part, transport, bypass);
+        offset += part;
+        if (offset < numSamples)
+            transport = transport.advancedBy (part, preparedSampleRate);
+    }
+}
+
+void ThunderProcessor::processPart (float* const* channels, int numSamples, const TransportState& transport,
+                                    bool bypass) noexcept
+{
+    // The input goes into the line first, so bypass can start from it at any time.
+    const auto start = bypassWrite;
+    const auto haveLine = bypassMask > 0;
+    if (haveLine)
+    {
+        for (int ch = 0; ch < ThunderEngine::kNumChannels; ++ch)
+            for (int i = 0; i < numSamples; ++i)
+                bypassLine[static_cast<std::size_t> (ch)][static_cast<std::size_t> ((start + i) & bypassMask)] =
+                    channels[ch][i];
+        bypassWrite = (start + numSamples) & bypassMask;
+    }
+
+    engine.process (channels, numSamples, transport, snapshot);
+
+    const auto target = bypass ? 1.0f : 0.0f;
+    if (!haveLine || (juce::exactlyEqual (bypassGain, 0.0f) && !bypass))
+        return;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        bypassGain = bypassGain < target ? std::min (target, bypassGain + bypassStep)
+                                         : std::max (target, bypassGain - bypassStep);
+        const auto read = static_cast<std::size_t> ((start + i - bypassDelay) & bypassMask);
+        for (int ch = 0; ch < ThunderEngine::kNumChannels; ++ch)
+        {
+            const auto delayed = bypassLine[static_cast<std::size_t> (ch)][read];
+            channels[ch][i] += (delayed - channels[ch][i]) * bypassGain;
+        }
+    }
 }
 
 juce::AudioProcessorEditor* ThunderProcessor::createEditor()
@@ -150,16 +219,10 @@ void ThunderProcessor::setCurrentProgram (int index)
     if (index < 0 || index >= getNumPrograms())
         return;
 
-    // A host sending the program it last set or was told (many do when a
-    // project reopens) must never load over the project's own, perhaps
-    // edited, sound.
-    if (index == getSessionState().presetProgram)
-        return;
-
     // Loading writes parameters and the session: on the message thread only.
     if (juce::MessageManager::existsAndIsCurrentThread())
     {
-        presetManager.loadProgram (index);
+        loadProgramUnlessCurrent (index);
         return;
     }
 
@@ -170,8 +233,20 @@ void ThunderProcessor::setCurrentProgram (int index)
 void ThunderProcessor::handleAsyncUpdate()
 {
     const auto index = pendingProgram.exchange (-1);
-    if (index >= 0 && index < getNumPrograms() && index != getSessionState().presetProgram)
-        presetManager.loadProgram (index);
+    if (index >= 0 && index < getNumPrograms())
+        loadProgramUnlessCurrent (index);
+}
+
+void ThunderProcessor::loadProgramUnlessCurrent (int index)
+{
+    // A host sending the program the project is on (many do when a project
+    // reopens) must never load over its own, perhaps edited, sound. Once
+    // another preset is loaded in Thunder, choosing the program loads it.
+    const auto onIt = PresetManager::programForKey (presetManager.getCurrent().key) == index;
+    if (index == getSessionState().presetProgram && onIt)
+        return;
+
+    presetManager.loadProgram (index);
 }
 
 void ThunderProcessor::programLoaded (const juce::String& key)
@@ -293,6 +368,7 @@ void ThunderProcessor::applyQuality (params::Quality quality)
     suspendProcessing (true);
     engine.prepare (preparedSampleRate, quality);
     setLatencySamples (engine.getLatencySamples()); // tells the host when it changed
+    prepareBypass();
     suspendProcessing (false);
 }
 

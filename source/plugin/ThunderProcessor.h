@@ -12,7 +12,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <array>
 #include <atomic>
+#include <vector>
 
 namespace thunder
 {
@@ -39,6 +41,11 @@ public:
     // [RT] Audio thread.
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
+
+    // The host's bypass: Thunder keeps running and fades to its input, delayed
+    // by its latency, so the track stays in time and switching never clicks.
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    using AudioProcessor::processBlockBypassed;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
@@ -140,6 +147,21 @@ private:
     void applyQuality (params::Quality quality);
     void handleAsyncUpdate() override; // a program change that arrived off the message thread
     void programLoaded (const juce::String& key);
+    void loadProgramUnlessCurrent (int index); // [MSG]
+
+    // [RT] One block, faded towards the delayed input while `bypass` is set.
+    void process (juce::AudioBuffer<float>& buffer, bool bypass);
+    void processPart (float* const* channels, int numSamples, const TransportState& transport, bool bypass) noexcept;
+    void prepareBypass(); // [NRT] after the latency is known
+
+    // The input, kept for bypass (a power-of-two ring with room for the latency and one part).
+    static constexpr int kBypassPart = 4096;
+    std::array<std::vector<float>, ThunderEngine::kNumChannels> bypassLine;
+    int bypassMask = 0;
+    int bypassWrite = 0;
+    int bypassDelay = 0;
+    float bypassGain = 0.0f; // 0 = Thunder, 1 = bypassed
+    float bypassStep = 1.0f;
 
     mutable juce::CriticalSection soundBLock; // never taken on the audio thread
     std::optional<perform::SoundB> soundB;

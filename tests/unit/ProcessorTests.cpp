@@ -12,6 +12,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <vector>
 
 using namespace thunder;
 using Catch::Matchers::WithinAbs;
@@ -232,6 +233,52 @@ TEST_CASE ("Stereo and mono inputs are accepted; output is always stereo", "[uni
 
     layout.outputBuses.getReference (0) = juce::AudioChannelSet::mono();
     CHECK_FALSE (processor.checkBusesLayoutSupported (layout));
+}
+
+TEST_CASE ("Bypassed, Thunder plays its input delayed by its latency, on both sides", "[unit][plugin]")
+{
+    for (const auto mono : {false, true})
+    {
+        ThunderProcessor processor;
+        if (mono)
+        {
+            juce::AudioProcessor::BusesLayout layout;
+            layout.inputBuses.add (juce::AudioChannelSet::mono());
+            layout.outputBuses.add (juce::AudioChannelSet::stereo());
+            REQUIRE (processor.setBusesLayout (layout));
+        }
+        processor.prepareToPlay (48000.0, 256);
+        const auto latency = processor.getLatencySamples();
+        REQUIRE (latency > 0);
+
+        // The impulse comes after the 20 ms fade into bypass.
+        constexpr int kBlock = 256;
+        constexpr int impulseAt = kBlock * 8 + 17;
+        juce::MidiBuffer midi;
+        juce::AudioBuffer<float> buffer (2, kBlock);
+        std::vector<float> left, right;
+        for (int block = 0; block < 12 + latency / kBlock; ++block)
+        {
+            buffer.clear();
+            const auto start = block * kBlock;
+            if (impulseAt >= start && impulseAt < start + kBlock)
+                for (int ch = 0; ch < (mono ? 1 : 2); ++ch)
+                    buffer.setSample (ch, impulseAt - start, 1.0f);
+
+            processor.processBlockBypassed (buffer, midi);
+            for (int i = 0; i < kBlock; ++i)
+            {
+                left.push_back (buffer.getSample (0, i));
+                right.push_back (buffer.getSample (1, i));
+            }
+        }
+
+        const auto at = static_cast<std::size_t> (impulseAt + latency);
+        CHECK_THAT (left[at], WithinAbs (1.0, 1e-6));
+        CHECK_THAT (right[at], WithinAbs (1.0, 1e-6));
+        CHECK_THAT (left[at - 1], WithinAbs (0.0, 1e-6));
+        CHECK_THAT (left[static_cast<std::size_t> (impulseAt)], WithinAbs (0.0, 1e-6));
+    }
 }
 
 TEST_CASE ("Mono input plays on both sides", "[unit][plugin]")

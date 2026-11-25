@@ -197,6 +197,19 @@ TEST_CASE ("Key, Scale and Output Mode are never morphed", "[unit][perform]")
     CHECK_FALSE (perform::isMorphed (ParamId::morphAmount));
 }
 
+TEST_CASE ("Morph never switches the safety limiter off", "[unit][perform]")
+{
+    auto b = soundB();
+    b.values[params::toIndex (ParamId::safetyLimiter)] = 0.0f;
+    const auto a = ParamSnapshot::defaults();
+    REQUIRE (a.isOn (ParamId::safetyLimiter));
+
+    ParamSnapshot out;
+    perform::applyMorph (a, b, 1.0f, out);
+    CHECK (out.isOn (ParamId::safetyLimiter));
+    CHECK_FALSE (perform::isMorphed (ParamId::safetyLimiter));
+}
+
 TEST_CASE ("With no performance control active the host's values pass straight through", "[unit][perform]")
 {
     perform::PerformanceStage stage;

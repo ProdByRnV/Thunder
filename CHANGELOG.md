@@ -7,6 +7,7 @@ Each release's notes on GitHub are taken from its section below.
 
 - Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, and as an AU on macOS.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
+- Bypassing Thunder in your DAW keeps the track in time and fades smoothly, also on mono tracks.
 - **Thunder's own dark interface**:
   - The module chain shows Pitch, Time, Grains, Static, Space, Tone, Width, Shape and Duck in processing order. Click a module to see its controls, or its dot to switch it on or off.
   - Output Mode, Mix, Layer, In and Out, Auto Gain and the limiter are always in view.
@@ -37,7 +38,7 @@ Each release's notes on GitHub are taken from its section below.
   - The built-in presets also appear in your DAW's own preset menu for Thunder. Reopening a project never loads a preset over your sound.
   - Loading a preset keeps your Key, Scale and Output Mode (you can turn this off in Settings), and switches smoothly while playing.
   - Your project remembers which preset it was on.
-- **Morph** (next to the presets): set a sound B, from the current sound or any preset, and the slider moves from your settings (A) to B. Knobs glide in their own way, switches and modes change halfway, and Key, Scale and Output Mode stay put. While it morphs, each knob shows where Morph has moved it as a thin second ring. Sound B is saved with your project, Morph can be automated, and both ends sound exactly like A and B.
+- **Morph** (next to the presets): set a sound B, from the current sound or any preset, and the slider moves from your settings (A) to B. Knobs glide in their own way, switches and modes change halfway, and Key, Scale, Output Mode and the safety limiter stay put. While it morphs, each knob shows where Morph has moved it as a thin second ring. Sound B is saved with your project, Morph can be automated, and both ends sound exactly like A and B.
 - **Pitch**, in three modes:
   - **Octave:** −2, −1, +1 or +2 octaves (+1 by default).
   - **Semitone:** −24 to +24 semitones, plus Fine (±100 cents).
