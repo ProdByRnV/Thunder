@@ -30,53 +30,30 @@ Made by **[@ProdByRnV](https://www.instagram.com/prodbyrnv/)** — follow on Ins
 
 ### 1. Download
 
-Open the [Releases](https://github.com/ProdByRnV/Thunder/releases) page and, under the newest release, download the file for your computer:
+Open the [Releases](https://github.com/ProdByRnV/Thunder/releases) page and, under the newest release, download the installer for your computer:
 
 | Your computer | Download |
 |---|---|
-| Windows | `Thunder-<version>-windows-x86_64.zip` |
-| Mac (Apple silicon or Intel) | `Thunder-<version>-macos-universal.zip` |
+| Windows | `Thunder-<version>-windows-x86_64-setup.exe` |
+| Mac (Apple silicon or Intel) | `Thunder-<version>-macos-universal.pkg` |
 | Linux (64-bit PC) | `Thunder-<version>-linux-x86_64.zip` |
 | Linux (64-bit ARM) | `Thunder-<version>-linux-arm64.zip` |
 
-Unzip it (on Windows: right-click → **Extract All**; on a Mac: double-click). The folder has the plugins and `How to install.txt`, the same steps as below.
+### 2. Install
 
-### 2. Copy the plugins into your plugin folders
+**Windows:** double-click the installer and follow its steps. It installs the VST3 and CLAP plugins into `C:Program FilesCommon Files`. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**.
 
-**Windows**
+**macOS:** double-click the package and follow its steps. It installs the AU, VST3 and CLAP plugins for all users; click **Customize** to leave a format out. If macOS says it can't open the package, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the message about Thunder, then open the package again.
 
-| Copy | Into |
-|---|---|
-| the `Thunder.vst3` folder (inside `VST3`) | `C:\Program Files\Common Files\VST3` |
-| `Thunder.clap` (inside `CLAP`) | `C:\Program Files\Common Files\CLAP` |
-
-Create the CLAP folder if it isn't there. Windows asks for administrator permission to copy into these folders.
-
-**macOS**
-
-In Finder, choose **Go → Go to Folder…** and enter each folder below. Create a folder if it isn't there.
-
-| Copy | Into |
-|---|---|
-| `Thunder.component` (AU, for Logic Pro and GarageBand) | `~/Library/Audio/Plug-Ins/Components` |
-| `Thunder.vst3` | `~/Library/Audio/Plug-Ins/VST3` |
-| `Thunder.clap` | `~/Library/Audio/Plug-Ins/CLAP` |
-
-Then allow Thunder to open, because macOS holds back plugins downloaded from the internet. Open **Terminal** (Applications → Utilities), paste this line and press Return:
-
-```
-xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Thunder.component ~/Library/Audio/Plug-Ins/VST3/Thunder.vst3 ~/Library/Audio/Plug-Ins/CLAP/Thunder.clap
-```
-
-It changes nothing but these three plugins. If your DAW still says Thunder can't be opened, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the message about Thunder.
-
-**Linux**
+**Linux:** unzip the download and copy the plugins into your plugin folders (`How to install.txt` in the folder has the terminal commands):
 
 | Copy | Into |
 |---|---|
 | `Thunder.vst3` (inside `VST3`) | `~/.vst3` |
 | `Thunder.clap` (inside `CLAP`) | `~/.clap` |
 | `Thunder.lv2` (inside `LV2`) | `~/.lv2` |
+
+Prefer copying the plugins yourself on Windows or macOS? Each release also has a zip for every system, with `How to install.txt` inside.
 
 ### 3. Open your DAW
 
@@ -87,6 +64,12 @@ Rescan your plugins, then add Thunder as an effect on the track with your melody
 
 Your presets and captures are saved in `Documents/Thunder`.
 
+The [manual](docs/MANUAL.md) explains every control.
+
 ### Uninstalling
 
-Delete the Thunder files you copied from your plugin folders.
+- **Windows:** Settings → Apps → **Thunder (audio plugin)** → Uninstall.
+- **macOS:** delete `Thunder.component`, `Thunder.vst3` and `Thunder.clap` from `/Library/Audio/Plug-Ins/Components`, `/VST3` and `/CLAP`.
+- **Linux, or a zip install:** delete the Thunder files you copied.
+
+Uninstalling leaves your presets and captures in `Documents/Thunder`.

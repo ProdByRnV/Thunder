@@ -5,7 +5,9 @@
 # a CPU benchmark shown in the run's summary),
 # then package the plugins, install them from the package the way the install
 # instructions say, and validate the installed copies (pluginval at the
-# strictest level for VST3, AU and LV2; clap-validator; auval).
+# strictest level for VST3, AU and LV2; clap-validator; auval). The Windows and
+# macOS installers are built from the same files and checked to install exactly
+# those (and, on Windows, to uninstall them).
 # Warnings are errors here.
 #
 # Extra jobs: AddressSanitizer + UndefinedBehaviorSanitizer over the test suite,
@@ -26,13 +28,15 @@ on:
   workflow_dispatch:
 
 env:
-  # Tags build what ships (Release); everything else keeps debug info so failures
-  # are easier to read.
-  THUNDER_CONFIG: ${{ startsWith(github.ref, 'refs/tags/v') && 'Release' || 'RelWithDebInfo' }}
+  # Every run builds what ships, so the packages it keeps can be tested as they
+  # are, and the benchmark measures the real thing.
+  THUNDER_CONFIG: Release
   PLUGINVAL_VERSION: v1.0.4
   CLAP_VALIDATOR_VERSION: "0.4.1"
   CLAP_VALIDATOR_BUILD: 0.4.1-127-g152b982
   CLAP_VALIDATOR_COMMIT: 152b9823e992d782c5c1fd33bca0295478b919aa
+  # Builds the Windows installer.
+  INNO_SETUP_VERSION: "6.7.4"
   # The oldest system the Linux packages support (Ubuntu 22.04). Checked below.
   LINUX_MAX_GLIBC: "2.35"
   LINUX_MAX_GLIBCXX: "3.4.30"
@@ -331,6 +335,38 @@ jobs:
             if grep -q "not found" ldd.txt; then echo "::error::$bin links against a missing library"; exit 1; fi
           done
 
+      # The installers carry the same files as the zip (Windows: Inno Setup;
+      # macOS: a product package). Linux keeps the zip.
+      - name: Build the installer
+        id: installer
+        if: runner.os != 'Linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^project\(Thunder VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          root="${{ steps.unpacked.outputs.root }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # A pinned Inno Setup, from its publisher's GitHub releases.
+            gh release download "is-${INNO_SETUP_VERSION//./_}" --repo jrsoftware/issrc \
+              --pattern "innosetup-${INNO_SETUP_VERSION}.exe" --dir inno-download
+            "inno-download/innosetup-${INNO_SETUP_VERSION}.exe" //VERYSILENT //SUPPRESSMSGBOXES //CURRENTUSER \
+              //PORTABLE=1 //NOICONS "//DIR=$(cygpath -w "$PWD/inno")"
+            iscc="inno/ISCC.exe"
+            test -f "$iscc" || { echo "::error::Inno Setup didn't install"; exit 1; }
+            "$iscc" //Q "//DAppVersion=$version" "//DSourceDir=$(cygpath -w "$PWD/$root")" \
+              "//DOutputDir=$(cygpath -w "$PWD")" packaging/windows/Thunder.iss
+            file="Thunder-$version-windows-x86_64-setup.exe"
+          else
+            file="Thunder-$version-macos-universal.pkg"
+            bash packaging/macos/build-pkg.sh "$version" "$root" "$file"
+            pkgutil --payload-files "$file" | grep -E 'Thunder\.(component|vst3|clap)$'
+          fi
+          test -f "$file" || { echo "::error::No installer was built"; exit 1; }
+          ls -la "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
       - name: Install as the instructions say
         id: installed
         shell: bash
@@ -482,11 +518,54 @@ jobs:
           ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process \
             --validate "${{ steps.installed.outputs.au }}"
 
+      # The installer, run as a user would (silently here), must put exactly the
+      # files validated above into the plugin folders; on Windows, uninstalling
+      # must remove them again.
+      - name: Install with the installer
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.unpacked.outputs.root }}"
+          file="${{ steps.installer.outputs.file }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            common="/c/Program Files/Common Files"
+            rm -rf "$common/VST3/Thunder.vst3" "$common/CLAP/Thunder.clap"
+            "./$file" //VERYSILENT //SUPPRESSMSGBOXES //NORESTART "//LOG=$(cygpath -w "$PWD/setup.log")" || { cat setup.log; exit 1; }
+            diff -r "$root/VST3/Thunder.vst3" "$common/VST3/Thunder.vst3"
+            cmp "$root/CLAP/Thunder.clap" "$common/CLAP/Thunder.clap"
+            uninstaller=$(ls "/c/Program Files/Thunder"/unins*.exe | head -n 1)
+            "$uninstaller" //VERYSILENT //SUPPRESSMSGBOXES //NORESTART
+            # The uninstaller finishes in a copy of itself, after it returns.
+            for i in $(seq 1 30); do
+              if [ ! -e "$common/VST3/Thunder.vst3" ] && [ ! -e "$common/CLAP/Thunder.clap" ]; then break; fi
+              sleep 1
+            done
+            if [ -e "$common/VST3/Thunder.vst3" ] || [ -e "$common/CLAP/Thunder.clap" ]; then
+              echo "::error::Uninstalling left Thunder in the plugin folders"; exit 1
+            fi
+          else
+            sudo installer -pkg "$file" -target /
+            plugins="/Library/Audio/Plug-Ins"
+            diff -r "$root/AU/Thunder.component" "$plugins/Components/Thunder.component"
+            diff -r "$root/VST3/Thunder.vst3" "$plugins/VST3/Thunder.vst3"
+            diff -r "$root/CLAP/Thunder.clap" "$plugins/CLAP/Thunder.clap"
+            if xattr -lr "$plugins/Components/Thunder.component" "$plugins/VST3/Thunder.vst3" "$plugins/CLAP/Thunder.clap" | grep -q com.apple.quarantine; then
+              echo "::error::The installed plugins carry the quarantine mark"; exit 1
+            fi
+            codesign --verify --deep --strict "$plugins/VST3/Thunder.vst3"
+            pkgutil --pkgs | grep com.prodbyrnv.thunder
+          fi
+          echo "The installer installed the validated files."
+
       - name: Keep the package
         uses: actions/upload-artifact@v4
         with:
           name: thunder-${{ matrix.platform }}-${{ env.THUNDER_CONFIG }}
-          path: ${{ steps.package.outputs.file }}
+          path: |
+            ${{ steps.package.outputs.file }}
+            Thunder-*-setup.exe
+            Thunder-*.pkg
           if-no-files-found: error
 
   sanitizers:
@@ -633,11 +712,14 @@ jobs:
               grep -qF "Thunder-$version-$platform/$path" <<< "$listing" || { echo "::error::$zip has no $path"; exit 1; }
             done
           done
+          for installer in "Thunder-$version-windows-x86_64-setup.exe" "Thunder-$version-macos-universal.pkg"; do
+            test -f "dist/$installer" || { echo "::error::No installer $installer"; exit 1; }
+          done
           ls -l dist
 
       - name: Write the checksums
         working-directory: dist
-        run: sha256sum Thunder-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+        run: sha256sum Thunder-* > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       # A release takes its notes from the version's section of the changelog. A
       # dry run uses "Unreleased" until that section exists.
@@ -689,7 +771,7 @@ jobs:
         run: |
           prerelease=""
           case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "${GITHUB_REF_NAME}" dist/Thunder-*.zip dist/SHA256SUMS.txt \
+          gh release create "${GITHUB_REF_NAME}" dist/Thunder-* dist/SHA256SUMS.txt \
             --draft $prerelease \
             --title "Thunder ${GITHUB_REF_NAME#v}" \
             --notes-file dist/notes.md \

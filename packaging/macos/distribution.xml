@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thunder's macOS installer: what packaging/macos/build-pkg.sh assembles. -->
+<installer-gui-script minSpecVersion="2">
+    <title>Thunder @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
+    <os-version min="11.0"/>
+
+    <choices-outline>
+        <line choice="au"/>
+        <line choice="vst3"/>
+        <line choice="clap"/>
+    </choices-outline>
+
+    <choice id="au" title="AU plugin" description="For Logic Pro, GarageBand and other AU hosts. Installs into /Library/Audio/Plug-Ins/Components.">
+        <pkg-ref id="com.prodbyrnv.thunder.au"/>
+    </choice>
+    <choice id="vst3" title="VST3 plugin" description="For Ableton Live, Cubase, Studio One, FL Studio, Reaper and other VST3 hosts. Installs into /Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="com.prodbyrnv.thunder.vst3"/>
+    </choice>
+    <choice id="clap" title="CLAP plugin" description="For Bitwig, Reaper and other CLAP hosts. Installs into /Library/Audio/Plug-Ins/CLAP.">
+        <pkg-ref id="com.prodbyrnv.thunder.clap"/>
+    </choice>
+
+    <pkg-ref id="com.prodbyrnv.thunder.au" version="@VERSION@">thunder-au.pkg</pkg-ref>
+    <pkg-ref id="com.prodbyrnv.thunder.vst3" version="@VERSION@">thunder-vst3.pkg</pkg-ref>
+    <pkg-ref id="com.prodbyrnv.thunder.clap" version="@VERSION@">thunder-clap.pkg</pkg-ref>
+</installer-gui-script>

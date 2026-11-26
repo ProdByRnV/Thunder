@@ -558,8 +558,10 @@ TEST_CASE ("Pan Spread places grains across the stereo field, equal-power", "[un
         std::vector<float> right;
         std::vector<StartedGrain> started;
         const auto left = runAndRecord (grains, input, {0.08, 20.0, 1.0f, 0.25f}, started, 256, &right);
+        // The same within rounding: an optimising compiler may vectorise the two
+        // channels' arithmetic differently (seen with GCC -O3 on ARM64).
         for (std::size_t i = 0; i < left.size(); ++i)
-            REQUIRE (juce::exactlyEqual (left[i], right[i]));
+            REQUIRE_THAT (left[i], WithinAbs (right[i], 1e-6));
     }
 
     SECTION ("Full spread")
