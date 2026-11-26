@@ -265,6 +265,7 @@ juce_add_plugin(Thunder
     # hosts use them to recognise the plugin in saved sessions.
     PLUGIN_MANUFACTURER_CODE Pbrv
     PLUGIN_CODE Thnd
+    LV2URI "https://github.com/ProdByRnV/Thunder"
 
     FORMATS ${THUNDER_FORMATS}
     IS_SYNTH FALSE

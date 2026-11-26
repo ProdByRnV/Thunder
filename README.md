@@ -22,7 +22,7 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 |---|---|
 | Windows 10/11 (x64) | VST3, CLAP |
 | macOS 11+ (Apple silicon + Intel) | VST3, AU, CLAP |
-| Linux x86_64 and ARM64 (Ubuntu 22.04+ or another distribution with glibc 2.35+) | VST3, CLAP |
+| Linux x86_64 and ARM64 (Ubuntu 22.04+ or another distribution with glibc 2.35+) | VST3, CLAP, LV2 |
 
 ## Setting up Thunder
 
@@ -74,6 +74,7 @@ It changes nothing but these three plugins. If your DAW still says Thunder can't
 |---|---|
 | `Thunder.vst3` (inside `VST3`) | `~/.vst3` |
 | `Thunder.clap` (inside `CLAP`) | `~/.clap` |
+| `Thunder.lv2` (inside `LV2`) | `~/.lv2` |
 
 ### 3. Open your DAW
 

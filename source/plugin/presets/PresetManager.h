@@ -159,7 +159,7 @@ public:
     presets::ImportReport importFiles (const juce::Array<juce::File>& files);
     presets::SaveResult exportTo (const juce::File& file);
 
-    // Creates the user folder if needed and shows it in the file manager.
+    // Creates the user folder if needed and opens it in the file manager.
     bool openFolder();
 
     // ---- Host programs (FR-PRESET-015) ----------------------------------------------------------------------------

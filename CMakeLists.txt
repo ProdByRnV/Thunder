@@ -22,10 +22,12 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
-# Plugin formats built by juce_add_plugin. CLAP is added separately (below),
-# LV2 on Linux later.
+# Plugin formats built by juce_add_plugin. CLAP is added separately (below).
+# LV2 is built for Linux.
 if(APPLE)
     set(_thunder_default_formats "VST3;AU")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_thunder_default_formats "VST3;LV2")
 else()
     set(_thunder_default_formats "VST3")
 endif()

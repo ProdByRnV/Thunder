@@ -1,9 +1,10 @@
 # Thunder CI.
 #
 # Every push and pull request: configure, build and test from a clean checkout
-# on every supported desktop platform, then package the plugins, install them
-# from the package the way the install instructions say, and validate the
-# installed copies (pluginval at the strictest level, clap-validator, auval).
+# on every supported desktop platform (including the audio regression suite),
+# then package the plugins, install them from the package the way the install
+# instructions say, and validate the installed copies (pluginval at the
+# strictest level for VST3, AU and LV2; clap-validator; auval).
 # Warnings are errors here.
 #
 # Extra jobs: AddressSanitizer + UndefinedBehaviorSanitizer over the test suite,
@@ -123,6 +124,30 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L unit --output-on-failure -V
 
+      # Fixed settings rendered and measured against tests/fixtures/audio/regression.json.
+      # Verbose, so the log shows how close each group came to its tolerances.
+      - name: Audio regression tests
+        run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L regression --output-on-failure -V
+
+      # When a job fails, keep what this platform measured, ready to review and
+      # commit as its references after an intended change to the sound.
+      - name: Measure the regression cases
+        if: failure()
+        shell: bash
+        env:
+          THUNDER_REGRESSION_OUT: regression-measured.json
+        run: |
+          exe=$(find build/tests -type f \( -name ThunderTests -o -name ThunderTests.exe \) -path "*${{ env.THUNDER_CONFIG }}*" | head -n 1)
+          test -n "$exe" && "$exe" "[regression-write]"
+
+      - name: Keep the regression measurements
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-measured-${{ matrix.platform }}
+          path: regression-measured.json
+          if-no-files-found: ignore
+
       - name: Real-time tests (allocation counting)
         run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L realtime --output-on-failure
 
@@ -174,6 +199,7 @@ jobs:
           cp -R "$dir/VST3" "staging/$name/"
           cp -R "$dir/CLAP" "staging/$name/"
           if [ -d "$dir/AU" ]; then cp -R "$dir/AU" "staging/$name/"; fi
+          if [ -d "$dir/LV2" ]; then cp -R "$dir/LV2" "staging/$name/"; fi
           case "${{ runner.os }}" in
             Windows) install=packaging/install-windows.txt ;;
             macOS)   install=packaging/install-macos.txt ;;
@@ -223,6 +249,11 @@ jobs:
           done
           if [ "${{ runner.os }}" = "macOS" ]; then
             test -e "$root/AU/Thunder.component" || { echo "::error::The package has no AU"; exit 1; }
+          fi
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            for path in LV2/Thunder.lv2/manifest.ttl LV2/Thunder.lv2/libThunder.so; do
+              test -e "$root/$path" || { echo "::error::The package has no $path"; exit 1; }
+            done
           fi
           echo "root=$root" >> "$GITHUB_OUTPUT"
           find "$root" -maxdepth 3 | sort
@@ -277,7 +308,7 @@ jobs:
           newest() { objdump -T "$1" | grep -oE "$2_[0-9.]+" | sed "s/^$2_//" | sort -uV | tail -n 1; }
           within() { test "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$2"; }
           so=$(find "$root/VST3/Thunder.vst3/Contents" -name Thunder.so)
-          for bin in "$so" "$root/CLAP/Thunder.clap"; do
+          for bin in "$so" "$root/CLAP/Thunder.clap" "$root/LV2/Thunder.lv2/libThunder.so"; do
             echo "== $bin"
             glibc=$(newest "$bin" GLIBC); glibcxx=$(newest "$bin" GLIBCXX)
             echo "needs glibc $glibc, libstdc++ GLIBCXX $glibcxx"
@@ -328,11 +359,12 @@ jobs:
             Linux)
               # The terminal commands from the instructions, run in the package folder.
               grep -E '^ +(mkdir|cp) ' "$instructions" | sed 's/^ *//' > install.sh
-              test "$(wc -l < install.sh)" -eq 3 || { echo "::error::The Linux instructions' commands changed"; cat install.sh; exit 1; }
+              test "$(wc -l < install.sh)" -eq 4 || { echo "::error::The Linux instructions' commands changed"; cat install.sh; exit 1; }
               cat install.sh
               (cd "$root" && bash -euo pipefail "$GITHUB_WORKSPACE/install.sh")
               echo "vst3=$HOME/.vst3/Thunder.vst3" >> "$GITHUB_OUTPUT"
               echo "clap=$HOME/.clap/Thunder.clap" >> "$GITHUB_OUTPUT"
+              echo "lv2=$HOME/.lv2/Thunder.lv2" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -403,6 +435,14 @@ jobs:
             macOS)   ./pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
             Linux)   xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process --validate "$vst3" ;;
           esac
+
+      # LV2 (Linux): pluginval hosts LV2 too.
+      - name: pluginval (LV2, strictness 10)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          xvfb-run -a ./pluginval/pluginval --strictness-level 10 --validate-in-process \
+            --validate "${{ steps.installed.outputs.lv2 }}"
 
       # CLAP: checked by the CLAP project's own validator.
       - name: clap-validator (CLAP)
@@ -574,6 +614,7 @@ jobs:
             listing=$(unzip -Z1 "$zip")
             expected="How to install.txt|Third-party notices.txt|VST3/Thunder.vst3/|CLAP/Thunder.clap"
             if [ "$platform" = "macos-universal" ]; then expected="$expected|AU/Thunder.component/"; fi
+            case "$platform" in linux-*) expected="$expected|LV2/Thunder.lv2/manifest.ttl" ;; esac
             IFS='|' read -ra paths <<< "$expected"
             for path in "${paths[@]}"; do
               grep -qF "Thunder-$version-$platform/$path" <<< "$listing" || { echo "::error::$zip has no $path"; exit 1; }

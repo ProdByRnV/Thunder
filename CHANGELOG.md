@@ -5,7 +5,7 @@ Each release's notes on GitHub are taken from its section below.
 
 ## Unreleased
 
-- Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, and as an AU on macOS.
+- Runs as a VST3 and CLAP plugin on Windows, macOS and Linux, as an AU on macOS, and as an LV2 on Linux.
 - Every control can be automated in your DAW and is saved with your project. Changes are smoothed, so moving a control or automating it never clicks, and projects saved with earlier versions keep loading.
 - Bypassing Thunder in your DAW keeps the track in time and fades smoothly, also on mono tracks.
 - **Thunder's own dark interface**:

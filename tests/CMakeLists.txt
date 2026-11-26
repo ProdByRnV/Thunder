@@ -5,9 +5,12 @@
 #   [unit]      functional tests, run on every platform
 #   [realtime]  audio-path code run inside a real-time section; fails on any
 #               allocation (all builds) or any lock/blocking call (RTSan build)
+#   [regression] fixed settings rendered and compared with the stored
+#               measurements in fixtures/audio/regression.json
 #
 #   ctest --test-dir build -C <config> -L unit
 #   ctest --test-dir build -C <config> -L realtime
+#   ctest --test-dir build -C <config> -L regression
 
 juce_add_console_app(ThunderTests
     PRODUCT_NAME "ThunderTests")
@@ -21,6 +24,9 @@ target_sources(ThunderTests PRIVATE
     support/TestHost.h
     support/TestSettings.h
     audio/LatencyAlignmentTests.cpp
+    audio/RegressionSuite.cpp
+    audio/RegressionSuite.h
+    audio/RegressionTests.cpp
     unit/CaptureTests.cpp
     unit/DesignSystemTests.cpp
     unit/DependencyTests.cpp
@@ -83,6 +89,9 @@ thunder_apply_compiler_settings(ThunderTests)
 set_target_properties(ThunderTests PROPERTIES FOLDER "tests")
 
 include(Catch)
+# A test that stops responding fails after 15 minutes instead of holding up the
+# whole run. The slowest test takes about 5.5 minutes under the sanitizers.
 catch_discover_tests(ThunderTests
     ADD_TAGS_AS_LABELS
-    DISCOVERY_MODE PRE_TEST)
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES TIMEOUT 900)

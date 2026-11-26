@@ -569,9 +569,11 @@ presets::SaveResult PresetManager::exportTo (const juce::File& file)
 
 bool PresetManager::openFolder()
 {
+    // Opens the folder itself: revealToUser would open its parent with the
+    // folder selected (Windows, macOS).
     if (!userFolder.createDirectory())
         return false;
-    userFolder.revealToUser();
+    userFolder.startAsProcess();
     return true;
 }
 
@@ -589,8 +591,9 @@ juce::String PresetManager::programName (int index)
     if (index == 0)
         return "Init";
     if (index > 0 && index < numPrograms())
-        return juce::String::fromUTF8 (presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].data(),
-                                       static_cast<int> (presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].size()));
+        return juce::String::fromUTF8 (
+            presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].data(),
+            static_cast<int> (presets::kFactoryProgramOrder[static_cast<std::size_t> (index - 1)].size()));
     return {};
 }
 

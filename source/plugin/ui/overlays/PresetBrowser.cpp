@@ -276,7 +276,7 @@ PresetBrowser::PresetBrowser (PresetManager& manager)
     rescanButton.onClick = [this] { rescan(); };
     rescanButton.setTooltip ("Read the preset folder again");
     folderButton.onClick = [this] { openFolder(); };
-    folderButton.setTooltip ("Show your preset folder");
+    folderButton.setTooltip ("Open the folder with your saved and imported presets");
 
     detail.setFont (fonts::ui (type::body));
     detail.setColour (juce::Label::textColourId, colour::textSecondary);
