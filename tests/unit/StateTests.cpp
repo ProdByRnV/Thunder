@@ -1,6 +1,7 @@
 // Saved state: round trip, versioning and migrations (PRD NFR-REL-002,
 // QA-STATE-001).
 
+#include "core/source/SourceRef.h"
 #include "core/state/StateIds.h"
 #include "core/state/StateManager.h"
 
@@ -162,4 +163,41 @@ TEST_CASE ("Damaged session settings fall back to defaults", "[unit][state]")
     CHECK (session.presetName.isEmpty());
 
     CHECK (SessionState::fromValueTree ({}) == SessionState{});
+}
+
+TEST_CASE ("The project state is binary and keeps a source copy as raw bytes", "[unit][state]")
+{
+    // A 1 MB source copy (any bytes: it is stored, not decoded).
+    thunder::source::SourceRef ref;
+    ref.path = "C:/melodies/lead.wav";
+    auto copy = std::make_shared<juce::MemoryBlock> (1024 * 1024);
+    for (std::size_t i = 0; i < copy->getSize(); ++i)
+        static_cast<char*> (copy->getData())[i] = static_cast<char> ((i * 7919u) >> 3);
+    ref.embedded = copy;
+
+    const auto tree = createState (juce::ValueTree ("PARAMETERS"), SessionState{}, "1.0.0", ref.toValueTree(), {}, {});
+
+    juce::MemoryBlock saved;
+    writeBinaryState (tree, saved);
+    CHECK (saved.getSize() < copy->getSize() + 4096); // as XML it was a third larger
+
+    const auto read = readBinaryState (saved.getData(), saved.getSize());
+    REQUIRE (read.isValid());
+    CHECK (read.isEquivalentTo (tree));
+    const auto restored =
+        thunder::source::SourceRef::fromValueTree (read.getChildWithName (ids::session).getChildWithName (ids::source));
+    REQUIRE (restored.embedded != nullptr);
+    CHECK (*restored.embedded == *copy);
+
+    // The same tree through XML (how projects saved before v1.0 hold it).
+    const auto viaXml = juce::ValueTree::fromXml (*tree.createXml());
+    const auto fromXml = thunder::source::SourceRef::fromValueTree (
+        viaXml.getChildWithName (ids::session).getChildWithName (ids::source));
+    REQUIRE (fromXml.embedded != nullptr);
+    CHECK (*fromXml.embedded == *copy);
+
+    // Anything else is not read as a binary state.
+    const juce::String text ("<ThunderState/>");
+    CHECK_FALSE (readBinaryState (text.toRawUTF8(), text.getNumBytesAsUTF8()).isValid());
+    CHECK_FALSE (readBinaryState (nullptr, 0).isValid());
 }

@@ -64,6 +64,7 @@ target_sources(ThunderTests PRIVATE
     realtime/EngineRealtimeTests.cpp
     realtime/MusicRealtimeTests.cpp
     realtime/RealtimeCanary.cpp
+    measure/Benchmark.cpp
     measure/ChainMeasure.cpp
     measure/EditorMeasure.cpp
     measure/EditorSnapshot.cpp
@@ -71,6 +72,7 @@ target_sources(ThunderTests PRIVATE
     measure/PitchConfigMeasure.cpp
     measure/PitchModesMeasure.cpp
     measure/PitchTrackerMeasure.cpp
+    measure/ResourceMeasure.cpp
     measure/SpaceMeasure.cpp)
 
 target_include_directories(ThunderTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

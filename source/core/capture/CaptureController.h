@@ -107,6 +107,13 @@ public:
     void process (const float* const* mix, const float* const* layer, const float* const* input, int numSamples,
                   const TransportState& transport, const params::ParamSnapshot& snapshot) noexcept;
 
+    // [RT] The host is rendering offline (an export), not playing in real
+    // time. A full queue then means the export runs faster than the disk, not
+    // that audio would be lost, so the audio thread waits for the writer (up to
+    // kOfflineWaitSeconds) instead of failing the capture. Set every block.
+    void setOfflineRender (bool offline) noexcept { offlineRender = offline; }
+    static constexpr double kOfflineWaitSeconds = 30.0;
+
     // [RT] The host reset the plugin: a recording fails (a tail ends and the
     // capture is kept); an armed capture stays armed.
     void reset() noexcept;
@@ -143,6 +150,7 @@ private:
     bool checkTransport (const TransportState& transport) noexcept;
     void collect (const float* const* audio, int numSamples) noexcept;
     bool flushPending() noexcept;
+    bool waitForWriter() const noexcept; // offline renders only
     void finish (CaptureBlock::Kind kind, CaptureFailure failure = CaptureFailure::None) noexcept;
     bool isInTail() const noexcept { return tail && endSample >= 0 && clock >= endSample; }
     void endKeepingCapture() noexcept; // a tail cut short: the N bars are complete
@@ -168,6 +176,7 @@ private:
     double sampleRate = 44100.0;
     int latency = 0;
     Phase phase = Phase::Idle;
+    bool offlineRender = false;
     int bars = 4;
     CaptureSource source = CaptureSource::Layer;
     bool tail = false;

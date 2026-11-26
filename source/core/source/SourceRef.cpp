@@ -33,7 +33,7 @@ juce::ValueTree SourceRef::toValueTree() const
         tree.setProperty (ids::sourceTimeSigDenominator, timeSigDenominator, nullptr);
     }
     if (embedded != nullptr)
-        tree.setProperty (ids::sourceEmbedded, embedded->toBase64Encoding(), nullptr);
+        tree.setProperty (ids::sourceEmbedded, juce::var (*embedded), nullptr); // raw bytes; base64 in XML
     return tree;
 }
 
@@ -60,8 +60,14 @@ SourceRef SourceRef::fromValueTree (const juce::ValueTree& tree)
     }
 
     // A copy far larger than Thunder writes isn't one of its own: ignore it.
-    if (const auto text = tree.getProperty (ids::sourceEmbedded).toString();
-        text.isNotEmpty() && static_cast<std::size_t> (text.length()) <= kMaxEmbeddedBytes * 2u)
+    // Binary in the project's state, base64 text in XML.
+    if (const auto* bytes = tree.getProperty (ids::sourceEmbedded).getBinaryData())
+    {
+        if (!bytes->isEmpty() && bytes->getSize() <= kMaxEmbeddedBytes * 2u)
+            ref.embedded = std::make_shared<juce::MemoryBlock> (*bytes);
+    }
+    else if (const auto text = tree.getProperty (ids::sourceEmbedded).toString();
+             text.isNotEmpty() && static_cast<std::size_t> (text.length()) <= kMaxEmbeddedBytes * 2u)
     {
         auto block = std::make_shared<juce::MemoryBlock>();
         if (block->fromBase64Encoding (text) && !block->isEmpty())

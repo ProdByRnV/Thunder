@@ -21,6 +21,7 @@
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <thread>
 #include <vector>
 
 using namespace thunder;
@@ -548,6 +549,47 @@ TEST_CASE ("A writer that falls behind fails the capture instead of losing audio
     const auto d = drain (engine->getCapture());
     CHECK (d.kinds.back() == CaptureBlock::Kind::Failed);
     CHECK (d.failure == CaptureFailure::TooSlow);
+}
+
+TEST_CASE ("An offline export waits for a slow writer instead of failing the capture", "[unit][capture]")
+{
+    // The same capture as above, but the host renders offline and the writer
+    // starts late: the audio thread waits for it and no audio is lost.
+    auto engine = preparedEngine (48000.0);
+    FakeHost host;
+    host.bpm = 40.0;
+    auto& capture = engine->getCapture();
+    capture.setOfflineRender (true);
+    capture.arm (16, CaptureSource::FullMix);
+
+    std::atomic<bool> rendered{false};
+    std::vector<CaptureBlock::Kind> kinds;
+    std::int64_t frames = 0;
+    std::thread writer (
+        [&]
+        {
+            juce::Thread::sleep (1500);
+            CaptureBlock block;
+            for (auto finished = false; !finished;)
+            {
+                finished = rendered.load();
+                while (capture.getQueue().pop (&block, 1) == 1)
+                {
+                    kinds.push_back (block.kind);
+                    if (block.kind == CaptureBlock::Kind::Audio)
+                        frames += block.numFrames;
+                }
+                juce::Thread::sleep (2);
+            }
+        });
+    play (*engine, host, std::vector<float> (48000 * 100, 0.1f), 512, ParamSnapshot::defaults());
+    rendered = true;
+    writer.join();
+
+    REQUIRE (!kinds.empty());
+    CHECK (kinds.front() == CaptureBlock::Kind::Start);
+    CHECK (kinds.back() == CaptureBlock::Kind::End);
+    CHECK (frames == 48000 * 96); // 16 bars at 40 BPM: 96 s
 }
 
 // ---------------------------------------------------------------------------

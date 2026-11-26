@@ -3,6 +3,7 @@
 #include "StateIds.h"
 
 #include <array>
+#include <cstring>
 
 namespace thunder::state
 {
@@ -128,6 +129,30 @@ std::optional<LoadedState> loadState (const juce::ValueTree& saved)
     loaded.morphSoundB = sessionTree.getChildWithName (ids::morphSoundB).createCopy();
     loaded.captureTray = sessionTree.getChildWithName (ids::captureTray).createCopy();
     return loaded;
+}
+
+namespace
+{
+// "TSt1": Thunder state, binary, format 1.
+constexpr std::array<char, 4> kBinaryStateTag{'T', 'S', 't', '1'};
+} // namespace
+
+void writeBinaryState (const juce::ValueTree& tree, juce::MemoryBlock& dest)
+{
+    dest.reset();
+    juce::MemoryOutputStream out (dest, false);
+    out.write (kBinaryStateTag.data(), kBinaryStateTag.size());
+    tree.writeToStream (out);
+}
+
+juce::ValueTree readBinaryState (const void* data, std::size_t size)
+{
+    if (data == nullptr || size <= kBinaryStateTag.size() ||
+        std::memcmp (data, kBinaryStateTag.data(), kBinaryStateTag.size()) != 0)
+        return {};
+
+    return juce::ValueTree::readFromData (static_cast<const char*> (data) + kBinaryStateTag.size(),
+                                          size - kBinaryStateTag.size());
 }
 
 } // namespace thunder::state

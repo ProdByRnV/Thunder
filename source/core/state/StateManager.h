@@ -58,6 +58,16 @@ struct LoadedState
 // Thunder state at all (the caller then keeps its current state).
 std::optional<LoadedState> loadState (const juce::ValueTree& saved);
 
+// [MSG/NRT] The state as the host stores it in a project: a 4-byte tag, then
+// the tree in JUCE's binary ValueTree format, which keeps the source copy as
+// raw bytes. (As XML, the copy was base64 text: a third larger, and rebuilt
+// as a ~5 MB string every time the host asked for the state.)
+void writeBinaryState (const juce::ValueTree& tree, juce::MemoryBlock& dest);
+
+// [MSG/NRT] The tree writeBinaryState() wrote; invalid if `data` is in any
+// other format (projects saved before v1.0 hold XML: the caller reads that).
+juce::ValueTree readBinaryState (const void* data, std::size_t size);
+
 // Applies `migrations` to bring `tree` from `fromVersion` to `toVersion`. Works
 // on a copy. Exposed so the migration loop can be tested with test migrations.
 juce::ValueTree migrate (const juce::ValueTree& tree, int fromVersion, int toVersion,

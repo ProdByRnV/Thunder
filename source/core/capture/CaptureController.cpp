@@ -306,11 +306,26 @@ bool CaptureController::flushPending() noexcept
     if (pending.numFrames == 0)
         return true;
 
-    if (queue.getFreeSpace() < 1 + kReservedBlocks)
+    if (queue.getFreeSpace() < 1 + kReservedBlocks && !(offlineRender && waitForWriter()))
         return false;
 
     queue.push (&pending, 1);
     pending.numFrames = 0;
+    return true;
+}
+
+bool CaptureController::waitForWriter() const noexcept
+{
+    // Only while the host renders offline: nothing plays in real time then, and
+    // hosts expect a plugin to take as long as it needs (as when a plugin reads
+    // from disk). Never reached during real-time playback.
+    const auto deadline = juce::Time::getMillisecondCounterHiRes() + kOfflineWaitSeconds * 1000.0;
+    while (queue.getFreeSpace() < 1 + kReservedBlocks)
+    {
+        if (juce::Time::getMillisecondCounterHiRes() > deadline)
+            return false;
+        juce::Thread::sleep (1);
+    }
     return true;
 }
 

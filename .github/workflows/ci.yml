@@ -1,7 +1,8 @@
 # Thunder CI.
 #
 # Every push and pull request: configure, build and test from a clean checkout
-# on every supported desktop platform (including the audio regression suite),
+# on every supported desktop platform (including the audio regression suite and
+# a CPU benchmark shown in the run's summary),
 # then package the plugins, install them from the package the way the install
 # instructions say, and validate the installed copies (pluginval at the
 # strictest level for VST3, AU and LV2; clap-validator; auval).
@@ -147,6 +148,18 @@ jobs:
           name: regression-measured-${{ matrix.platform }}
           path: regression-measured.json
           if-no-files-found: ignore
+
+      # CPU per block at fixed settings, in the run's summary so it can be
+      # compared from commit to commit. Informational: shared runners are too
+      # noisy for a pass/fail limit.
+      - name: Benchmark
+        shell: bash
+        env:
+          THUNDER_BENCHMARK_OUT: benchmark.md
+        run: |
+          exe=$(find build/tests -type f \( -name ThunderTests -o -name ThunderTests.exe \) -path "*${{ env.THUNDER_CONFIG }}*" | head -n 1)
+          "$exe" "[benchmark]"
+          { echo "### CPU, ${{ matrix.name }}"; echo; cat benchmark.md; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Real-time tests (allocation counting)
         run: ctest --test-dir build -C ${{ env.THUNDER_CONFIG }} -L realtime --output-on-failure

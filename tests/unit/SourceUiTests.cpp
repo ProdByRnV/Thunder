@@ -9,6 +9,7 @@
 
 #include "core/source/SourceLoader.h"
 #include "core/state/StateIds.h"
+#include "core/state/StateManager.h"
 #include "plugin/ThunderEditor.h"
 #include "plugin/ThunderProcessor.h"
 #include "plugin/ui/ParamUi.h"
@@ -255,7 +256,7 @@ TEST_CASE ("A missing source file offers Locate and Dismiss, without blocking", 
         ThunderProcessor other;
         other.getStateInformation (saved);
     }
-    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), static_cast<int> (saved.getSize()));
+    auto xml = state::readBinaryState (saved.getData(), saved.getSize()).createXml();
     REQUIRE (xml != nullptr);
     auto tree = juce::ValueTree::fromXml (*xml);
     source::SourceRef ref;

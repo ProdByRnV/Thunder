@@ -126,6 +126,7 @@ void ThunderProcessor::process (juce::AudioBuffer<float>& buffer, bool bypass)
         buffer.clear (ch, 0, numSamples);
 
     snapshot.readFrom (parameterRefs);
+    engine.getCapture().setOfflineRender (isNonRealtime());
     auto transport = TransportState::fromPlayHead (getPlayHead());
 
     // In parts the bypass line has room for (a multiple of the engine's chunk,
@@ -295,18 +296,21 @@ void ThunderProcessor::getStateInformation (juce::MemoryBlock& destData)
                                           analysisWorker.getSourceRef().toValueTree(),
                                           b ? b->toValueTree (THUNDER_VERSION_STRING) : juce::ValueTree(), tray);
 
-    if (const auto xml = tree.createXml())
-        copyXmlToBinary (*xml, destData);
+    state::writeBinaryState (tree, destData);
 }
 
 void ThunderProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // Anything unreadable leaves the current state untouched.
-    const auto xml = getXmlFromBinary (data, sizeInBytes);
-    if (xml == nullptr)
+    // Anything unreadable leaves the current state untouched. Projects saved
+    // before v1.0 hold the state as XML.
+    auto tree = state::readBinaryState (data, static_cast<std::size_t> (std::max (0, sizeInBytes)));
+    if (!tree.isValid())
+        if (const auto xml = getXmlFromBinary (data, sizeInBytes))
+            tree = juce::ValueTree::fromXml (*xml);
+    if (!tree.isValid())
         return;
 
-    const auto loaded = state::loadState (juce::ValueTree::fromXml (*xml));
+    const auto loaded = state::loadState (tree);
     if (!loaded)
         return;
 

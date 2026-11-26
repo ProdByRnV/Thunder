@@ -105,7 +105,7 @@ TEST_CASE ("Saved state restores every parameter and session setting", "[unit][p
     CHECK_FALSE (restored.lastLoadWasFromNewerVersion());
 
     // The saved data is versioned.
-    const auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), static_cast<int> (saved.getSize()));
+    const auto xml = state::readBinaryState (saved.getData(), saved.getSize()).createXml();
     REQUIRE (xml != nullptr);
     CHECK (xml->getIntAttribute ("stateVersion") == state::kCurrentStateVersion);
 }
@@ -159,7 +159,7 @@ TEST_CASE ("A project saved before v1.0 opens with its sound and settings", "[un
     // Saved again, it is a version 2 state that keeps all of that.
     juce::MemoryBlock resaved;
     processor.getStateInformation (resaved);
-    const auto again = juce::AudioProcessor::getXmlFromBinary (resaved.getData(), static_cast<int> (resaved.getSize()));
+    const auto again = state::readBinaryState (resaved.getData(), resaved.getSize()).createXml();
     REQUIRE (again != nullptr);
     CHECK (again->getIntAttribute ("stateVersion") == 2);
 
@@ -205,7 +205,7 @@ TEST_CASE ("State from a newer Thunder is loaded and flagged", "[unit][plugin][s
         source.getStateInformation (saved);
     }
 
-    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(), static_cast<int> (saved.getSize()));
+    auto xml = state::readBinaryState (saved.getData(), saved.getSize()).createXml();
     REQUIRE (xml != nullptr);
     xml->setAttribute ("stateVersion", state::kCurrentStateVersion + 1);
 
