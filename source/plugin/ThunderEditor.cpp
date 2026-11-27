@@ -38,6 +38,14 @@ juce::Rectangle<int> primaryWorkArea()
     return {};
 }
 
+// The status at the bottom right: "LAT 10 ms  ·  v1.0.0  ·  @ProdByRnV".
+juce::String statusText (int latencySamples, double sampleRate)
+{
+    const auto dot = juce::String::fromUTF8 ("  \xc2\xb7  ");
+    return "LAT " + juce::String (juce::roundToInt (1000.0 * latencySamples / sampleRate)) + " ms" + dot + "v" +
+           THUNDER_VERSION_STRING + dot + "@ProdByRnV";
+}
+
 // Deletes an overlay after the callback that asked for it has returned.
 template<typename Overlay>
 void closeLater (ThunderEditor& editor, std::unique_ptr<Overlay>& overlay, std::function<void()> after = {})
@@ -243,15 +251,14 @@ ThunderEditor::ThunderEditor (ThunderProcessor& p)
         refreshSource();
     };
 
-    // Status (UI.md §8.6): the latency the host compensates for, and the version.
+    // Status (UI.md §8.6): the latency the host compensates for, the version and who made Thunder.
     const auto sampleRate = p.getSampleRate() > 0.0 ? p.getSampleRate() : 48000.0;
-    status.setText ("LAT " + juce::String (juce::roundToInt (1000.0 * p.getLatencySamples() / sampleRate)) + " ms  " +
-                        juce::String::fromUTF8 ("\xc2\xb7") + "  v" + THUNDER_VERSION_STRING,
-                    juce::dontSendNotification);
+    status.setText (statusText (p.getLatencySamples(), sampleRate), juce::dontSendNotification);
     status.setFont (ui::fonts::ui (type::caption));
     status.setColour (juce::Label::textColourId, colour::textSecondary);
     status.setJustificationType (juce::Justification::centredRight);
-    status.setTitle ("Latency and version");
+    status.setMinimumHorizontalScale (1.0f);
+    status.setTitle ("Latency, version and maker");
 
     content.setSize (size::baseWidth, size::baseHeight);
     selectModule (0);
@@ -573,9 +580,7 @@ void ThunderEditor::applyQuality()
 {
     const auto& p = thunderProcessor;
     const auto sampleRate = p.getSampleRate() > 0.0 ? p.getSampleRate() : 48000.0;
-    status.setText ("LAT " + juce::String (juce::roundToInt (1000.0 * p.getLatencySamples() / sampleRate)) + " ms  " +
-                        juce::String::fromUTF8 ("\xc2\xb7") + "  v" + THUNDER_VERSION_STRING,
-                    juce::dontSendNotification);
+    status.setText (statusText (p.getLatencySamples(), sampleRate), juce::dontSendNotification);
 
     visuals.setQuality (p.getQuality());
     if (isTimerRunning() && getTimerInterval() < 1000 / 4)

@@ -17,7 +17,8 @@ Each release's notes on GitHub are taken from its section below.
   - Hover over any control to see what it does, with its value and range.
   - Resize the window from its corner in 5% steps, from 75% to 200%, or pick a size in Settings. Each project remembers its size, and a window that wouldn't fit your screen opens smaller.
   - **Settings** (the gear): window size, the visualiser view new projects open with, the project's **Quality** (Eco uses the least CPU; High has the steadiest pitch on low notes and adds 40 ms of latency), **Reduce motion** (no lightning, flashes or other animation; the waveform, spectrum and meters keep moving; on Windows it starts out following the system's animation setting), the **frame rate** (60 or 30 updates a second; Eco always uses 30), tooltips on or off, capture format and folder, and whether presets keep your Key, Scale and Output Mode.
-  - **About** (ⓘ or the logo) shows the version, the plugin format, your system and DAW, and a link for reporting an issue. **Copy details** copies them for your report.
+  - **About** (ⓘ or the logo) shows the version, the plugin format, your system and DAW, who made Thunder (**Made by @ProdByRnV** opens Instagram), and a link for reporting an issue. **Copy details** copies them for your report.
+  - The bottom right shows the latency, the version and @ProdByRnV.
   - Every control gives screen readers its name, what it does and its value.
 - **Visualiser**, live while your song plays:
   - **Wave**: your melody (dim) and the layer (glowing) scroll by in time with your song, with its bar numbers and beat lines. Right-click to show 1, 2 or 4 bars, freeze the display, or hide the dry signal.

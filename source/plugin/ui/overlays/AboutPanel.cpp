@@ -50,6 +50,10 @@ AboutPanel::AboutPanel (Build b)
     reportButton.setTooltip ("Opens Thunder's issue page in your browser");
     reportButton.onClick = [] { juce::URL (issuesUrl).launchInDefaultBrowser(); };
     closeButton.onClick = [this] { close(); };
+    creditLink.setTooltip ("Opens @ProdByRnV on Instagram in your browser");
+    creditLink.setFont (fonts::ui (type::body, fonts::Weight::semiBold), false, juce::Justification::centredLeft);
+    creditLink.setColour (juce::HyperlinkButton::textColourId, colour::accentPrimary);
+    addAndMakeVisible (creditLink);
     addAndMakeVisible (copyButton);
     addAndMakeVisible (reportButton);
     addAndMakeVisible (closeButton);
@@ -129,6 +133,11 @@ void AboutPanel::paint (juce::Graphics& g)
 
 void AboutPanel::resized()
 {
+    // Under the line saying what Thunder does (see paint()).
+    auto text = dialogBounds().reduced (space::s5);
+    text.removeFromTop (size::aboutBolt + space::s3 + 3 * size::valueHeight + space::s2 + space::s1);
+    creditLink.setBounds (text.removeFromTop (size::valueHeight).withWidth (size::aboutCreditWidth));
+
     auto buttons = dialogBounds().reduced (space::s5).removeFromBottom (size::controlHeight);
     closeButton.setBounds (buttons.removeFromRight (size::dialogButtonWidth));
     buttons.removeFromRight (space::s2);

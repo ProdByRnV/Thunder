@@ -476,3 +476,43 @@ TEST_CASE ("The About panel shows the version and closes", "[unit][ui]")
     CHECK (about.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey)));
     CHECK (closed);
 }
+
+TEST_CASE ("About links to @ProdByRnV on Instagram and the status bar shows @ProdByRnV", "[unit][ui]")
+{
+    ui::AboutPanel about;
+    about.setSize (theme::size::baseWidth, theme::size::baseHeight);
+    const juce::HyperlinkButton* link = nullptr;
+    for (auto* child : about.getChildren())
+        if (auto* l = dynamic_cast<const juce::HyperlinkButton*> (child))
+            link = l;
+    REQUIRE (link != nullptr);
+    CHECK (link->getButtonText() == "Made by @ProdByRnV");
+    CHECK (link->getURL().toString (false) == "https://www.instagram.com/prodbyrnv/");
+    CHECK (about.dialogBounds().contains (link->getBounds()));
+
+    // The link sits between the text and the buttons.
+    for (auto* child : about.getChildren())
+        if (child != link)
+            CHECK_FALSE (child->getBounds().intersects (link->getBounds()));
+
+    Fixture f;
+    const juce::Label* status = nullptr;
+    std::function<void (juce::Component&)> find = [&] (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* l = dynamic_cast<const juce::Label*> (child); l != nullptr && l->getTitle().contains ("maker"))
+                status = l;
+            find (*child);
+        }
+    };
+    find (*f.editor);
+    REQUIRE (status != nullptr);
+    CHECK (status->getText().endsWith ("@ProdByRnV"));
+    CHECK (status->getText().contains ("v" + juce::String (THUNDER_VERSION_STRING)));
+
+    // The whole line fits without squeezing.
+    const auto font = status->getFont();
+    CHECK (juce::GlyphArrangement::getStringWidth (font, status->getText()) <=
+           static_cast<float> (status->getWidth() - status->getBorderSize().getLeftAndRight()));
+}

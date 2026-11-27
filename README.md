@@ -14,6 +14,8 @@ Thunder is an audio effect plugin for your DAW that turns a simple melody into a
 - **Capture and drag** — record a few bars of the layer to WAV and drag it straight into your DAW.
 - **Electric Storm UI** — an audio-reactive lightning theme (with a Reduce Motion option).
 
+Made by **[@ProdByRnV](https://www.instagram.com/prodbyrnv/)** — follow on Instagram for new sounds and updates.
+
 > **Status: in development.** The first release, v1.0, will be published on the [Releases](https://github.com/ProdByRnV/Thunder/releases) page.
 
 ## Formats and platforms

@@ -8,10 +8,11 @@ namespace thunder::ui
 {
 
 // The About panel (UI.md §10.4, PRD REL-LIC-002): the logo, the version and
-// build date, the build (plugin format, system, host), what Thunder does, and
-// a link for reporting an issue. "Copy details" puts the version and build
-// lines on the clipboard for an issue report. Opened by the logo or the ⓘ
-// button; Close, Esc, Enter or a click outside closes it.
+// build date, the build (plugin format, system, host), what Thunder does, who
+// made it (a link to @ProdByRnV on Instagram) and a link for reporting an
+// issue. "Copy details" puts the version and build lines on the clipboard for
+// an issue report. Opened by the logo or the ⓘ button; Close, Esc, Enter or a
+// click outside closes it.
 class AboutPanel final : public juce::Component
 {
 public:
@@ -47,12 +48,14 @@ public:
     void copyDetails();
 
     static inline const juce::String issuesUrl{"https://github.com/ProdByRnV/Thunder/issues"};
+    static inline const juce::String instagramUrl{"https://www.instagram.com/prodbyrnv/"};
 
 private:
     Build build;
     ThunderButton copyButton{"Copy details", ThunderButton::Variant::ghost};
     ThunderButton reportButton{"Report an issue"};
     ThunderButton closeButton{"Close", ThunderButton::Variant::primary};
+    juce::HyperlinkButton creditLink{"Made by @ProdByRnV", juce::URL (instagramUrl)};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AboutPanel)
 };

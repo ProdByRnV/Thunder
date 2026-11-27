@@ -285,7 +285,7 @@ inline constexpr int captureTitleWidth = 64;
 inline constexpr int barsDropdownWidth = 112; // room for "4 bars +tail"
 inline constexpr int sourceDropdownWidth = 104;
 inline constexpr int armButtonWidth = 84;
-inline constexpr int statusWidth = 150;
+inline constexpr int statusWidth = 240; // "LAT 10 ms · v1.0.0 · @ProdByRnV"
 inline constexpr int dragThreshold = 4; // px before a press becomes a drag (§16.1)
 
 // Overlays (§9.15–§10.4)
@@ -304,7 +304,8 @@ inline constexpr int settingsRowHeight = 36;
 inline constexpr int settingsLabelWidth = 180;
 inline constexpr int aboutWidth = 420;
 inline constexpr int aboutHeight = 232;
-inline constexpr int aboutCopyWidth = 120; // "Copy details"
+inline constexpr int aboutCopyWidth = 120;   // "Copy details"
+inline constexpr int aboutCreditWidth = 160; // "Made by @ProdByRnV"
 
 // The preset browser (§9.12): a popover under the preset bar
 inline constexpr int browserWidth = 640;
